@@ -1,3 +1,4 @@
+import type { RawHangup } from './hangupReason';
 import { NOTES_MAX, type PhoneOutcomeId } from './outcomes';
 import type { SoftphoneError, SoftphoneEvent } from './softphoneMachine';
 
@@ -79,7 +80,7 @@ export async function saveCallOutcome(input: { callId: string; outcome: PhoneOut
  * An SDK call state to machine events. States are the SDK's lower-case names (`Call.state`). `active`
  * after a hold means "resumed", so it also clears the held flag.
  */
-export function eventsForRtcState(state: string): SoftphoneEvent[] {
+export function eventsForRtcState(state: string, hangup?: RawHangup): SoftphoneEvent[] {
   switch (state) {
     case 'ringing':
     case 'early':
@@ -91,7 +92,7 @@ export function eventsForRtcState(state: string): SoftphoneEvent[] {
     case 'hangup':
     case 'destroy':
     case 'purge':
-      return [{ type: 'REMOTE_ENDED' }];
+      return [{ type: 'REMOTE_ENDED', hangup }];
     default:
       return [];
   }
@@ -114,4 +115,34 @@ export function describeMicError(error: unknown): SoftphoneError {
 
 export function rtcErrorToSoftphoneError(message: string | undefined): SoftphoneError {
   return { code: 'provider_error', message: message?.trim() || 'The phone provider reported a problem with the call.' };
+}
+
+export type CallRowSnapshot = { status: string; hangupCause: string | null; answeredAt: string | null; endedAt: string | null };
+
+/** `GET /api/telephony/calls/[id]`: the provider-confirmed state of the rep's own call; null when unreachable. */
+export async function fetchCallRow(callId: string, fetchImpl?: Fetch): Promise<CallRowSnapshot | null> {
+  const call: Fetch = fetchImpl ?? ((url, init) => fetch(url, init));
+  try {
+    const response = await call(`/api/telephony/calls/${encodeURIComponent(callId)}`, { cache: 'no-store' });
+    if (!response.ok) return null;
+    const body = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+    if (!body || typeof body.status !== 'string') return null;
+    return {
+      status: body.status,
+      hangupCause: typeof body.hangupCause === 'string' ? body.hangupCause : null,
+      answeredAt: typeof body.answeredAt === 'string' ? body.answeredAt : null,
+      endedAt: typeof body.endedAt === 'string' ? body.endedAt : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** The raw hangup facts the SDK keeps on a call object. */
+export function sdkHangup(call: { cause?: unknown; sipCode?: unknown; sipReason?: unknown }): RawHangup {
+  return {
+    cause: typeof call.cause === 'string' ? call.cause : null,
+    sipCode: typeof call.sipCode === 'number' ? call.sipCode : null,
+    sipReason: typeof call.sipReason === 'string' ? call.sipReason : null,
+  };
 }

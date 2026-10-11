@@ -82,8 +82,6 @@ export async function listCredentials(tenantId: string, userIds: string[] | null
   }));
 }
 
-/** Vietnam is never dialled through the provider, so a Vietnamese number is never a caller ID. */
-const VIETNAM = 'VN';
 const OUTBOUND_PURPOSES = ['outbound', 'both'];
 
 type Tx = Prisma.TransactionClient;
@@ -108,7 +106,7 @@ async function promoteDefaults(tx: Tx, tenantId: string, country: string, lost: 
   }
   if (lost.overall) {
     const stillHas = await tx.telephonyNumber.findFirst({ where: { ...candidate, isOverallDefault: true }, select: { id: true } });
-    const next = stillHas ? null : await tx.telephonyNumber.findFirst({ where: { ...candidate, country: { not: VIETNAM } }, orderBy: { createdAt: 'asc' }, select: { id: true } });
+    const next = stillHas ? null : await tx.telephonyNumber.findFirst({ where: candidate, orderBy: { createdAt: 'asc' }, select: { id: true } });
     if (next) await tx.telephonyNumber.update({ where: { id: next.id }, data: { isOverallDefault: true } });
   }
 }
@@ -117,7 +115,6 @@ async function promoteDefaults(tx: Tx, tenantId: string, country: string, lost: 
 export async function addNumber(tenantId: string, actorId: string, input: { e164: string; label?: string }): Promise<Outcome<NumberDto>> {
   const country = countryOfE164(input.e164);
   if (!country) return fail(400, 'That country calling code is not recognised');
-  if (country === VIETNAM) return fail(400, 'A Vietnamese number cannot be a caller ID: Vietnam is never dialled through the provider.');
 
   try {
     const created = await retryOnCollision(() =>
@@ -183,9 +180,6 @@ async function applyNumberPatch(tx: Tx, tenantId: string, id: string, patch: Num
   const nextActive = patch.isActive ?? before.isActive;
   if (!nextActive && (patch.isDefault === true || patch.isOverallDefault === true)) {
     return fail(409, 'Turn the number on before making it a default');
-  }
-  if (before.country === VIETNAM && patch.isOverallDefault === true) {
-    return fail(409, 'A Vietnamese number cannot be a caller ID');
   }
 
   const data: Prisma.TelephonyNumberUpdateInput = {};

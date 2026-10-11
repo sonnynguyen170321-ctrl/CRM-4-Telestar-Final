@@ -45,11 +45,12 @@ describe('chooseCallerId', () => {
     expect(chooseCallerId([us1, sg], 'AU')).toBe(us1.e164);
   });
 
-  it('never uses a Vietnamese number, not even as the last resort', () => {
+  it('treats a Vietnamese number like any other: its country default, and the overall default', () => {
     const vn = n('+84948200638', 'VN', { isDefault: true, isOverallDefault: true });
-    expect(chooseCallerId([vn], 'VN')).toBeNull();
-    expect(chooseCallerId([vn, us1], 'VN')).toBe(us1.e164);
-    expect(chooseCallerId([vn, sg], null)).toBe(sg.e164);
+    expect(chooseCallerId([vn], 'VN')).toBe(vn.e164);
+    expect(chooseCallerId([us1, vn], 'VN')).toBe(vn.e164);
+    expect(chooseCallerId([vn, sg], null)).toBe(vn.e164);
+    expect(chooseCallerId([vn, us1], 'US')).toBe(us1.e164);
   });
 
   it('matches the country case-insensitively and returns null with no numbers', () => {

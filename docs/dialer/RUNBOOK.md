@@ -35,8 +35,9 @@ Calling needs every layer below to say yes. Any "no" stops new calls; the first 
 
 Turn on for real: server flags on and dry run off in the env file, then in the page turn "Dialer on" on,
 turn "Dry run" off, save. There is no country list in the CRM: the country lock is the Telnyx outbound voice
-profile `crm-outbound` destination whitelist. The gate refuses Vietnamese numbers (`vietnam_own_phone`); reps
-call those from their own phone.
+profile `crm-outbound` destination whitelist. Vietnam is dialled like any other country once `VN` is on that whitelist (2026-10-11);
+until then a Vietnamese call is rejected by Telnyx and the softphone says so. Reps can always use "Call from my own phone
+instead" (the phone panel) inside the softphone.
 
 Turn off: use the emergency stop first (instant, no deploy), then decide whether the env flags need to change.
 

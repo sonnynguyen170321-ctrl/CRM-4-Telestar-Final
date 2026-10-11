@@ -1,3 +1,4 @@
+import { describeHangup, isAttemptKind, type HangupInfo, type RawHangup } from './hangupReason';
 import type { PhoneOutcomeId } from './outcomes';
 
 /**
@@ -47,6 +48,8 @@ export type SoftphoneState =
       /** True when the other side answered; the outcome form can lead with the connected group. */
       answered: boolean;
       endedBy: CallEndReason;
+      /** Why it ended, in the rep's words; also picks the outcome the form starts on. */
+      end: HangupInfo;
       saving: boolean;
       saveError: string | null;
     }
@@ -63,7 +66,7 @@ export type SoftphoneEvent =
   | { type: 'RTC_HELD'; held: boolean }
   | { type: 'MUTED'; muted: boolean }
   | { type: 'HANGUP' }
-  | { type: 'REMOTE_ENDED' }
+  | { type: 'REMOTE_ENDED'; hangup?: RawHangup }
   | { type: 'RTC_ERROR'; error: SoftphoneError }
   | { type: 'SAVE_STARTED' }
   | { type: 'SAVE_SUCCEEDED'; outcome: PhoneOutcomeId }
@@ -123,7 +126,7 @@ export function softphoneReducer(state: SoftphoneState, event: SoftphoneEvent): 
       return endCall(state, 'local_hangup');
 
     case 'REMOTE_ENDED':
-      return endCall(state, 'remote_hangup');
+      return endCall(state, 'remote_hangup', event.hangup);
 
     case 'RTC_ERROR':
       if (state.phase === 'checking' || state.phase === 'connecting') return { phase: 'error', error: event.error };
@@ -142,7 +145,7 @@ export function softphoneReducer(state: SoftphoneState, event: SoftphoneEvent): 
     case 'RESUME_WRAP_UP':
       // A call that ended without an outcome (tab closed, drawer left): reopen its wrap-up.
       return state.phase === 'idle'
-        ? { phase: 'wrap_up', callId: event.callId, answered: true, endedBy: 'remote_hangup', saving: false, saveError: null }
+        ? { phase: 'wrap_up', callId: event.callId, answered: true, endedBy: 'remote_hangup', end: describeHangup({ answered: false }), saving: false, saveError: null }
         : state;
 
     case 'RESET':
@@ -150,21 +153,37 @@ export function softphoneReducer(state: SoftphoneState, event: SoftphoneEvent): 
   }
 }
 
-function endCall(state: SoftphoneState, endedBy: CallEndReason): SoftphoneState {
+function endCall(state: SoftphoneState, endedBy: CallEndReason, hangup: RawHangup = {}): SoftphoneState {
+  const wrap = (callId: string, answered: boolean): SoftphoneState => ({
+    phase: 'wrap_up',
+    callId,
+    answered,
+    endedBy,
+    end:
+      endedBy === 'error'
+        ? describeHangup({ cause: 'normal_temporary_failure', answered })
+        : describeHangup({ ...hangup, answered, localHangup: endedBy === 'local_hangup' }),
+    saving: false,
+    saveError: null,
+  });
   switch (state.phase) {
     case 'checking':
       // Nothing was dialled yet; the attempt's row stays `authorized`/`blocked` and the answer, if it
       // still arrives, is ignored in idle.
       return endedBy === 'local_hangup' ? INITIAL_SOFTPHONE_STATE : state;
-    case 'connecting':
-      // Never rang: nothing happened that needs an outcome.
-      return endedBy === 'local_hangup'
-        ? INITIAL_SOFTPHONE_STATE
-        : { phase: 'error', error: { code: 'call_failed', message: 'The call could not be connected.' } };
+    case 'connecting': {
+      // Cancelled before it rang: nothing happened that needs an outcome.
+      if (endedBy === 'local_hangup') return INITIAL_SOFTPHONE_STATE;
+      // The far end answered the attempt (busy, declined, no answer, bad number): say so and log it.
+      // Anything else (a network or provider failure) never reached a person: an error, not an outcome.
+      const info = describeHangup({ ...hangup, answered: false });
+      if (isAttemptKind(info.kind) && info.kind !== 'ended_unanswered') return wrap(state.callId, false);
+      return { phase: 'error', error: { code: 'call_failed', message: info.kind === 'unknown' ? 'The call could not be connected.' : `${info.label}. ${info.detail}` } };
+    }
     case 'ringing':
-      return { phase: 'wrap_up', callId: state.callId, answered: false, endedBy, saving: false, saveError: null };
+      return wrap(state.callId, false);
     case 'in_call':
-      return { phase: 'wrap_up', callId: state.callId, answered: true, endedBy, saving: false, saveError: null };
+      return wrap(state.callId, true);
     default:
       return state;
   }

@@ -162,12 +162,11 @@ describe('evaluateCallPermission', () => {
     expect(evaluateCallPermission(facts({ contactDoNotCall: true })).reasons).toEqual(['contact_do_not_call']);
   });
 
-  it('refuses a Vietnamese destination (call from your own phone), judged by the number not the record', () => {
+  it('allows a Vietnamese destination like any other country, and never invents a country reason', () => {
     const vn = { rawPhone: '0948200638', dialCountries: ['VN' as const], leadCountry: 'Vietnam' };
-    expect(evaluateCallPermission(facts(vn)).reasons).toEqual(['vietnam_own_phone']);
-    expect(evaluateCallPermission(facts({ rawPhone: '+84948200638', dialCountries: ['SG'], leadCountry: 'Singapore' })).reasons).toEqual(['vietnam_own_phone']);
-    // A Singapore number on a lead recorded in Vietnam is not refused.
-    expect(evaluateCallPermission(facts({ rawPhone: '+6561234567' })).reasons).not.toContain('vietnam_own_phone');
+    expect(evaluateCallPermission(facts(vn)).reasons).toEqual([]);
+    expect(evaluateCallPermission(facts({ rawPhone: '+84948200638', dialCountries: ['SG'], leadCountry: 'Singapore' })).reasons).toEqual([]);
+    expect(evaluateCallPermission(facts({ rawPhone: '+6561234567' })).reasons).toEqual([]);
   });
 
   it('blocks a missing or unparseable number', () => {
@@ -313,7 +312,7 @@ describe('calling hours set to always open', () => {
 
   it('keeps every other rule', () => {
     expect(evaluateCallPermission(facts({ settings: alwaysOpen, suppressed: true })).reasons).toEqual(['suppressed']);
-    expect(evaluateCallPermission(facts({ settings: alwaysOpen, rawPhone: '0948200638', dialCountries: ['VN'], leadCountry: 'Vietnam' })).reasons).toEqual(['vietnam_own_phone']);
+    expect(evaluateCallPermission(facts({ settings: alwaysOpen, rawPhone: '0948200638', dialCountries: ['VN'], leadCountry: 'Vietnam' })).reasons).toEqual([]);
     expect(evaluateCallPermission(facts({ settings: { ...alwaysOpen, killedAt: new Date() } })).reasons).toEqual(['kill_switch']);
   });
 

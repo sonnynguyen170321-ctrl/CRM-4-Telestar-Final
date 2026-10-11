@@ -15,6 +15,10 @@ import type { TabLock } from './tabLock';
 
 export type RtcCallLike = {
   readonly state: string;
+  /** Set by the SDK when the call ends: the hangup cause and SIP code/reason. */
+  readonly cause?: string;
+  readonly sipCode?: number;
+  readonly sipReason?: string;
   hangup(): unknown;
   muteAudio(): unknown;
   unmuteAudio(): unknown;

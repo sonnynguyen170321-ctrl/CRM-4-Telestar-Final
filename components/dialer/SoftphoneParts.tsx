@@ -134,14 +134,25 @@ export function DevicePicker(props: {
 export function OutcomeForm(props: {
   saving: boolean;
   error: string | null;
-  endedNote: string;
+  /** Why the call ended; its headline and detail lead the form. */
+  end: { label: string; detail: string; kind: string };
+  /** The outcome the form starts on (from the end state), still changeable. */
+  initialOutcome: PhoneOutcomeId | null;
+  /** How long the call ran, shown once it was connected. */
+  talkTime?: string | null;
   onSubmit: (outcome: PhoneOutcomeId, notes: string) => void;
 }) {
-  const [outcome, setOutcome] = useState<PhoneOutcomeId | null>(null);
+  const [outcome, setOutcome] = useState<PhoneOutcomeId | null>(props.initialOutcome);
   const [notes, setNotes] = useState('');
   return (
     <div className="space-y-3">
-      <p className="text-text-secondary">{props.endedNote} Say what happened to finish.</p>
+      <div role="status" className="rounded-xl border border-card-border bg-bg-main/40 p-3 space-y-0.5">
+        <p className="font-semibold text-text-primary">
+          {props.end.label}
+          {props.talkTime ? <span className="font-normal text-text-muted"> after {props.talkTime}</span> : null}
+        </p>
+        <p className="text-text-secondary">{props.end.detail} Say what happened to finish.</p>
+      </div>
       <fieldset className="space-y-2">
         <legend className="text-xs font-bold text-text-secondary">
           Call outcome <span className="text-brand-red" aria-hidden="true">*</span>

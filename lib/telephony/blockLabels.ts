@@ -22,7 +22,6 @@ export const BLOCK_LABELS: Record<BlockReason | 'dry_run', BlockLabel> = {
   no_phone: { label: 'This lead has no phone number.', fix: 'Add a number to the lead, then call again.' },
   invalid_number: { label: 'The number is not a valid phone number.', fix: 'Correct the number on the lead (with its country code), then call again.' },
   number_type_not_allowed: { label: 'This kind of number (premium rate or shared cost) is never called.', fix: 'Use a different number for this lead.' },
-  vietnam_own_phone: { label: 'Vietnamese numbers are called from your own phone.', fix: 'Use the phone panel on the lead instead of the browser dialer.' },
   suppressed: { label: 'This number is on the do-not-call list.', fix: null },
   lead_do_not_call: { label: 'This lead is marked do not call.', fix: null },
   contact_do_not_call: { label: 'This contact is marked do not call.', fix: null },

@@ -282,6 +282,8 @@ function LeadDetailPanelBody({
   /** A softphone call on this lead that ended without an outcome (tab closed mid-call): nudge to finish it. */
   const [pendingCallId, setPendingCallId] = useState<string | null>(null);
   const [resumeCallId, setResumeCallId] = useState<string | null>(null);
+  /** "Call from my own phone instead": the phone-call panel for this open, though the dialer is on. */
+  const [ownPhone, setOwnPhone] = useState(false);
   const [adHocActivities, setAdHocActivities] = useState<Array<{
     id: string; type: string; channel: string; description?: string; recordingCallId?: string; metadata: Record<string, unknown>; createdAt: string;
     user: { firstName: string; lastName: string };
@@ -2595,6 +2597,7 @@ function LeadDetailPanelBody({
           onClose: () => {
             setShowDialer(false);
             setResumeCallId(null);
+            setOwnPhone(false);
           },
           onLogged: (activity: Parameters<typeof handleCallLogged>[0]) => {
             if (resumeCallId) setPendingCallId(null);
@@ -2606,7 +2609,8 @@ function LeadDetailPanelBody({
         // call-from-your-own-phone panel. The do-not-call warning blocks on both screens.
         const surface = chooseCallSurface({ target: phoneCallTarget(lead.phone, lead.contact?.country), dialerEnabled });
         if (resumeCallId) return <Softphone {...dialerProps} resumeCallId={resumeCallId} />;
-        return surface === 'softphone' ? <Softphone {...dialerProps} /> : <PhoneCallPanel {...dialerProps} />;
+        if (surface === 'softphone' && !ownPhone) return <Softphone {...dialerProps} onOwnPhone={() => setOwnPhone(true)} />;
+        return <PhoneCallPanel {...dialerProps} />;
       })()}
 
       {showBookingModal && lead && (

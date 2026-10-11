@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { describeHangup, rawHangupFromRow } from '@/lib/telephony/hangupReason';
 import { BLOCK_LABELS, blockLabel } from '@/lib/telephony/blockLabels';
 import { chooseCallSurface } from '@/lib/telephony/callSurface';
 import { BLOCK_REASONS } from '@/lib/telephony/compliance';
 import { phoneCallTarget } from '@/lib/telephony/logPhoneCall';
-import { describeMicError, eventsForRtcState, requestCall, saveCallOutcome } from '@/lib/telephony/softphoneFlow';
+import { describeMicError, eventsForRtcState, fetchCallRow, requestCall, saveCallOutcome, sdkHangup } from '@/lib/telephony/softphoneFlow';
 import {
   canClose,
   hasProviderCall,
@@ -28,7 +29,7 @@ describe('softphone state machine: the happy path', () => {
     expect(run(TO_CALL)).toEqual({ phase: 'connecting', callId: 'c1' });
     expect(run([...TO_CALL, { type: 'RTC_RINGING' }])).toEqual({ phase: 'ringing', callId: 'c1' });
     expect(run(IN_CALL)).toEqual({ phase: 'in_call', callId: 'c1', muted: false, held: false });
-    expect(wrapUp()).toEqual({ phase: 'wrap_up', callId: 'c1', answered: true, endedBy: 'local_hangup', saving: false, saveError: null });
+    expect(wrapUp()).toMatchObject({ phase: 'wrap_up', callId: 'c1', answered: true, endedBy: 'local_hangup', saving: false, saveError: null });
     expect(run([...IN_CALL, { type: 'HANGUP' }, { type: 'SAVE_STARTED' }, { type: 'SAVE_SUCCEEDED', outcome: 'connected_interested' }])).toEqual({
       phase: 'saved',
       callId: 'c1',
@@ -201,9 +202,9 @@ describe('which screen the Call button opens', () => {
   const surface = (phone: string, country: string | null, dialerEnabled: boolean) =>
     chooseCallSurface({ target: phoneCallTarget(phone, country), dialerEnabled });
 
-  it('sends a Vietnamese number to the phone panel, even with the dialer enabled', () => {
-    expect(surface('0948 200 638', 'Vietnam', true)).toBe('phone_panel');
-    expect(surface('0948200638', 'Singapore', true)).toBe('phone_panel');
+  it('sends a Vietnamese number to the softphone when the dialer is enabled', () => {
+    expect(surface('0948 200 638', 'Vietnam', true)).toBe('softphone');
+    expect(surface('0948200638', 'Singapore', true)).toBe('softphone');
   });
 
   it('sends a foreign number to the softphone when the dialer is enabled', () => {
@@ -307,7 +308,7 @@ describe('SDK call states and microphone errors', () => {
 
   it('walks a call through the SDK states end to end', () => {
     const states = ['requesting', 'trying', 'early', 'active', 'held', 'active', 'hangup', 'destroy'];
-    const events = states.flatMap(eventsForRtcState);
+    const events = states.flatMap((s) => eventsForRtcState(s));
     const afterCall = run([{ type: 'DIAL' }, { type: 'CHECK_ALLOWED', callId: 'c1' }, ...events]);
     expect(afterCall).toMatchObject({ phase: 'wrap_up', answered: true, endedBy: 'remote_hangup' });
   });
@@ -318,5 +319,126 @@ describe('SDK call states and microphone errors', () => {
     expect(describeMicError({ name: 'NotFoundError' })).toMatchObject({ code: 'mic_unavailable' });
     expect(describeMicError(new Error('weird'))).toMatchObject({ code: 'mic_unavailable' });
     expect(describeMicError(null)).toMatchObject({ code: 'mic_unavailable' });
+  });
+});
+
+describe('why a call ended: cause to label', () => {
+  const kind = (raw: Parameters<typeof describeHangup>[0]) => describeHangup(raw).kind;
+
+  it.each([
+    [{ cause: 'user_busy' }, 'busy'],
+    [{ sipCode: 486 }, 'busy'],
+    [{ cause: 'call_rejected' }, 'declined'],
+    [{ sipCode: 603 }, 'declined'],
+    [{ cause: 'no_answer' }, 'no_answer'],
+    [{ cause: 'timeout' }, 'no_answer'],
+    [{ sipCode: 480 }, 'no_answer'],
+    [{ cause: 'unallocated_number' }, 'unavailable'],
+    [{ sipCode: 404 }, 'unavailable'],
+    [{ sipCode: 484 }, 'unavailable'],
+    [{ cause: 'invalid_number_format' }, 'unavailable'],
+    [{ cause: 'normal_temporary_failure' }, 'network'],
+    [{ sipCode: 503 }, 'network'],
+    [{ sipCode: 500, cause: 'whatever' }, 'network'],
+    [{ sipCode: 402 }, 'out_of_credit'],
+    [{ sipReason: 'Insufficient balance' }, 'out_of_credit'],
+    [{ cause: 'normal_clearing' }, 'ended_unanswered'],
+    [{ cause: 'originator_cancel' }, 'ended_unanswered'],
+    [{}, 'unknown'],
+    [{ cause: 'something_new' }, 'unknown'],
+  ] as const)('unanswered %j is %s', (raw, expected) => {
+    expect(kind({ ...raw, answered: false })).toBe(expected);
+  });
+
+  it('says who hung up once the call was answered, and keeps network failures as failures', () => {
+    expect(kind({ cause: 'normal_clearing', answered: true })).toBe('they_hung_up');
+    expect(kind({ cause: 'user_busy', answered: true })).toBe('they_hung_up');
+    expect(kind({ cause: 'normal_clearing', answered: true, localHangup: true })).toBe('you_hung_up');
+    expect(kind({ cause: 'normal_temporary_failure', answered: true })).toBe('network');
+    expect(kind({ answered: false, localHangup: true })).toBe('you_hung_up');
+  });
+
+  it('suggests an outcome only where the end state decides it', () => {
+    expect(describeHangup({ cause: 'user_busy', answered: false }).suggestedOutcome).toBe('no_answer');
+    expect(describeHangup({ cause: 'call_rejected', answered: false }).suggestedOutcome).toBe('no_answer');
+    expect(describeHangup({ cause: 'unallocated_number', answered: false }).suggestedOutcome).toBe('wrong_number');
+    expect(describeHangup({ cause: 'normal_clearing', answered: true }).suggestedOutcome).toBeNull();
+    expect(describeHangup({ answered: true, localHangup: true }).suggestedOutcome).toBeNull();
+    expect(describeHangup({ cause: 'normal_temporary_failure', answered: false }).suggestedOutcome).toBeNull();
+  });
+
+  it('reads a Call row: its status wins over a blank cause', () => {
+    expect(rawHangupFromRow({ status: 'busy', hangupCause: null })).toEqual({ cause: 'user_busy' });
+    expect(rawHangupFromRow({ status: 'no_answer', hangupCause: null })).toEqual({ cause: 'no_answer' });
+    expect(rawHangupFromRow({ status: 'failed', hangupCause: 'call_rejected' })).toEqual({ cause: 'call_rejected' });
+  });
+
+  it('reads the SDK call object defensively', () => {
+    expect(sdkHangup({ cause: 'USER_BUSY', sipCode: 486, sipReason: 'Busy Here' })).toEqual({ cause: 'USER_BUSY', sipCode: 486, sipReason: 'Busy Here' });
+    expect(sdkHangup({ cause: 5, sipCode: '486' })).toEqual({ cause: null, sipCode: null, sipReason: null });
+    expect(kind({ ...sdkHangup({ cause: 'USER_BUSY' }), answered: false })).toBe('busy');
+  });
+});
+
+describe('softphone state machine: end states', () => {
+  const remote = (hangup: { cause?: string; sipCode?: number }): SoftphoneEvent => ({ type: 'REMOTE_ENDED', hangup });
+  const endKind = (s: SoftphoneState) => (s.phase === 'wrap_up' ? s.end.kind : s.phase);
+
+  it('you hung up vs they hung up', () => {
+    expect(endKind(wrapUp())).toBe('you_hung_up');
+    expect(endKind(run([...IN_CALL, remote({ cause: 'normal_clearing' })]))).toBe('they_hung_up');
+  });
+
+  it('busy while ringing and while still connecting both land in wrap-up with the reason and a prefilled outcome', () => {
+    const ringing = run([...TO_CALL, { type: 'RTC_RINGING' }, remote({ cause: 'user_busy' })]);
+    expect(ringing).toMatchObject({ phase: 'wrap_up', answered: false, end: { kind: 'busy', label: 'Busy', suggestedOutcome: 'no_answer' } });
+    expect(endKind(run([...TO_CALL, remote({ sipCode: 486 })]))).toBe('busy');
+  });
+
+  it('declined, no answer and unavailable from connecting are attempts to log', () => {
+    expect(endKind(run([...TO_CALL, remote({ cause: 'call_rejected' })]))).toBe('declined');
+    expect(endKind(run([...TO_CALL, remote({ cause: 'no_answer' })]))).toBe('no_answer');
+    expect(run([...TO_CALL, remote({ cause: 'unallocated_number' })])).toMatchObject({ end: { suggestedOutcome: 'wrong_number' } });
+  });
+
+  it('a network or provider failure before it rang is an error with the reason, not an outcome', () => {
+    const state = run([...TO_CALL, remote({ cause: 'normal_temporary_failure' })]);
+    expect(state).toMatchObject({ phase: 'error', error: { code: 'call_failed' } });
+    expect((state as { error: { message: string } }).error.message).toMatch(/Network or provider error/);
+    expect(run([...TO_CALL, remote({ sipCode: 402 })])).toMatchObject({ phase: 'error' });
+    expect(run([...TO_CALL, { type: 'REMOTE_ENDED' }])).toMatchObject({ phase: 'error', error: { message: 'The call could not be connected.' } });
+  });
+
+  it('an interruption mid-call is a network end state that still owes the outcome', () => {
+    const state = run([...IN_CALL, { type: 'RTC_ERROR', error: { code: 'provider_error', message: 'x' } }]);
+    expect(state).toMatchObject({ phase: 'wrap_up', end: { kind: 'network' } });
+  });
+
+  it('a lost wrap-up reopened later has no invented reason', () => {
+    expect(run([{ type: 'RESUME_WRAP_UP', callId: 'old' }])).toMatchObject({ end: { kind: 'unknown', suggestedOutcome: null } });
+  });
+
+  it('the SDK states carry the hangup facts to the machine', () => {
+    const events = eventsForRtcState('hangup', { cause: 'user_busy' });
+    expect(events).toEqual([{ type: 'REMOTE_ENDED', hangup: { cause: 'user_busy' } }]);
+    expect(endKind(run([...TO_CALL, { type: 'RTC_RINGING' }, ...events]))).toBe('busy');
+  });
+});
+
+describe('polling the call row', () => {
+  it('reads the status, cause and times of the rep own call', async () => {
+    const fetchImpl = vi.fn(respond(200, { status: 'busy', hangupCause: 'user_busy', answeredAt: null, endedAt: '2026-10-11T00:00:00Z' }));
+    expect(await fetchCallRow('c/1', fetchImpl)).toEqual({ status: 'busy', hangupCause: 'user_busy', answeredAt: null, endedAt: '2026-10-11T00:00:00Z' });
+    expect((fetchImpl.mock.calls[0] as unknown as [string])[0]).toBe('/api/telephony/calls/c%2F1');
+  });
+
+  it('is null on a 404, a malformed body or a network failure, so polling just tries again', async () => {
+    expect(await fetchCallRow('c', respond(404, {}))).toBeNull();
+    expect(await fetchCallRow('c', respond(200, { nope: 1 }))).toBeNull();
+    expect(
+      await fetchCallRow('c', async () => {
+        throw new Error('offline');
+      })
+    ).toBeNull();
   });
 });

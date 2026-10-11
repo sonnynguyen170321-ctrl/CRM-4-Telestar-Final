@@ -80,9 +80,9 @@ lives, which existing helpers it reuses, and the rules a change to it must keep.
     2026-10-08: hours 00:00-24:00, every day, no timezone needed); a manager may narrow the hours, and then they
     are lead-local and an unknown lead timezone blocks the call. Own Do-Not-Call list and lead/contact `doNotCall`
     always apply.
-15. **Vietnam is refused by the gate** (`vietnam_own_phone`): Vietnamese numbers are called from the rep's own
-    phone and logged (`PhoneCallPanel`). There is no CRM country allow-list; the Telnyx outbound profile whitelists
-    destinations.
+15. **Vietnam is dialled like any other country** (the `vietnam_own_phone` refusal was removed 2026-10-11). There is no
+    CRM country allow-list; the Telnyx outbound profile whitelists destinations. The phone panel remains as
+    "Call from my own phone instead".
 16. **Settings changes are audited** (`admin.telephony.settings`, `.kill`, `.number`, `.credential_revoke`) with the
     non-secret before and after; the environment switches are shown by state only, never a value.
 

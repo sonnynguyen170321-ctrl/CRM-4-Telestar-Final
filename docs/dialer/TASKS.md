@@ -24,7 +24,7 @@ it; where a phase disagrees with this list, this list wins.
 | Decision | Effect on the plan |
 |---|---|
 | Telnyx stays the provider (Plivo was considered and dropped the same day) | No change to the seam |
-| **Vietnamese numbers are called from the rep's own phone** and logged in the CRM | Done ahead of the dialer: the lead drawer's Call button opens `components/dialer/PhoneCallPanel.tsx` (number, `tel:` QR code, required outcome with the task modal's effects). Phase 5 routes only non-VN numbers to the softphone; the gate refuses VN (`vietnam_own_phone`) and VN stays out of the outbound profile whitelist |
+| ~~Vietnamese numbers are called from the rep's own phone~~ **Superseded 2026-10-11: VN goes through the softphone when the user's dialer is on** (the phone panel stays as "Call from my own phone instead" and as the default when the dialer is off). | Done ahead of the dialer: the lead drawer's Call button opens `components/dialer/PhoneCallPanel.tsx` (number, `tel:` QR code, required outcome with the task modal's effects). Phase 5 routes only non-VN numbers to the softphone; the gate refuses VN (`vietnam_own_phone`) and VN stays out of the outbound profile whitelist |
 | **No inbound** | Phase 6 is not built. `TELNYX_CALL_CONTROL_APP_ID` is still created (the env check expects it) with no number |
 | Caller ID = numbers ported from Bigin; a current Telnyx number is the default meanwhile | Phase 9.2 settings carry the number list (per-country caller ID + default) |
 | Recording on, no spoken notice by default — both manager settings | Phase 7 reads the settings; a notice toggle is added to `TelephonySettings` |
@@ -97,8 +97,9 @@ enum has no client or viewer role; revisit if one is added.
 - One attempt per rep per 3 s (database check + an in-process guard against parallel requests); repeat
   calls are otherwise unlimited. The token is signed before the row is written.
 - **Country allow-list removed (owner decision, 2026-10-11):** the country lock is the Telnyx outbound profile
-  whitelist; the CRM has no list (`TelephonySettings.allowedCountries` is deprecated and unread). The gate keeps one
-  country rule, judged on the dialled number: VN is refused (`vietnam_own_phone`). Premium-rate and
+  whitelist; the CRM has no list (`TelephonySettings.allowedCountries` is deprecated and unread). The gate keeps no
+  country rule (`vietnam_own_phone` was removed 2026-10-11: VN is dialled like any other country once the profile
+  whitelists it, and +84 numbers may be caller IDs). Premium-rate and
   shared-cost numbers are blocked (`number_type_not_allowed`, libphonenumber full metadata via
   `@telestar/core-identity/phone-type`).
 - **Timezone order changed from the plan (security review):** the number's zone first when its country

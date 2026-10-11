@@ -601,11 +601,11 @@ describe('team lead: read-only view, emergency stop, own reps only', () => {
 });
 
 describe('caller ID: Vietnam, defaults and removal', () => {
-  it('refuses a Vietnamese number as a caller ID', async () => {
+  it('accepts a Vietnamese number as a caller ID', async () => {
     const { response, body } = await addNumber(users.director, { e164: '+84948200638' });
-    expect(response.status).toBe(400);
-    expect(JSON.stringify(body)).toMatch(/Vietnam/);
-    expect(await numberRows()).toHaveLength(0);
+    expect(response.status).toBe(201);
+    expect(body.number).toMatchObject({ country: 'VN', isDefault: true });
+    expect(await numberRows()).toHaveLength(1);
   });
 
   it('promotes the next active number when a default is removed, and says when the last one goes', async () => {
