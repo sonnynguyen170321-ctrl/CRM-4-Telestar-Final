@@ -28,6 +28,7 @@ import {
 import type { RtcCallLike } from '@/lib/telephony/rtcController';
 
 import { BlockedReasons, CallControls, DevicePicker, HangupButton, OutcomeForm, type DeviceOption } from './SoftphoneParts';
+import PhoneQrBlock from './PhoneQrBlock';
 import { useTelnyxClient } from './useTelnyxClient';
 
 /**
@@ -56,7 +57,7 @@ type Props = {
   onMeetingBooked: () => void;
   /** Reopen the wrap-up of an earlier call that has no outcome yet, instead of placing a new call. */
   resumeCallId?: string;
-  /** "Call from my own phone instead": hands over to the phone-call panel. */
+  /** "Log a call I made on my phone": hands over to the phone-call panel's outcome form. */
   onOwnPhone?: () => void;
 };
 
@@ -450,20 +451,27 @@ export default function Softphone({ lead, onClose, onLogged, onMeetingBooked, re
 
         {!resumeCallId && <DevicePicker inputs={devices.inputs} outputs={devices.outputs} micId={micId} speakerId={speakerId} onMic={chooseMic} onSpeaker={chooseSpeaker} />}
 
+        {onOwnPhone && !resumeCallId && !warning?.block && (state.phase === 'idle' || state.phase === 'blocked' || state.phase === 'error') && (
+          <details className="rounded-xl border border-card-border">
+            <summary className="cursor-pointer select-none px-3 py-2 font-semibold text-text-secondary hover:text-text-primary">Or call from your phone</summary>
+            <div className="space-y-3 p-3 pt-1">
+              <PhoneQrBlock e164={target.e164} rawNumber={lead.phone ?? ''} isVietnam={target.isVietnam} />
+              <button type="button" onClick={onOwnPhone} className="px-3 py-1.5 border border-card-border rounded-lg text-text-secondary hover:text-text-primary">
+                Log a call I made on my phone
+              </button>
+            </div>
+          </details>
+        )}
+
         <div className="flex justify-end gap-2">
           {isLive(state) && <HangupButton onClick={hangup} label={state.phase === 'checking' || state.phase === 'connecting' ? 'Cancel' : 'Hang up'} />}
           {(state.phase === 'idle' || state.phase === 'blocked' || state.phase === 'error') && !resumeCallId && (
             <>
-              {onOwnPhone && (
-                <button type="button" onClick={onOwnPhone} className="mr-auto px-3 py-1.5 border border-card-border rounded-lg text-text-secondary hover:text-text-primary">
-                  Call from my own phone instead
-                </button>
-              )}
               <button type="button" onClick={requestClose} className="px-3 py-1.5 border border-card-border rounded-lg text-text-secondary hover:text-text-primary">
                 Close
               </button>
               <button type="button" onClick={dial} disabled={!canDial} className="px-3 py-1.5 rounded-lg bg-brand-red text-white font-semibold disabled:opacity-50">
-                {state.phase === 'idle' ? 'Call' : 'Try again'}
+                {state.phase === 'idle' ? 'Call from CRM' : 'Try again'}
               </button>
             </>
           )}
