@@ -24,6 +24,7 @@ import { useToast } from '@/context/ToastContext';
 import DOMPurify from 'isomorphic-dompurify';
 import { useRouter } from 'next/navigation';
 import { openLeadSlideOver } from '@/lib/leads/openLead';
+import { describeDelivery } from '@/lib/inbox/deliveryStatus';
 
 interface Message {
   id: string;
@@ -43,6 +44,9 @@ interface Message {
   replyKind?: string | null;
   replyConfidence?: number | null;
   classificationSource?: string | null;
+  /** Outbound only: where the send stands (queued, sent, failed, ...) and why, when it did not go. */
+  deliveryStatus?: string | null;
+  deliveryError?: string | null;
 }
 
 interface Thread {
@@ -96,6 +100,9 @@ export default function InboxPage() {
   const [replyBody, setReplyBody] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
   const replyEditorRef = useRef<HTMLDivElement>(null);
+  // One id per reply being written. A retried click (double tap, flaky network) reuses it, so the
+  // server resolves both to the same queued message. A new one is minted after each queued reply.
+  const replyRequestIdRef = useRef<string>(crypto.randomUUID());
 
   // AI 1-Click Draft Assistant states
   const [aiDraftsLoading, setAiDraftsLoading] = useState(false);
@@ -242,6 +249,40 @@ export default function InboxPage() {
     }
   };
 
+  // After a reply is queued, look at its real state a few times and show it: sent, deferred by a
+  // sending limit, or failed with the reason. Silent: no list spinner, no change of selection.
+  const watchDelivery = async (outboundId: string) => {
+    for (const waitMs of [3_000, 8_000, 20_000]) {
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      try {
+        const res = await fetch(`/api/inbox?${inboxQuery(folder, inboxOwnerId, mailboxFilter)}`);
+        if (!res.ok) continue;
+        const fresh: Thread[] = await res.json();
+        const found = fresh.flatMap((t) => t.messages).find((m) => m.id === outboundId);
+        if (!found) return;
+        const patch = (t: Thread): Thread => ({
+          ...t,
+          messages: t.messages.map((m) =>
+            m.id === outboundId ? { ...m, deliveryStatus: found.deliveryStatus, deliveryError: found.deliveryError } : m
+          ),
+        });
+        setThreads((prev) => prev.map(patch));
+        setSelectedThread((prev) => (prev ? patch(prev) : prev));
+        if (found.deliveryStatus === 'sent') {
+          showToast('Reply sent', 'success');
+          return;
+        }
+        if (found.deliveryStatus && !['pending', 'sending'].includes(found.deliveryStatus)) {
+          const shown = describeDelivery(found.deliveryStatus, found.deliveryError);
+          showToast(`Reply ${shown?.label.toLowerCase() ?? 'not sent'}${shown?.detail ? `: ${shown.detail}` : ''}`, 'error');
+          return;
+        }
+      } catch {
+        // Next look.
+      }
+    }
+  };
+
   // Handle sending reply
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,19 +297,25 @@ export default function InboxPage() {
           body: replyBody,
           subject: selectedThread.subject,
           leadId: selectedThread.lead?.id,
+          clientRequestId: replyRequestIdRef.current,
         }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        showToast('Reply sent successfully!', 'success');
+        // Queued, not sent: a worker sends it. The message below shows its real state, and a
+        // failure is toasted when it happens.
+        showToast('Reply queued', 'success');
+        replyRequestIdRef.current = crypto.randomUUID();
+        void watchDelivery(data.outboundMessage.id);
         
         // Clear editor
         setReplyBody('');
         if (replyEditorRef.current) replyEditorRef.current.innerHTML = '';
         
         // Update thread local state
-        const updatedMessages = [...selectedThread.messages, data.outboundMessage];
+        const queued = { ...data.outboundMessage, deliveryStatus: data.status ?? 'pending', deliveryError: null };
+        const updatedMessages = [...selectedThread.messages, queued];
         setSelectedThread({ ...selectedThread, messages: updatedMessages });
         setThreads((prev) =>
           prev.map((t) =>
@@ -749,6 +796,26 @@ export default function InboxPage() {
                           </span>
                         </div>
 
+                        {/* Where an outgoing message stands, and why it did not go */}
+                        {isOutbound && (() => {
+                          const shown = describeDelivery(msg.deliveryStatus, msg.deliveryError);
+                          if (!shown) return null;
+                          const tone =
+                            shown.tone === 'ok'
+                              ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                              : shown.tone === 'bad'
+                                ? 'bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30'
+                                : shown.tone === 'warn'
+                                  ? 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/30'
+                                  : 'bg-zinc-500/10 text-zinc-700 dark:text-zinc-300 border-zinc-500/30';
+                          return (
+                            <div role="status" className="flex flex-col items-end gap-1">
+                              <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${tone}`}>{shown.label}</span>
+                              {shown.detail && <span className="text-[11px] text-text-secondary leading-snug">{shown.detail}</span>}
+                            </div>
+                          );
+                        })()}
+
                         {/* AI Reply Classification Banner */}
                         {!isOutbound && msg.replyClass && (
                           <div className="p-3.5 rounded-xl border text-xs space-y-2 text-left bg-card-bg dark:bg-zinc-900 border-card-border dark:border-zinc-700/80 shadow-2xs">
@@ -932,27 +999,29 @@ export default function InboxPage() {
                 <form onSubmit={handleSendReply} className="border-t border-card-border p-4 bg-card-bg space-y-3">
                   {/* Smart Quick Reply Chips */}
                   <div className="flex flex-wrap items-center gap-1.5 pb-1">
-                    <span className="text-[10px] text-text-secondary font-bold font-mono mr-1">QUICK CHIPS:</span>
+                    <span className="text-[10px] text-text-secondary font-bold font-mono mr-1">QUICK REPLIES:</span>
+                    {/* Neutral openers only: no links, no attachments, no claims about the company. The
+                        rep fills in the substance. */}
                     <button
                       type="button"
-                      onClick={() => handleApplyAiDraft(`Hi ${selectedThread.lead?.firstName || 'there'},\n\nThanks for following up! Would you have 15 minutes this Thursday or Friday for a quick intro demo?\n\nYou can pick any slot that fits best here: https://cal.com/telestar-demo\n\nBest regards,\nSales Team`)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-                    >
-                      📅 Propose 15-Min Demo
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleApplyAiDraft(`Hi ${selectedThread.lead?.firstName || 'there'},\n\nGlad to hear from you. I've attached our latest client case study and solution brief detailing how we drove 3.4x pipeline growth.\n\nLet me know if you'd like to dive deeper on a quick call!\n\nBest regards,\nSales Team`)}
+                      onClick={() => handleApplyAiDraft(`Hi ${selectedThread.lead?.firstName || 'there'},\n\nThanks for getting back to me. `)}
                       className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/30 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                     >
-                      📄 Share Case Study
+                      Thank them
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleApplyAiDraft(`Hi ${selectedThread.lead?.firstName || 'there'},\n\nUnderstood, thank you for letting us know. I will remove you from our outreach sequence immediately. Wishing you all the best!\n\nBest regards,\nSales Team`)}
+                      onClick={() => handleApplyAiDraft(`Hi ${selectedThread.lead?.firstName || 'there'},\n\nWould you have 15 minutes for a quick call this week? Let me know a day and time that suits you.`)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                    >
+                      Ask for a call
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyAiDraft(`Hi ${selectedThread.lead?.firstName || 'there'},\n\nUnderstood, thank you for letting me know.`)}
                       className="inline-flex items-center gap-1 px-2.5 py-1 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-700 dark:text-zinc-300 border border-zinc-500/30 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
                     >
-                      🤝 Politely Disqualify
+                      Acknowledge
                     </button>
                   </div>
 

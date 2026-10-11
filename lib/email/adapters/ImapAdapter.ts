@@ -111,6 +111,10 @@ export class ImapAdapter implements EmailAdapter {
               body: parsed.text || '',
               bodyHtml: parsed.html || parsed.text || '',
               failedRecipient: null,
+              rfcMessageId: typeof parsed.messageId === 'string' ? parsed.messageId : null,
+              referencesHeader: Array.isArray(parsed.references)
+                ? parsed.references.join(' ')
+                : typeof parsed.references === 'string' ? parsed.references : null,
               isSpam: false,
               isTrash: false,
               receivedAt: receivedByUid.get(msg.uid),

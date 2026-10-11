@@ -788,6 +788,45 @@ describe('handleEmailSync', () => {
     expect(mockClassifyReply).toHaveBeenCalledWith(expect.objectContaining({ isAutoReply: true }));
   });
 
+  it('stores the Message-ID and References of a prospect message, so a reply can thread under it', async () => {
+    mockAccountFindUnique.mockResolvedValue(mockAccount);
+    (EmailService.fromAccount as ReturnType<typeof vi.fn>).mockResolvedValue({
+      fetchMessagesSince: vi.fn().mockResolvedValue([{
+        providerMessageId: 'gmail-thread-1',
+        fromEmail: 'lead@acme.com',
+        subject: 'Re: Intro',
+        date: new Date(),
+        rfcMessageId: '<prospect-1@mail.acme.com>',
+        referencesHeader: '<ours-1@x.test>',
+      }]),
+    });
+    (isBounceMessage as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    (isAutoReply as ReturnType<typeof vi.fn>).mockReturnValue(false);
+    mockLeadFindMany.mockResolvedValue([{
+      id: 'lead-1', email: 'lead@acme.com', sequenceId: 'seq-1', sequenceStatus: 'active', emailInvalid: false,
+    }]);
+    mockLeadFindUnique.mockResolvedValue({
+      id: 'lead-1', stage: 'contacted', tenantId: 'tenant-1', assignedToId: 'user-1',
+      firstName: 'John', lastName: 'Doe', company: 'Acme',
+    });
+    mockEnrollmentFindFirst.mockResolvedValue({ id: 'enr-1', sequenceId: 'seq-1' });
+    mockInboundFindUnique.mockResolvedValue(null);
+    mockInboundCreate.mockResolvedValue({ id: 'inbound-1' });
+    mockClassifyReply.mockResolvedValue({
+      replyClass: 'C', kind: 'interested', confidence: 1, source: 'deterministic', rationale: 'x',
+    });
+    mockApplyClassification.mockResolvedValue({ cadence: 'paused', handedOff: true });
+
+    await handleEmailSync({ accountId: 'acct-1' });
+
+    expect(mockInboundCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        rfcMessageId: '<prospect-1@mail.acme.com>',
+        referencesHeader: '<ours-1@x.test>',
+      }),
+    });
+  });
+
   // --- P0 deliverability data capture ---
 
   it('looks leads up by the bounced recipient, not the mailer-daemon sender', async () => {

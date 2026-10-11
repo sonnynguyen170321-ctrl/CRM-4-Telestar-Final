@@ -36,6 +36,7 @@ vi.mock('@/lib/prisma', () => ({
     lead: { findFirst: (...a: unknown[]) => mockLeadFindFirst(...a) },
     inboundMessage: { findMany: (...a: unknown[]) => mockInboundFindMany(...a) },
     emailAccount: { findFirst: (...a: unknown[]) => mockAccountFindFirst(...a) },
+    suppressionEntry: { findFirst: vi.fn().mockResolvedValue(null) },
   },
 }));
 vi.mock('@/lib/email/idempotency', () => ({ newRequestId: () => 'req-1' }));
@@ -47,7 +48,9 @@ vi.mock('@/lib/workflows/email', () => ({
 const { POST } = await import('@/app/api/inbox/threads/[id]/reply/route');
 
 const SDR = { id: 'u-sdr', tenantId: 't1', role: 'sdr' };
-const LEAD = { id: 'lead-9', email: 'prospect@example.test', assignedToId: 'u-sdr', campaignId: 'c1' };
+const LEAD = { id: 'lead-9', email: 'prospect@example.test', assignedToId: 'u-sdr', campaignId: 'c1', emailInvalid: false };
+/** What the sender query returns for a healthy mailbox: the route's pre-queue gate reads these. */
+const SENDABLE = { isActive: true, sendPausedAt: null, sendPauseReason: null, healthLevel: null };
 const SCOPE = { inbound: { OR: [{ account: { userId: { in: ['u-sdr'] } } }] }, outbound: {} };
 
 const req = (body: unknown) =>
@@ -68,7 +71,7 @@ beforeEach(() => {
   mockInboxScope.mockResolvedValue(SCOPE);
   mockLeadFindFirst.mockResolvedValue(LEAD);
   mockInboundFindMany.mockResolvedValue([{ accountId: 'acct-sender', subject: 'Re: Intro' }]);
-  mockAccountFindFirst.mockResolvedValue({ id: 'acct-sender', email: 'mei@nekko.tech', userId: 'u-team-lead' });
+  mockAccountFindFirst.mockResolvedValue({ ...SENDABLE, id: 'acct-sender', email: 'mei@nekko.tech', userId: 'u-team-lead' });
   mockCreateOutbound.mockResolvedValue({ id: 'out-1', leadId: LEAD.id, tenantId: 't1', to: LEAD.email, subject: 'Re: Intro', body: 'hello', createdAt: new Date() });
   mockEnqueueSend.mockResolvedValue('job-1');
 });
@@ -148,7 +151,7 @@ describe('POST /api/inbox/threads/[id]/reply — review findings', () => {
       { accountId: 'acct-other', subject: 'Re: Pricing' },
       { accountId: 'acct-sender', subject: 'RE: Intro' },
     ]);
-    mockAccountFindFirst.mockImplementation(async ({ where }: { where: { id: string } }) => ({ id: where.id, email: 'x@y.z' }));
+    mockAccountFindFirst.mockImplementation(async ({ where }: { where: { id: string } }) => ({ ...SENDABLE, id: where.id, email: 'x@y.z' }));
 
     await POST(...threadReq(`${LEAD.id}-intro`, { leadId: LEAD.id, body: 'hello', subject: 'Intro' }));
 

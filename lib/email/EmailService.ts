@@ -66,6 +66,10 @@ export interface InboxMessage {
    * moves by this, never by `date`, which is the sender's own `Date:` header and can be anything.
    */
   receivedAt?: Date;
+  /** RFC 5322 Message-ID header, angle brackets included; what an inbox reply puts in In-Reply-To. */
+  rfcMessageId?: string | null;
+  /** The References header it arrived with (space separated Message-IDs). */
+  referencesHeader?: string | null;
   /** The id this message was stored under before the adapter changed its id format, if any. */
   legacyProviderMessageId?: string;
 }

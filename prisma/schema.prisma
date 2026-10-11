@@ -1415,6 +1415,9 @@ model OutboundMessage {
   /// The OutboundMessage this one was written as a reply to (lib/sequences/threading.ts). A plain
   /// id like SequenceEnrollment.senderAccountId: on the row, so a redrive rebuilds the same thread.
   inReplyToOutboundId String?
+  /// The inbound message an inbox reply answers. A plain id like inReplyToOutboundId: re-read and
+  /// re-checked by the worker (same mailbox, has an RFC Message-ID); otherwise the reply goes out unthreaded.
+  inReplyToInboundId  String?
   // Derived from durable ids only (see lib/email/idempotency.ts) — never from the
   // subject, which is re-rendered on every attempt.
   idempotencyKey    String       @unique
@@ -3354,6 +3357,12 @@ model InboundMessage {
   body              String?      @db.Text
   bodyHtml          String?      @db.Text
   providerMessageId String       @unique
+  /// RFC 5322 Message-ID the sender gave this message, angle brackets included, and the References
+  /// chain it arrived with. What a reply from the inbox puts in In-Reply-To/References so it lands in
+  /// the prospect's thread. Null for mail stored before the sync read them, or when the provider did
+  /// not report one.
+  rfcMessageId      String?
+  referencesHeader  String?      @db.Text
   date              DateTime
   isRead            Boolean      @default(false)
   isSpam            Boolean      @default(false)

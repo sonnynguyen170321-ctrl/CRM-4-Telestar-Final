@@ -6,6 +6,7 @@ import { inboxScope, threadSubjectKey } from '@/lib/inbox/scope';
 import type { SessionUser } from '@/lib/auth';
 import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 import { newRequestId } from '@/lib/email/idempotency';
+import { mailboxRefusal, recipientRefusal } from '@/lib/email/sendGate';
 
 const replySchema = z.object({
   body: z.string().trim().min(1, 'Reply body is required').max(100_000),
@@ -42,7 +43,7 @@ export async function POST(
     // 1. Fetch Lead details — scoped to the caller's tenant.
     const lead = await prisma.lead.findFirst({
       where: { id: leadId, tenantId: user.tenantId },
-      select: { id: true, email: true, assignedToId: true, campaignId: true },
+      select: { id: true, email: true, assignedToId: true, campaignId: true, emailInvalid: true },
     });
 
     if (!lead) {
@@ -64,7 +65,7 @@ export async function POST(
     const recent = await prisma.inboundMessage.findMany({
       where: { tenantId: user.tenantId, leadId: lead.id, isBounce: false, AND: [scope.inbound] },
       orderBy: { date: 'desc' },
-      select: { accountId: true, subject: true },
+      select: { id: true, accountId: true, subject: true },
       take: THREAD_LOOKBACK,
     });
     const threadSubject = threadKey.startsWith(`${lead.id}-`) ? threadKey.slice(lead.id.length + 1) : null;
@@ -79,6 +80,21 @@ export async function POST(
 
     if (!account) {
       return NextResponse.json({ error: 'The mailbox this prospect wrote to is no longer connected' }, { status: 400 });
+    }
+
+    // The same refusals as a one-off send, while the rep is still looking at the reply box. The
+    // worker checks again right before the provider call, but by then this route has said 200 and
+    // the UI "queued"; the only record would be a failed row nobody on screen was shown.
+    const refusal =
+      mailboxRefusal(account) ??
+      (await recipientRefusal({
+        tenantId: user.tenantId,
+        email: lead.email,
+        campaignId: lead.campaignId,
+        emailInvalid: lead.emailInvalid,
+      }));
+    if (refusal) {
+      return NextResponse.json({ error: refusal.error, code: refusal.code }, { status: refusal.status });
     }
 
     // 3. Record the send through the shared service, so this path gets the same
@@ -101,6 +117,9 @@ export async function POST(
       subject: replySubject,
       body,
       tenantId: user.tenantId,
+      // The prospect's message in the open thread: the worker puts its Message-ID in
+      // In-Reply-To / References so the reply lands in their thread.
+      inReplyToInboundId: latest.id,
     });
 
     // An idempotency hit returns the row first written under this key. It must be this reply on
@@ -124,7 +143,10 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: 'Reply enqueued successfully',
+      // Queued, not sent: the worker sends it. `status` is the row's state now; the Sent folder
+      // shows how it ends (sent, deferred, failed, bounced).
+      message: 'Reply queued',
+      status: outbound.status,
       outboundMessage: {
         id: outbound.id,
         type: 'outbound',

@@ -43,6 +43,8 @@ export async function createOutboundMessage(params: {
   sequenceStepOrder?: number | null;
   /** The earlier message this one replies to, when the step sends in the same thread. */
   inReplyToOutboundId?: string | null;
+  /** The prospect's message an inbox reply answers; the worker threads the reply under it. */
+  inReplyToInboundId?: string | null;
 }) {
   const idempotencyKey = buildIdempotencyKey(params.source);
   return prisma.outboundMessage.upsert({
@@ -63,6 +65,7 @@ export async function createOutboundMessage(params: {
       sequenceStepOrder: params.sequenceStepOrder ?? null,
       // Only when set, so a send that is not a reply writes exactly the row it always did.
       ...(params.inReplyToOutboundId ? { inReplyToOutboundId: params.inReplyToOutboundId } : {}),
+      ...(params.inReplyToInboundId ? { inReplyToInboundId: params.inReplyToInboundId } : {}),
       idempotencyKey,
       status: OUTBOUND_STATUS.PENDING,
       tenantId: params.tenantId,

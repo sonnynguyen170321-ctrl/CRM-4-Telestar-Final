@@ -247,6 +247,8 @@ export class GmailAdapter implements EmailAdapter {
         body: body || msg.data.snippet || '',
         bodyHtml: bodyHtml || body || msg.data.snippet || '',
         failedRecipient: header('X-Failed-Recipients') || null,
+        rfcMessageId: header('Message-ID') || header('Message-Id') || null,
+        referencesHeader: header('References') || null,
         isSpam,
         isTrash,
         ...(msg.data.internalDate ? { receivedAt: new Date(Number(msg.data.internalDate)) } : {}),

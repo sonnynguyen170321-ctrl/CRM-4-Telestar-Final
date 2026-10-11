@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { findSuppression } from '@/lib/email/suppress';
+import { mailboxRefusal, recipientRefusal } from '@/lib/email/sendGate';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, canAccessLead, getVisibleUserIds } from '@/lib/auth';
 import { canViewOwned } from '@/lib/visibility';
@@ -39,9 +39,9 @@ export async function POST(req: NextRequest) {
   }
 
   // Suppression gate — check recipient email/domain against suppression entries
-  const suppressed = await findSuppression({ tenantId, email: body.to, campaignId: leadCampaignId });
-  if (suppressed) {
-    return NextResponse.json({ error: 'Recipient is suppressed' }, { status: 403 });
+  const recipientBlocked = await recipientRefusal({ tenantId, email: body.to, campaignId: leadCampaignId });
+  if (recipientBlocked) {
+    return NextResponse.json({ error: recipientBlocked.error, code: recipientBlocked.code }, { status: recipientBlocked.status });
   }
 
   // Your own mailbox. A director or floor manager may also send from a mailbox of someone under
@@ -66,13 +66,17 @@ export async function POST(req: NextRequest) {
   // composer has said "queued" and the panel has said "sent" — and the message sits at `failed`
   // with a reason nobody in front of the screen was shown. Seen in the 2026-09-19 role-play: a
   // manager paused the inbox, the SDR sent anyway, and saw "Email sent".
-  if (account.sendPausedAt) {
-    const why = account.sendPauseReason ? `: ${account.sendPauseReason}` : '';
-    return NextResponse.json(
-      { error: `Sending is paused for ${account.email}${why}. A manager can resume it under Email Health.`, code: 'mailbox_paused' },
-      { status: 409 }
-    );
+  const mailboxBlocked = mailboxRefusal(account);
+  if (mailboxBlocked) {
+    return NextResponse.json({ error: mailboxBlocked.error, code: mailboxBlocked.code }, { status: mailboxBlocked.status });
   }
+
+  // The From line speaks for whoever connected the mailbox, so the merge fields ({{sdrName}},
+  // {{sdrTitle}}) are theirs, not the signed-in manager's.
+  const sender = (await prisma.user.findFirst({
+    where: { id: account.userId, tenantId },
+    select: { firstName: true, lastName: true, role: true },
+  })) ?? user;
 
   let subject: string = body.subject ?? '';
   let text: string = body.text ?? body.body ?? '';
@@ -87,15 +91,15 @@ export async function POST(req: NextRequest) {
         const found = await prisma.template.findUnique({ where: { id: body.templateId } });
         const template = found && (await canViewOwned(user, found)) ? found : null;
         if (template && !subject.trim() && !text.trim()) {
-          subject = renderTemplate(template.subject ?? '', lead, user);
-          text = renderTemplate(template.body, lead, user);
+          subject = renderTemplate(template.subject ?? '', lead, sender);
+          text = renderTemplate(template.body, lead, sender);
         } else {
-          subject = renderTemplate(subject, lead, user);
-          text = renderTemplate(text, lead, user);
+          subject = renderTemplate(subject, lead, sender);
+          text = renderTemplate(text, lead, sender);
         }
       } else {
-        subject = renderTemplate(subject, lead, user);
-        text = renderTemplate(text, lead, user);
+        subject = renderTemplate(subject, lead, sender);
+        text = renderTemplate(text, lead, sender);
       }
     }
   }

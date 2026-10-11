@@ -63,45 +63,9 @@ import { classifyRecipientFailure } from '@/lib/email/recipientFailure';
 import { classifyProviderLimit } from '@/lib/email/providerLimit';
 import { blockIfBounced, findSuppression, suppressRecipient } from '@/lib/email/suppress';
 import { finalizeSequenceStep, releaseSequenceStep } from '@/lib/sequences/stepOutcome';
-/** Minimal account shape the deliverability preflight needs. */
-type SendGateAccount = {
-  isActive: boolean;
-  sendPausedAt: Date | null;
-  sendPauseReason: string | null;
-  healthLevel: string | null;
-};
-
-/**
- * Decides whether the deliverability layer blocks this send.
- *
- * A manager-set pause is an unconditional hard block. A critical health score is
- * advisory by default — it raises alerts, but only stops sending when
- * EMAIL_HEALTH_AUTOPAUSE is explicitly enabled, so a miscalibrated threshold
- * cannot silently halt a live client campaign.
- *
- * Exported for tests; pure so it needs no database.
- */
-export function evaluateSendBlock(
-  account: SendGateAccount
-): { reason: string; errorMessage: string } | null {
-  if (!account.isActive) {
-    return { reason: 'account_inactive', errorMessage: 'Email account is inactive' };
-  }
-
-  if (account.sendPausedAt !== null) {
-    const why = account.sendPauseReason ? `: ${account.sendPauseReason}` : '';
-    return { reason: 'account_paused', errorMessage: `Sending is paused for this inbox${why}` };
-  }
-
-  if (account.healthLevel === 'critical' && process.env.EMAIL_HEALTH_AUTOPAUSE === 'true') {
-    return {
-      reason: 'health_critical',
-      errorMessage: 'Inbox health is critical and auto-pause is enabled',
-    };
-  }
-
-  return null;
-}
+import { evaluateSendBlock } from '@/lib/email/sendGate';
+// Re-exported: the worker's tests, and the reconciliation test, import the gate from here.
+export { evaluateSendBlock };
 
 /**
  * How many daily deferrals before the operator is told the mailbox cannot keep up.
@@ -461,6 +425,8 @@ async function handleEmailSend(payload: EmailSendPayload) {
   // the send block, so the account is still read exactly once.
   const account = await prisma.emailAccount.findUnique({
     where: { id: accountId },
+    // The merge fields {{sdrName}} / {{sdrTitle}} are the mailbox owner's: the From line speaks for them.
+    include: { user: { select: { id: true, firstName: true, lastName: true, role: true } } },
   });
   if (!account) {
     // Release the claim before throwing: nothing was sent, so the row belongs back in the
@@ -612,8 +578,9 @@ async function handleEmailSend(payload: EmailSendPayload) {
       include: { assignedTo: { select: { id: true, firstName: true, lastName: true, role: true } } },
     });
     if (leadForRender) {
-      finalSubject = renderTemplate(subject, leadForRender as any, leadForRender.assignedTo as any);
-      finalBody = renderTemplate(body, leadForRender as any, leadForRender.assignedTo as any);
+      const sender = (account.user ?? leadForRender.assignedTo) as any;
+      finalSubject = renderTemplate(subject, leadForRender as any, sender);
+      finalBody = renderTemplate(body, leadForRender as any, sender);
     }
   }
 
@@ -714,6 +681,21 @@ async function handleEmailSend(payload: EmailSendPayload) {
         finalSubject = parentSubject;
       } else {
         finalSubject = stripReplyPrefix(finalSubject) || finalSubject;
+      }
+    }
+
+    // A reply to a prospect's message from the inbox: thread under the message they sent. Re-read
+    // and re-checked like the outbound parent; anything missing sends it unthreaded, never failed.
+    if (!threading && existing.inReplyToInboundId) {
+      const inbound = await prisma.inboundMessage.findFirst({
+        where: { id: existing.inReplyToInboundId, tenantId: existing.tenantId },
+        select: { accountId: true, rfcMessageId: true, referencesHeader: true },
+      });
+      if (inbound && inbound.accountId === account.id && inbound.rfcMessageId) {
+        threading = {
+          inReplyTo: normalizeMessageId(inbound.rfcMessageId),
+          references: buildReferences(inbound.referencesHeader, inbound.rfcMessageId),
+        };
       }
     }
 

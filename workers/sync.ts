@@ -297,6 +297,8 @@ async function handleEmailSync(payload: EmailSyncPayload) {
           body: stripNul(c.msg.body ?? ''),
           bodyHtml: stripNul(c.msg.bodyHtml ?? c.msg.body ?? ''),
           providerMessageId: c.msg.providerMessageId,
+          rfcMessageId: c.msg.rfcMessageId ? stripNul(c.msg.rfcMessageId).slice(0, 998) : null,
+          referencesHeader: c.msg.referencesHeader ? stripNul(c.msg.referencesHeader).slice(0, 8000) : null,
           date: c.msg.date,
           isSpam: c.msg.isSpam ?? false,
           isTrash: c.msg.isTrash ?? false,

@@ -1,8 +1,9 @@
-import type { EmailAdapter, InboxMessage, SendEmailOptions } from '../EmailService';
+import type { EmailAdapter, InboxMessage, SendEmailOptions, SendReceipt } from '../EmailService';
 import { SYNC_READ_LIMIT, type InboxBatch } from '../inboxBatch';
 import { fromHeaderValue } from '@/lib/email/senderName';
 import { encrypt } from '@/lib/crypto';
 import DOMPurify from 'isomorphic-dompurify';
+import { randomUUID } from 'node:crypto';
 
 interface OutlookConfig {
   accessToken: string;
@@ -10,9 +11,16 @@ interface OutlookConfig {
   tokenExpiry?: Date;
   /** EmailAccount.id — used to persist refreshed tokens back to the DB. */
   accountId?: string;
+  /** Waits before each Sent Items lookup after a send. Tests pass `[0]`. */
+  sentLookupDelaysMs?: number[];
 }
 
 const GRAPH_SEND_URL = 'https://graph.microsoft.com/v1.0/me/sendMail';
+const GRAPH_SENT_URL = 'https://graph.microsoft.com/v1.0/me/mailFolders/sentitems/messages';
+/** Waits before each look into Sent Items: the sent copy appears a moment after the 202. */
+const SENT_LOOKUP_DELAYS_MS = [1_500, 3_500];
+/** The sent time Exchange records can sit slightly behind our clock. */
+const SENT_CLOCK_SKEW_MS = 60_000;
 const TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
 
 /**
@@ -71,10 +79,26 @@ export class OutlookAdapter implements EmailAdapter {
     return data.access_token;
   }
 
-  async send(options: SendEmailOptions): Promise<string | undefined> {
-    let token = this.config.accessToken;
-
+  /**
+   * Send, then learn the RFC Message-ID Exchange gave the message.
+   *
+   * `sendMail` answers 202 with no body, so a later sequence step or inbox reply had no Message-ID
+   * to put in In-Reply-To and went out as a new email. The draft route (create, read
+   * `internetMessageId`, send) needs the Mail.ReadWrite scope, which connected mailboxes were never
+   * asked for, so this keeps `sendMail` and reads the result back from Sent Items with Mail.Read,
+   * which they have:
+   *
+   *   1. our own Message-ID goes in the MIME, and Sent Items is searched for it
+   *   2. if Exchange rewrote it, the sent copy is matched on recipient, subject and send time
+   *
+   * Only an id Graph reports is returned, never our guess. The message is sent either way: a
+   * failed lookup costs the next step its thread (it goes out as a new email), never the send.
+   */
+  async send(options: SendEmailOptions): Promise<SendReceipt> {
     const MailComposer = (await import('nodemailer/lib/mail-composer')).default;
+    const domain = options.from.split('@')[1] || 'localhost';
+    const ownMessageId = `<${randomUUID()}@${domain}>`;
+    const startedAt = new Date(Date.now() - SENT_CLOCK_SKEW_MS);
     const mail = new MailComposer({
       from: fromHeaderValue(options.from, options.fromName),
       to: options.to,
@@ -84,8 +108,8 @@ export class OutlookAdapter implements EmailAdapter {
       replyTo: options.replyTo,
       headers: options.headers,
       attachments: options.attachments,
-      // The recipient's client threads on these. Graph reports no Message-ID for a send, so a
-      // step after this one has nothing to reply to and goes out as a new email.
+      messageId: ownMessageId,
+      // The recipient's client threads on these.
       inReplyTo: options.threading?.inReplyTo,
       references: options.threading?.references,
     });
@@ -106,11 +130,11 @@ export class OutlookAdapter implements EmailAdapter {
       });
     };
 
-    let res = await sendRequest(token);
+    let res = await sendRequest(this.config.accessToken);
 
     // Token expired — refresh and retry once
     if (res.status === 401) {
-      token = await this.refreshAccessToken();
+      const token = await this.refreshAccessToken();
       res = await sendRequest(token);
     }
 
@@ -118,7 +142,71 @@ export class OutlookAdapter implements EmailAdapter {
       const err = await res.json().catch(() => ({}));
       throw new Error(`Microsoft Graph API error: ${err.error?.message ?? res.statusText}`);
     }
-    // Graph sendMail returns 202 Accepted with no body — no message ID available for reconciliation.
+
+    try {
+      const rfcMessageId = await this.findSentMessageId({
+        ownMessageId,
+        to: options.to,
+        subject: options.subject,
+        since: startedAt,
+      });
+      return rfcMessageId ? { providerMessageId: rfcMessageId, rfcMessageId } : {};
+    } catch (err) {
+      console.warn('[outlook] sent, but could not read back the Message-ID:', err instanceof Error ? err.message : err);
+      return {};
+    }
+  }
+
+  /** One GET against Graph with the current token, refreshed once on 401. */
+  private async graphGet(url: string): Promise<Response> {
+    let res = await fetch(url, { headers: { Authorization: `Bearer ${this.config.accessToken}` } });
+    if (res.status === 401) {
+      const token = await this.refreshAccessToken();
+      res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    }
+    return res;
+  }
+
+  /** The Message-ID of the copy of this message in Sent Items, or undefined when it cannot be found. */
+  private async findSentMessageId(input: {
+    ownMessageId: string;
+    to: string;
+    subject: string;
+    since: Date;
+  }): Promise<string | undefined> {
+    const delays = this.config.sentLookupDelaysMs ?? SENT_LOOKUP_DELAYS_MS;
+    const odataString = (value: string) => value.replace(/'/g, "''");
+    const byOwnId =
+      `${GRAPH_SENT_URL}?$filter=internetMessageId eq '${odataString(input.ownMessageId)}'` +
+      '&$select=internetMessageId&$top=1';
+    const recent =
+      `${GRAPH_SENT_URL}?$filter=sentDateTime ge ${input.since.toISOString()}` +
+      '&$select=internetMessageId,subject,toRecipients,sentDateTime&$orderby=sentDateTime desc&$top=25';
+
+    for (const delay of delays) {
+      if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+
+      const own = await this.graphGet(byOwnId);
+      if (own.ok) {
+        const found = ((await own.json()) as { value?: Array<{ internetMessageId?: string }> }).value?.[0];
+        if (found?.internetMessageId) return found.internetMessageId;
+      }
+
+      const list = await this.graphGet(recent);
+      if (list.ok) {
+        const items = ((await list.json()) as { value?: any[] }).value ?? [];
+        const wanted = input.to.trim().toLowerCase();
+        const match = items.find(
+          (m) =>
+            m?.internetMessageId &&
+            m.subject === input.subject &&
+            (m.toRecipients ?? []).some(
+              (r: any) => String(r?.emailAddress?.address ?? '').toLowerCase() === wanted
+            )
+        );
+        if (match) return match.internetMessageId as string;
+      }
+    }
     return undefined;
   }
 
@@ -134,7 +222,7 @@ export class OutlookAdapter implements EmailAdapter {
     let next: string | null =
       'https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages' +
       `?$filter=receivedDateTime ge ${since.toISOString()}` +
-      '&$select=from,toRecipients,subject,receivedDateTime,body&$orderby=receivedDateTime asc&$top=100';
+      '&$select=from,toRecipients,subject,receivedDateTime,body,internetMessageId,internetMessageHeaders&$orderby=receivedDateTime asc&$top=100';
 
     let token = this.config.accessToken;
     const messages: InboxMessage[] = [];
@@ -224,6 +312,12 @@ function htmlToText(html: string): string {
   return (fragment.textContent ?? '').trim();
 }
 
+function internetHeader(headers: unknown, name: string): string | null {
+  if (!Array.isArray(headers)) return null;
+  const hit = headers.find((h: any) => String(h?.name ?? '').toLowerCase() === name.toLowerCase());
+  return hit?.value ? String(hit.value) : null;
+}
+
 function toInboxMessage(m: any): InboxMessage {
   const fromEmail = (m.from?.emailAddress?.address ?? '').toLowerCase();
   const fromName = m.from?.emailAddress?.name ?? null;
@@ -241,6 +335,8 @@ function toInboxMessage(m: any): InboxMessage {
     body: isHtml ? htmlToText(rawBody) : rawBody,
     bodyHtml: isHtml ? rawBody : rawBody,
     failedRecipient: null,
+    rfcMessageId: m.internetMessageId || null,
+    referencesHeader: internetHeader(m.internetMessageHeaders, 'References'),
     isSpam: false,
     isTrash: false,
     receivedAt,
