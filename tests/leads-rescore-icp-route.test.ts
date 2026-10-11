@@ -10,10 +10,14 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
 const mockRequireAuth = vi.fn();
+const mockVisible = vi.fn();
 const mockRescore = vi.fn();
 const mockTenantRun = vi.fn();
 
-vi.mock('@/lib/auth', () => ({ requireAuth: (...a: unknown[]) => mockRequireAuth(...a) }));
+vi.mock('@/lib/auth', () => ({
+  requireAuth: (...a: unknown[]) => mockRequireAuth(...a),
+  getVisibleCampaignIds: (...a: unknown[]) => mockVisible(...a),
+}));
 vi.mock('@/lib/leads/icpScoring', () => ({
   rescoreLeadsIcp: (...a: unknown[]) => mockRescore(...a),
   RESCORE_LEADS_BATCH_LIMIT: 500,
@@ -33,8 +37,9 @@ const req = (body: unknown) =>
 beforeEach(() => {
   vi.clearAllMocks();
   mockRequireAuth.mockResolvedValue(MANAGER);
+  mockVisible.mockResolvedValue(null);
   mockTenantRun.mockImplementation(async (_ctx: unknown, fn: () => Promise<unknown>) => fn());
-  mockRescore.mockResolvedValue({ considered: 3, scored: 2, notScored: 1, reasons: { no_icp_configured: 1 }, truncated: false });
+  mockRescore.mockResolvedValue({ considered: 3, scored: 2, notScored: 1, reasons: { campaign_has_no_icp: 1 }, truncated: false });
 });
 
 describe('POST /api/leads/rescore-icp', () => {
@@ -50,7 +55,25 @@ describe('POST /api/leads/rescore-icp', () => {
     expect(res.status).toBe(200);
     expect(mockTenantRun).toHaveBeenCalledWith(expect.objectContaining({ tenantId: 't1' }), expect.any(Function));
     expect(mockRescore).toHaveBeenCalledWith({ tenantId: 't1', campaignId: 'c1', onlyUnscored: false, limit: 50 });
-    expect(await res.json()).toMatchObject({ success: true, considered: 3, scored: 2, notScored: 1, reasons: { no_icp_configured: 1 } });
+    expect(await res.json()).toMatchObject({ success: true, considered: 3, scored: 2, notScored: 1, reasons: { campaign_has_no_icp: 1 } });
+  });
+
+  it('answers 404 for a campaign the caller cannot see, and scores nothing', async () => {
+    mockVisible.mockResolvedValue(['c-mine']);
+    const res = await POST(req({ campaignId: 'c-other-team' }));
+    expect(res.status).toBe(404);
+    expect(mockRescore).not.toHaveBeenCalled();
+  });
+
+  it('lets a caller rescore a campaign they can see', async () => {
+    mockVisible.mockResolvedValue(['c-mine']);
+    expect((await POST(req({ campaignId: 'c-mine' }))).status).toBe(200);
+    expect(mockRescore).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not look up visibility when no campaign is named', async () => {
+    expect((await POST(req({}))).status).toBe(200);
+    expect(mockVisible).not.toHaveBeenCalled();
   });
 
   it('passes a continuation cursor through, and refuses a malformed one', async () => {

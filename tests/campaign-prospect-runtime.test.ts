@@ -11,7 +11,11 @@ const db = {
   leadPoolAssessment: { findFirst: vi.fn() },
 };
 
+const mockResolveIcpVersionId = vi.fn();
 vi.mock('@/lib/prisma', () => ({ prisma: db }));
+vi.mock('@/lib/leadgen/scorePoolItem', () => ({
+  resolveIcpVersionId: (...a: unknown[]) => mockResolveIcpVersionId(...a),
+}));
 vi.mock('@/lib/leadgen/assignableReps', () => ({
   canAssignToRep: vi.fn().mockResolvedValue(true),
 }));
@@ -54,7 +58,8 @@ const existing = {
 describe('CampaignProspect runtime service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    db.campaign.findFirst.mockResolvedValue({ id: 'campaign-a', icpVersionId: 'icp-v1' });
+    db.campaign.findFirst.mockResolvedValue({ id: 'campaign-a' });
+    mockResolveIcpVersionId.mockResolvedValue('icp-v1');
     db.leadPoolItem.findFirst.mockResolvedValue({
       id: 'pool-a',
       email: 'person@example.test',
@@ -124,7 +129,8 @@ describe('CampaignProspect runtime service', () => {
   });
 
   it('preserves the prior assessment as stale when the campaign changes ICP', async () => {
-    db.campaign.findFirst.mockResolvedValue({ id: 'campaign-a', icpVersionId: 'icp-v2' });
+    db.campaign.findFirst.mockResolvedValue({ id: 'campaign-a' });
+    mockResolveIcpVersionId.mockResolvedValue('icp-v2');
     db.campaignProspect.findUnique.mockResolvedValue(existing);
     db.leadPoolAssessment.findFirst.mockResolvedValue(null);
 

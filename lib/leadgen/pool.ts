@@ -15,6 +15,7 @@ import { tenantIdOrThrow } from '@/lib/api/tenant';
 import { onLeadgenItemQualified } from '@/lib/contact-intelligence/events';
 import { ensureCampaignProspect } from '@/lib/leadgen/campaignProspects';
 import { deriveIcpMatch } from '@/lib/leadgen/icpMatch';
+import { resolveIcpVersionId } from '@/lib/leadgen/scorePoolItem';
 import { scoreNewLead } from '@/lib/leads/scoreNewLead';
 
 // ─── Duplicate detection ─────────────────────────────────────────────────────
@@ -205,7 +206,7 @@ export async function listPoolItems(query: PoolListQuery, tenantId: string) {
         campaignProspects: {
           where: { status: { not: 'removed' } },
           include: {
-            campaign: { select: { id: true, name: true, icpVersionId: true } },
+            campaign: { select: { id: true, name: true } },
             assignedSdr: { select: { id: true, firstName: true, lastName: true } },
             latestAssessment: { select: { id: true, qualification: true } },
           },
@@ -221,6 +222,17 @@ export async function listPoolItems(query: PoolListQuery, tenantId: string) {
     prisma.leadPoolItem.count({ where: where as never }),
   ]);
 
+  // The ICP each campaign follows today (its profile's newest published version); null = no ICP.
+  const campaignIcpVersion = new Map<string, string | null>();
+  for (const item of items) {
+    for (const membership of item.campaignProspects) {
+      const campaignId = membership.campaign.id;
+      if (!campaignIcpVersion.has(campaignId)) {
+        campaignIcpVersion.set(campaignId, await resolveIcpVersionId(tenantId, campaignId));
+      }
+    }
+  }
+
   const itemsWithCampaignTruth = items.map((item) => ({
     ...item,
     campaignProspects: item.campaignProspects.map((membership) => ({
@@ -228,7 +240,7 @@ export async function listPoolItems(query: PoolListQuery, tenantId: string) {
       icpMatch: deriveIcpMatch({
         qualification: membership.latestAssessment?.qualification ?? null,
         assessedIcpVersionId: membership.assessedIcpVersionId,
-        currentIcpVersionId: membership.campaign.icpVersionId,
+        currentIcpVersionId: campaignIcpVersion.get(membership.campaign.id) ?? null,
       }),
     })),
   }));

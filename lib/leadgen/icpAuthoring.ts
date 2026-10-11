@@ -369,37 +369,56 @@ export async function publishIcpDraft(input: {
   });
 }
 
+/**
+ * Point a campaign at an ICP, or clear it (`icpVersionId: null`).
+ *
+ * The campaign follows the chosen version's PROFILE (`icpProfileId`): it scores against that
+ * profile's newest published version from now on, so publishing a new version needs no re-pointing.
+ * `icpVersionId` is still written, as history and for the previous image. Clearing both leaves the
+ * campaign with no ICP: its leads are not scored (there is no default fallback).
+ */
 export async function assignCampaignIcp(input: {
   tenantId: string;
   campaignId: string;
-  icpVersionId: string;
+  icpVersionId: string | null;
 }) {
   const [campaign, version] = await Promise.all([
     prisma.campaign.findFirst({
       where: { id: input.campaignId, tenantId: input.tenantId },
-      select: { id: true, icpVersionId: true },
+      select: { id: true, icpVersionId: true, icpProfileId: true },
     }),
-    prisma.icpVersion.findFirst({
-      where: {
-        id: input.icpVersionId,
-        tenantId: input.tenantId,
-        status: "published",
-      },
-      select: { id: true },
-    }),
+    input.icpVersionId === null
+      ? Promise.resolve(null)
+      : prisma.icpVersion.findFirst({
+          where: {
+            id: input.icpVersionId,
+            tenantId: input.tenantId,
+            status: "published",
+          },
+          select: { id: true, icpProfileId: true },
+        }),
   ]);
   if (!campaign) throw new IcpAuthoringError("not_found", "Campaign not found");
-  if (!version) {
+  if (input.icpVersionId !== null && !version) {
     throw new IcpAuthoringError(
       "not_found",
       "Published ICP version not found",
     );
   }
-  if (campaign.icpVersionId === version.id) return campaign;
+  const next = {
+    icpVersionId: version?.id ?? null,
+    icpProfileId: version?.icpProfileId ?? null,
+  };
+  if (
+    campaign.icpVersionId === next.icpVersionId &&
+    campaign.icpProfileId === next.icpProfileId
+  ) {
+    return { id: campaign.id, icpVersionId: campaign.icpVersionId };
+  }
 
   return prisma.campaign.update({
     where: { id: campaign.id },
-    data: { icpVersionId: version.id },
-    select: { id: true, icpVersionId: true },
+    data: next,
+    select: { id: true, icpVersionId: true, icpProfileId: true },
   });
 }

@@ -56,18 +56,88 @@ export type ScorePoolItemResult = {
   qualification: IcpQualification;
 };
 
+/** Why a campaign's leads are not scored: said out loud instead of scored against someone else's ICP. */
+export type IcpNotScoredReason = "campaign_has_no_icp" | "icp_has_no_published_version";
+
+export type CampaignIcpResolution =
+  | {
+      ok: true;
+      icpVersionId: string;
+      /** Null for a legacy campaign that still points at a version only. */
+      icpProfileId: string | null;
+      source: "profile" | "legacy_pin";
+    }
+  | { ok: false; icpVersionId: null; reason: IcpNotScoredReason; icpProfileId: string | null };
+
+/**
+ * The ICP version a campaign is scored against. There is NO fallback to the company default
+ * (owner decision 2026-10-10): a campaign without an ICP is not scored, and the caller says so.
+ *
+ *   1. `Campaign.icpProfileId` -> that profile's newest PUBLISHED version. Publishing a new version
+ *      moves the campaign with it; nothing is re-pointed.
+ *   2. Legacy: `Campaign.icpProfileId` is null but `icpVersionId` is set -> that version, only while
+ *      it is still published. An archived pin is no ICP at all.
+ *   3. Otherwise null with a reason.
+ *
+ * A campaign id the tenant does not own resolves like a campaign with no ICP.
+ */
+export async function resolveCampaignIcp(
+  tenantId: string,
+  campaignId: string | null,
+): Promise<CampaignIcpResolution> {
+  const none = (
+    reason: IcpNotScoredReason,
+    icpProfileId: string | null = null,
+  ): CampaignIcpResolution => ({ ok: false, icpVersionId: null, reason, icpProfileId });
+  if (!campaignId) return none("campaign_has_no_icp");
+
+  const campaign = await prisma.campaign.findFirst({
+    where: { id: campaignId, tenantId },
+    select: { icpProfileId: true, icpVersionId: true },
+  });
+  if (!campaign) return none("campaign_has_no_icp");
+
+  if (campaign.icpProfileId) {
+    const latest = await prisma.icpVersion.findFirst({
+      where: { tenantId, icpProfileId: campaign.icpProfileId, status: "published" },
+      orderBy: { versionNumber: "desc" },
+      select: { id: true },
+    });
+    return latest
+      ? { ok: true, icpVersionId: latest.id, icpProfileId: campaign.icpProfileId, source: "profile" }
+      : none("icp_has_no_published_version", campaign.icpProfileId);
+  }
+
+  if (campaign.icpVersionId) {
+    const pinned = await prisma.icpVersion.findFirst({
+      where: { id: campaign.icpVersionId, tenantId, status: "published" },
+      select: { id: true, icpProfileId: true },
+    });
+    return pinned
+      ? { ok: true, icpVersionId: pinned.id, icpProfileId: pinned.icpProfileId, source: "legacy_pin" }
+      : none("icp_has_no_published_version");
+  }
+
+  return none("campaign_has_no_icp");
+}
+
+/** The version id alone, for callers that only need to know whether the campaign scores. */
 export async function resolveIcpVersionId(
   tenantId: string,
   campaignId: string | null,
 ): Promise<string | null> {
-  if (campaignId) {
-    const campaign = await prisma.campaign.findFirst({
-      where: { id: campaignId, tenantId },
-      select: { icpVersionId: true },
-    });
-    if (campaign?.icpVersionId) return campaign.icpVersionId;
-  }
+  return (await resolveCampaignIcp(tenantId, campaignId)).icpVersionId;
+}
 
+/**
+ * Pre-ranking for pool records that belong to no campaign yet: the tenant default profile's newest
+ * published version, so the pool browser can order the unassigned stock. It is deliberately a
+ * separate function from `resolveIcpVersionId`: a lead or a campaign-bound prospect must never be
+ * scored with it.
+ */
+export async function resolvePoolPreRankVersionId(
+  tenantId: string,
+): Promise<string | null> {
   const fallback = await prisma.icpVersion.findFirst({
     where: { tenantId, status: "published", icpProfile: { isDefault: true } },
     orderBy: { versionNumber: "desc" },

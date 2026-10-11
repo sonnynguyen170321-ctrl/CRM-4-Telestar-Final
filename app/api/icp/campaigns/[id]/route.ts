@@ -11,7 +11,8 @@ import { invalidateList } from "@/lib/cache";
 import { assignCampaignIcp } from "@/lib/leadgen/icpAuthoring";
 
 const assignmentSchema = z
-  .object({ icpVersionId: z.string().min(1) })
+  // null clears the campaign's ICP: it is then not scored (there is no default fallback).
+  .object({ icpVersionId: z.string().min(1).nullable() })
   .strict();
 
 export async function PATCH(

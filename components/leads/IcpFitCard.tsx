@@ -27,7 +27,7 @@ export type IcpFitLead = {
   campaign?: { id: string } | null;
   /** Which ICP applies and whether the verdict was scored with it (lib/leads/icpContext.ts). */
   icpContext?: {
-    source: 'campaign' | 'default' | 'none';
+    source: 'campaign' | 'none';
     outdated: boolean;
     line: string;
     warning: string | null;
@@ -178,15 +178,17 @@ export function IcpFitCard({
         </>
       ) : (
         <p className="text-[12px] text-text-secondary leading-normal">
-          {lead.campaign?.id
-            ? 'This lead has not been scored yet.'
-            : 'This lead has no campaign, so there is no ICP to score it against.'}{' '}
+          {!lead.campaign?.id
+            ? 'This lead has no campaign, so there is no ICP to score it against.'
+            : lead.icpContext?.source === 'none'
+              ? 'This lead is not scored: its campaign has no usable ICP.'
+              : 'This lead has not been scored yet.'}{' '}
           You can still record your own verdict.
         </p>
       )}
 
-      {/* Which ICP the verdict is measured against. Without this a campaign with no ICP of its own
-          silently showed the company default (Telestar) as if it were the campaign's. */}
+      {/* Which ICP the verdict is measured against, or that the campaign has none (there is no
+          company-default fallback for leads). */}
       {lead.icpContext && (
         <div className="space-y-1" data-testid="icp-context">
           <p className={`text-[12px] leading-snug ${lead.icpContext.source === 'campaign' ? 'text-text-secondary' : 'text-text-primary'}`}>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { requireAuth, type SessionUser } from '@/lib/auth';
+import { getVisibleCampaignIds, requireAuth, type SessionUser } from '@/lib/auth';
 import { canManageScoringRequest } from '@/lib/leads/scoringAccess';
 import { rescoreLeadsIcp, RESCORE_LEADS_BATCH_LIMIT } from '@/lib/leads/icpScoring';
 import { parseBody } from '@/lib/validation/core';
@@ -48,6 +48,14 @@ export async function POST(req: NextRequest) {
   const parsed = await parseBody(req, rescoreSchema, 'Invalid rescore request');
   if (parsed.error) return parsed.error;
   const tenantId = user.tenantId;
+
+  // A campaign the caller cannot see is a campaign that does not exist for them (404, not 403).
+  if (parsed.data.campaignId) {
+    const visibleCampaignIds = await getVisibleCampaignIds(user);
+    if (visibleCampaignIds !== null && !visibleCampaignIds.includes(parsed.data.campaignId)) {
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
+    }
+  }
 
   try {
     const report = await tenantStorage.run({ tenantId }, () =>

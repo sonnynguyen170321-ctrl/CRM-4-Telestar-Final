@@ -1,12 +1,18 @@
 import { prisma } from "@/lib/prisma";
 
-import { resolveIcpVersionId, scorePoolItem } from "./scorePoolItem";
+import {
+  resolveIcpVersionId,
+  resolvePoolPreRankVersionId,
+  scorePoolItem,
+} from "./scorePoolItem";
 
 /**
  * Re-score immutable ICP assessments through campaign memberships.
  *
- * CampaignProspect is the unit of campaign scoring. An unassigned pool item may still use the
- * tenant default ICP, but one campaign's result is never written as another campaign's truth.
+ * CampaignProspect is the unit of campaign scoring: it follows its campaign's ICP profile and a
+ * campaign without an ICP is skipped (`skippedNoIcp`), never scored with the default. Only an
+ * unassigned pool item is pre-ranked with the tenant default ICP, and one campaign's result is
+ * never written as another campaign's truth.
  */
 export const RESCORE_BATCH_LIMIT = 500;
 
@@ -26,7 +32,6 @@ export type RescoreResult = {
 
 type Target = {
   campaignId: string | null;
-  currentIcpVersionId: string | null;
   item: {
     id: string;
     company: string;
@@ -66,13 +71,11 @@ async function targetsFor(
       take,
       select: {
         campaignId: true,
-        campaign: { select: { icpVersionId: true } },
         poolItem: { select: itemSelect },
       },
     });
     return memberships.map((membership) => ({
       campaignId: membership.campaignId,
-      currentIcpVersionId: membership.campaign.icpVersionId,
       item: membership.poolItem,
     }));
   }
@@ -94,10 +97,7 @@ async function targetsFor(
       ...itemSelect,
       campaignProspects: {
         where: { tenantId, status: { not: "removed" } },
-        select: {
-          campaignId: true,
-          campaign: { select: { icpVersionId: true } },
-        },
+        select: { campaignId: true },
         orderBy: { addedAt: "asc" },
       },
     },
@@ -107,19 +107,11 @@ async function targetsFor(
   for (const item of items) {
     const { campaignProspects, ...scorable } = item;
     if (campaignProspects.length === 0) {
-      targets.push({
-        campaignId: null,
-        currentIcpVersionId: null,
-        item: scorable,
-      });
+      targets.push({ campaignId: null, item: scorable });
     } else {
       for (const membership of campaignProspects) {
         if (targets.length >= take) break;
-        targets.push({
-          campaignId: membership.campaignId,
-          currentIcpVersionId: membership.campaign.icpVersionId,
-          item: scorable,
-        });
+        targets.push({ campaignId: membership.campaignId, item: scorable });
       }
     }
     if (targets.length >= take) break;
@@ -147,12 +139,23 @@ export async function rescorePool(params: {
     failed: [],
   };
   const rulesCache = new Map<string, unknown | null>();
+  const versionCache = new Map<string, string | null>();
+  const versionFor = async (campaignId: string | null): Promise<string | null> => {
+    const key = campaignId ?? "";
+    if (!versionCache.has(key)) {
+      versionCache.set(
+        key,
+        campaignId
+          ? await resolveIcpVersionId(tenantId, campaignId)
+          : await resolvePoolPreRankVersionId(tenantId),
+      );
+    }
+    return versionCache.get(key) ?? null;
+  };
 
   for (const target of targets) {
     try {
-      const icpVersionId =
-        target.currentIcpVersionId ??
-        (target.campaignId ? null : await resolveIcpVersionId(tenantId, null));
+      const icpVersionId = await versionFor(target.campaignId);
       if (!icpVersionId) {
         result.skippedNoIcp += 1;
         continue;

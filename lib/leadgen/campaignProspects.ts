@@ -5,6 +5,7 @@ import { normalizeEmail } from '@/lib/leads/normalize';
 import { prisma } from '@/lib/prisma';
 
 import { canAssignToRep } from './assignableReps';
+import { resolveIcpVersionId } from './scorePoolItem';
 
 const INVALID_EMAIL_STATES = new Set(['invalid', 'undeliverable', 'bounced']);
 
@@ -64,7 +65,7 @@ export async function ensureCampaignProspect(params: {
   const [campaign, item, existing] = await Promise.all([
     prisma.campaign.findFirst({
       where: { id: campaignId, tenantId },
-      select: { id: true, icpVersionId: true },
+      select: { id: true },
     }),
     prisma.leadPoolItem.findFirst({
       where: { id: poolItemId, tenantId },
@@ -87,7 +88,8 @@ export async function ensureCampaignProspect(params: {
   const assessment = await currentAssessment({
     tenantId,
     poolItemId,
-    campaignIcpVersionId: campaign.icpVersionId,
+    // The campaign's ICP profile's newest published version, or null (no ICP: nothing to assess).
+    campaignIcpVersionId: await resolveIcpVersionId(tenantId, campaign.id),
   });
   const nextStatus =
     existing?.status === 'active' || existing?.status === 'completed'

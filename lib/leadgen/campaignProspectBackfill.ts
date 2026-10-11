@@ -3,6 +3,7 @@ import type { CampaignProspectStatus, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 
 import { deriveCampaignProspectReadiness } from './campaignProspects';
+import { resolveIcpVersionId } from './scorePoolItem';
 
 export type CampaignProspectBackfillConflict = {
   poolItemId: string;
@@ -100,12 +101,20 @@ export async function backfillCampaignProspectsForTenant(params: {
     ];
     const campaigns = await prisma.campaign.findMany({
       where: { tenantId, id: { in: campaignIds } },
-      select: { id: true, icpVersionId: true },
+      select: { id: true },
     });
-    const campaignById = new Map(campaigns.map((campaign) => [campaign.id, campaign]));
+    // The ICP each campaign follows today (profile -> newest published version), not its old pin.
+    const campaignById = new Map(
+      await Promise.all(
+        campaigns.map(async (campaign) => [
+          campaign.id,
+          { id: campaign.id, icpVersionId: await resolveIcpVersionId(tenantId, campaign.id) },
+        ] as const)
+      )
+    );
 
     const poolIds = items.map((item) => item.id);
-    const versionIds = campaigns
+    const versionIds = [...campaignById.values()]
       .map((campaign) => campaign.icpVersionId)
       .filter((id): id is string => Boolean(id));
     const assessments =

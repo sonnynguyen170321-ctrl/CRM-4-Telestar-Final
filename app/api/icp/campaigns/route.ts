@@ -26,6 +26,8 @@ export async function GET() {
       name: true,
       status: true,
       icpVersionId: true,
+      icpProfileId: true,
+      icpProfile: { select: { id: true, name: true, kind: true } },
       client: { select: { name: true } },
       icpVersion: {
         select: {
