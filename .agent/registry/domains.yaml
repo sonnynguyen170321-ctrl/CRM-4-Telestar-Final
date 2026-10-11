@@ -193,6 +193,7 @@ domains:
       - lib/inbox/deliveryStatus.ts
       # Inserts a merge field into a template subject or body at the cursor.
       - lib/templates/insertMergeTag.ts
+      - lib/templates/render.ts
       # createOutboundMessage / enqueueEmailSendWorkflow: the one door every send goes through.
       - lib/workflows/email.ts
       - lib/replies/**
