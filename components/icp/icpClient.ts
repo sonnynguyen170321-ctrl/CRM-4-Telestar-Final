@@ -72,11 +72,12 @@ export const icpApi = {
   publish: (versionId: string, expectedUpdatedAt: string) =>
     send(`/api/icp/versions/${versionId}/publish`, 'POST', { expectedUpdatedAt }).then((r) => readJson<PublishOutcome>(r)),
   withdraw: (versionId: string) => send(`/api/icp/versions/${versionId}/withdraw`, 'POST').then(readJson),
-  approve: (versionId: string) =>
-    send(`/api/icp/versions/${versionId}/approve`, 'POST').then((r) =>
+  approve: (versionId: string, expectedSubmittedAt: string) =>
+    send(`/api/icp/versions/${versionId}/approve`, 'POST', { expectedSubmittedAt }).then((r) =>
       readJson<{ campaigns: Array<{ id: string; name: string }> }>(r),
     ),
-  reject: (versionId: string, note: string) => send(`/api/icp/versions/${versionId}/reject`, 'POST', { note }).then(readJson),
+  reject: (versionId: string, note: string, expectedSubmittedAt: string) =>
+    send(`/api/icp/versions/${versionId}/reject`, 'POST', { note, expectedSubmittedAt }).then(readJson),
   assign: (campaignId: string, icpVersionId: string | null) =>
     send(`/api/icp/campaigns/${campaignId}`, 'PATCH', { icpVersionId }).then(readJson),
 };

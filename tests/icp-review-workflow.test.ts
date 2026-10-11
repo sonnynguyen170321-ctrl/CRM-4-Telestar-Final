@@ -23,6 +23,14 @@ vi.mock('@/lib/cache', () => ({
   invalidateList: vi.fn(),
 }));
 let requestHeaders = new Headers();
+// The Redis-backed limiter fails open without Redis; this lets a test close one bucket.
+const limiter = vi.hoisted(() => ({ deny: new Set<string>() }));
+vi.mock('@/lib/security/attemptLimit', () => ({
+  consumeAttempt: async ({ bucket }: { bucket: string }) =>
+    limiter.deny.has(bucket)
+      ? { allowed: false, remaining: 0, retryAfterSeconds: 30 }
+      : { allowed: true, remaining: 1, retryAfterSeconds: 0 },
+}));
 vi.mock('next/headers', () => ({
   headers: async () => requestHeaders,
   cookies: async () => ({ get: () => undefined, getAll: () => [], set: vi.fn() }),
@@ -44,6 +52,9 @@ import { POST as postPreview } from '@/app/api/icp/versions/[id]/preview-score/r
 import { POST as postPublish } from '@/app/api/icp/versions/[id]/publish/route';
 import { POST as postReject } from '@/app/api/icp/versions/[id]/reject/route';
 import { POST as postWithdraw } from '@/app/api/icp/versions/[id]/withdraw/route';
+import { GET as getPublishedVersions } from '@/app/api/icp/versions/route';
+import { POST as postResearchPreview } from '@/app/api/research/preview/route';
+import { POST as postResearchRun } from '@/app/api/research/runs/route';
 import { POST as postRescore } from '@/app/api/leads/rescore-icp/route';
 
 type Role = 'director' | 'floor_manager' | 'leadgen_manager' | 'team_lead' | 'sdr';
@@ -125,9 +136,12 @@ afterAll(async () => {
   await prisma.tenant.deleteMany({ where: { id: { in: [tenantId, otherTenantId] } } });
 });
 
-beforeEach(() => {
+beforeEach(async () => {
   requestHeaders = new Headers();
+  limiter.deny.clear();
   signInAs(null);
+  // Campaigns start with no ICP, so tests that attach one start from the same place.
+  await db(() => prisma.campaign.updateMany({ where: { id: { in: [ids.c1, ids.c2] } }, data: { icpProfileId: null, icpVersionId: null } }));
 });
 
 /** A published shared ICP, as a library manager would have left it. */
@@ -168,6 +182,12 @@ const auditActions = (recordId: string) =>
   db(async () => (await prisma.auditLog.findMany({ where: { recordId }, select: { action: true } })).map((row) => row.action));
 
 const createProfile = (body: unknown) => postProfile(jsonReq('http://t/api/icp/profiles', 'POST', body));
+/** What a reviewer would send: the submission as they saw it. */
+const submittedAtOf = async (versionId: string) => (await reload(versionId)).submittedAt?.toISOString() ?? new Date().toISOString();
+const approve = async (versionId: string, submittedAt?: string) =>
+  postApprove(jsonReq('http://t/x', 'POST', { expectedSubmittedAt: submittedAt ?? (await submittedAtOf(versionId)) }), ctx(versionId));
+const reject = async (versionId: string, note: string, submittedAt?: string) =>
+  postReject(jsonReq('http://t/x', 'POST', { note, expectedSubmittedAt: submittedAt ?? (await submittedAtOf(versionId)) }), ctx(versionId));
 const publish = (versionId: string, updatedAt: Date) =>
   postPublish(jsonReq('http://t/x', 'POST', { expectedUpdatedAt: updatedAt.toISOString() }), ctx(versionId));
 const assign = (campaignId: string, icpVersionId: string | null) =>
@@ -343,7 +363,7 @@ describe('submit, review, approve', () => {
     const theirs = await customIcp('s2', 'pending_review');
 
     signInAs(actors.tl1);
-    expect((await postApprove(jsonReq('http://t/x', 'POST'), ctx(theirs.version.id))).status).toBe(404);
+    expect((await approve(theirs.version.id)).status).toBe(404);
     const queue = await (await getReviews(new NextRequest('http://t/api/icp/reviews'))).json();
     const queued = queue.reviews.map((r: { id: string }) => r.id);
     expect(queued).toContain(mine.version.id);
@@ -351,26 +371,26 @@ describe('submit, review, approve', () => {
     const countOnly = await (await getReviews(new NextRequest('http://t/api/icp/reviews?countOnly=1'))).json();
     expect(countOnly.count).toBeGreaterThanOrEqual(1);
 
-    expect((await postApprove(jsonReq('http://t/x', 'POST'), ctx(mine.version.id))).status).toBe(200);
+    expect((await approve(mine.version.id)).status).toBe(200);
     const approved = await reload(mine.version.id);
     expect(approved).toMatchObject({ status: 'published', reviewedById: ids.tl1 });
     expect(approved.reviewedAt).not.toBeNull();
     expect(await auditActions(mine.version.id)).toContain('admin.icp.approve');
 
     signInAs(actors.fm);
-    expect((await postApprove(jsonReq('http://t/x', 'POST'), ctx(theirs.version.id))).status).toBe(200);
+    expect((await approve(theirs.version.id)).status).toBe(200);
   });
 
   it('an SDR cannot approve or read the queue, not even their own; an approved ICP then scores', async () => {
     const mine = await customIcp('s1', 'pending_review');
     signInAs(actors.s1);
-    expect((await postApprove(jsonReq('http://t/x', 'POST'), ctx(mine.version.id))).status).toBe(403);
+    expect((await approve(mine.version.id)).status).toBe(403);
     expect((await getReviews(new NextRequest('http://t/api/icp/reviews'))).status).toBe(403);
 
     const campaign = await db(() => prisma.campaign.create({ data: { tenantId, clientId: ivs(), name: `Q ${randomUUID()}`, startDate: new Date(), icpProfileId: mine.profile.id } }));
     expect((await db(() => resolveCampaignIcp(tenantId, campaign.id))).ok).toBe(false);
     signInAs(actors.tl1);
-    await postApprove(jsonReq('http://t/x', 'POST'), ctx(mine.version.id));
+    await approve(mine.version.id);
     const resolved = await db(() => resolveCampaignIcp(tenantId, campaign.id));
     expect(resolved).toMatchObject({ ok: true, icpVersionId: mine.version.id });
   });
@@ -383,21 +403,21 @@ describe('submit, review, approve', () => {
       }),
     );
     signInAs(actors.tl1);
-    expect((await postApprove(jsonReq('http://t/x', 'POST'), ctx(next.id))).status).toBe(200);
+    expect((await approve(next.id)).status).toBe(200);
     expect((await reload(base.version.id)).status).toBe('archived');
     expect((await reload(next.id)).status).toBe('published');
     // A second approve is a conflict, not a second archive.
-    expect((await postApprove(jsonReq('http://t/x', 'POST'), ctx(next.id))).status).toBe(409);
+    expect((await approve(next.id)).status).toBe(409);
   });
 
   it('reject needs a note, returns the version to draft and keeps the reason; the rep can resubmit', async () => {
     const mine = await customIcp('s1', 'pending_review');
     signInAs(actors.tl1);
-    expect((await postReject(jsonReq('http://t/x', 'POST', { note: '' }), ctx(mine.version.id))).status).toBe(400);
+    expect((await reject(mine.version.id, '')).status).toBe(400);
     signInAs(actors.tl2);
-    expect((await postReject(jsonReq('http://t/x', 'POST', { note: 'Too broad' }), ctx(mine.version.id))).status).toBe(404);
+    expect((await reject(mine.version.id, 'Too broad')).status).toBe(404);
     signInAs(actors.tl1);
-    expect((await postReject(jsonReq('http://t/x', 'POST', { note: 'Too broad: add a country' }), ctx(mine.version.id))).status).toBe(200);
+    expect((await reject(mine.version.id, 'Too broad: add a country')).status).toBe(200);
     const rejected = await reload(mine.version.id);
     expect(rejected).toMatchObject({ status: 'draft', reviewNote: 'Too broad: add a country', reviewedById: ids.tl1 });
     expect(await auditActions(mine.version.id)).toContain('admin.icp.reject');
@@ -461,8 +481,13 @@ describe('attaching an ICP to a campaign', () => {
     const theirs = await customIcp('s3', 'published');
     signInAs(actors.s1);
     expect((await assign(ids.c1, lib.version.id)).status).toBe(200);
-    expect((await assign(ids.c1, mine.version.id)).status).toBe(200);
+    // Now the campaign has an ICP: replacing it is not a rep's call (it scores every rep's leads).
+    const blocked = await assign(ids.c1, mine.version.id);
+    expect(blocked.status).toBe(403);
+    expect((await blocked.json()).code).toBe('icp_already_set');
+    await db(() => prisma.campaign.update({ where: { id: ids.c1 }, data: { icpProfileId: null, icpVersionId: null } }));
     expect((await assign(ids.c1, theirs.version.id)).status).toBe(404);
+    expect((await assign(ids.c1, mine.version.id)).status).toBe(200);
     expect(await db(() => prisma.campaign.findUniqueOrThrow({ where: { id: ids.c1 } }))).toMatchObject({ icpProfileId: mine.profile.id });
     expect(await auditActions(ids.c1)).toContain('admin.campaign.icp_assign');
   });
@@ -537,7 +562,7 @@ describe('tenant isolation', () => {
     signInAs({ id: otherDirector.id, role: 'director', tenantId: otherTenantId });
     const listed = (await (await getProfiles()).json()).profiles.map((p: { id: string }) => p.id);
     expect(listed).not.toContain(pending.profile.id);
-    expect((await postApprove(jsonReq('http://t/x', 'POST'), ctx(pending.version.id))).status).toBe(404);
+    expect((await approve(pending.version.id)).status).toBe(404);
     expect((await save(pending.version.id, pending.version.updatedAt)).status).toBe(404);
     expect((await assign(ids.c1, pending.version.id)).status).toBe(404);
     const queue = await (await getReviews(new NextRequest('http://t/api/icp/reviews'))).json();
@@ -577,7 +602,7 @@ describe('API keys', () => {
     await keyFor('s1', ['scoring:write']);
     expect((await createProfile({ kind: 'library', name: `K ${randomUUID()}` })).status).toBe(403);
     const pending = await customIcp('s1', 'pending_review');
-    expect((await postApprove(jsonReq('http://t/x', 'POST'), ctx(pending.version.id))).status).toBe(403);
+    expect((await approve(pending.version.id)).status).toBe(403);
   });
 
   it('a team lead\'s key without scoring:write cannot review', async () => {
@@ -654,10 +679,214 @@ describe('rescore after approval', () => {
     await rescore();
     expect((await db(() => prisma.lead.findUniqueOrThrow({ where: { id: lead.id } }))).icpQualification).toBeNull();
 
-    await postApprove(jsonReq('http://t/x', 'POST'), ctx(mine.version.id));
+    await approve(mine.version.id);
     expect((await rescore()).status).toBe(200);
     const scored = await db(() => prisma.lead.findUniqueOrThrow({ where: { id: lead.id } }));
     expect(scored.icpQualification).not.toBeNull();
     expect(scored.icpVersionId).toBe(mine.version.id);
+  });
+});
+
+describe('security review follow-ups', () => {
+  it('H1: a rep cannot repoint a campaign that has an ICP; a team lead can; a rep can set the first one', async () => {
+    const lib = await libraryIcp();
+    const other = await libraryIcp();
+    signInAs(actors.s1);
+    expect((await assign(ids.c1, lib.version.id)).status).toBe(200);
+    signInAs(actors.s3);
+    const res = await assign(ids.c1, other.version.id);
+    expect(res.status).toBe(403);
+    expect((await res.json()).code).toBe('icp_already_set');
+    expect(await db(() => prisma.campaign.findUniqueOrThrow({ where: { id: ids.c1 } }))).toMatchObject({ icpProfileId: lib.profile.id });
+    signInAs(actors.tl1);
+    expect((await assign(ids.c1, other.version.id)).status).toBe(200);
+  });
+
+  it('M1: an approval is bound to the submission the reviewer saw (withdraw, edit, resubmit swap)', async () => {
+    const mine = await customIcp('s1', 'pending_review');
+    signInAs(actors.tl1);
+    const seen = await submittedAtOf(mine.version.id);
+    expect((await postApprove(jsonReq('http://t/x', 'POST', {}), ctx(mine.version.id))).status).toBe(400);
+
+    // The rep swaps the rules under the reviewer.
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    signInAs(actors.s1);
+    expect((await postWithdraw(jsonReq('http://t/x', 'POST'), ctx(mine.version.id))).status).toBe(200);
+    const draft = await reload(mine.version.id);
+    expect((await save(mine.version.id, draft.updatedAt, rules('Intern'))).status).toBe(200);
+    expect((await publish(mine.version.id, (await reload(mine.version.id)).updatedAt)).status).toBe(200);
+
+    signInAs(actors.tl1);
+    const stale = await approve(mine.version.id, seen);
+    expect(stale.status).toBe(409);
+    expect((await stale.json()).code).toBe('changed_since_opened');
+    expect((await reject(mine.version.id, 'Not that one', seen)).status).toBe(409);
+    expect((await reload(mine.version.id)).status).toBe('pending_review');
+    expect((await approve(mine.version.id)).status).toBe(200);
+  });
+
+  it('M2: a viewer who cannot edit a profile sees only its published versions', async () => {
+    const lib = await libraryIcp();
+    await db(() => prisma.icpVersion.create({ data: { tenantId, icpProfileId: lib.profile.id, versionNumber: 2, status: 'draft', rulesJson: rules('SECRET-DRAFT') as never } }));
+    const s2Pending = await customIcp('s2', 'pending_review');
+    const versionsOf = async (actor: Actor, profileId: string) => {
+      signInAs(actor);
+      const body = await (await getProfiles()).json();
+      return body.profiles.find((p: { id: string }) => p.id === profileId)?.versions.map((v: { status: string }) => v.status) as string[] | undefined;
+    };
+    expect(await versionsOf(actors.s1, lib.profile.id)).toEqual(['published']);
+    expect(await versionsOf(actors.tl1, lib.profile.id)).toEqual(['published']);
+    expect(await versionsOf(actors.dir, lib.profile.id)).toEqual(['draft', 'published']);
+    // The owner sees their own pending version; the team lead above them sees only what is live.
+    expect(await versionsOf(actors.s2, s2Pending.profile.id)).toEqual(['pending_review']);
+    expect(await versionsOf(actors.tl2, s2Pending.profile.id)).toEqual([]);
+    signInAs(actors.s1);
+    expect(JSON.stringify(await (await getProfiles()).json())).not.toContain('SECRET-DRAFT');
+  });
+
+  it("M3: research and the version picker only take library ICPs or ones in the caller's chain", async () => {
+    const lib = await libraryIcp();
+    const inChain = await customIcp('s1', 'published');
+    const outside = await customIcp('s2', 'published');
+    const draft = await customIcp('s1', 'draft');
+    const preview = (versionId: string) =>
+      postResearchPreview(jsonReq('http://t/api/research/preview', 'POST', { kind: 'company', icpVersionId: versionId, queryLimit: 10 }));
+    signInAs(actors.tl1);
+    for (const hidden of [outside.version.id, draft.version.id, 'nope']) {
+      const res = await preview(hidden);
+      expect(res.status).toBe(400);
+      expect((await res.json()).error).toMatch(/not found/);
+    }
+    for (const allowed of [lib.version.id, inChain.version.id]) {
+      // Past the ICP check: it may still fail on its own terms (these rules build no queries).
+      const res = await preview(allowed);
+      expect(JSON.stringify(await res.json())).not.toMatch(/ICP version not found/);
+    }
+    const run = await postResearchRun(jsonReq('http://t/api/research/runs', 'POST', { kind: 'company', icpVersionId: outside.version.id }));
+    expect(run.status).toBe(400);
+
+    const picker = async (actor: Actor) => {
+      signInAs(actor);
+      return ((await (await getPublishedVersions()).json()).versions as Array<{ id: string }>).map((v) => v.id);
+    };
+    expect(await picker(actors.tl1)).toContain(inChain.version.id);
+    expect(await picker(actors.tl1)).not.toContain(outside.version.id);
+    expect(await picker(actors.tl1)).toContain(lib.version.id);
+    expect(await picker(actors.dir)).toContain(outside.version.id);
+  });
+
+  it('M4: rule lists and bodies are bounded; the largest real list still saves', async () => {
+    const mine = await customIcp('s1', 'draft');
+    signInAs(actors.s1);
+    const tooMany = rules();
+    tooMany.persona.titleAllowlist = Array.from({ length: 201 }, (_, i) => `Title ${i}`);
+    expect((await save(mine.version.id, mine.version.updatedAt, tooMany)).status).toBe(400);
+    const tooLong = rules('x'.repeat(201));
+    expect((await save(mine.version.id, mine.version.updatedAt, tooLong)).status).toBe(400);
+    const realistic = rules();
+    realistic.persona.titleAllowlist = Array.from({ length: 25 }, (_, i) => `Head of Department ${i}`);
+    expect((await save(mine.version.id, mine.version.updatedAt, realistic)).status).toBe(200);
+
+    const fresh = await reload(mine.version.id);
+    const huge = await patchVersion(
+      new NextRequest('http://t/x', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedUpdatedAt: fresh.updatedAt.toISOString(), rulesJson: rules(), pad: 'y'.repeat(70 * 1024) }) }),
+      ctx(mine.version.id),
+    );
+    expect(huge.status).toBe(413);
+    const hugePreview = await postPreview(
+      new NextRequest('http://t/x', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ rulesJson: rules(), pad: 'y'.repeat(70 * 1024) }) }),
+      ctx(mine.version.id),
+    );
+    expect(hugePreview.status).toBe(413);
+  });
+
+  it('M4: preview, draft saves and custom ICP creation are rate limited per user', async () => {
+    const mine = await customIcp('s1', 'draft');
+    signInAs(actors.s1);
+    limiter.deny.add('icp-preview');
+    expect((await postPreview(jsonReq('http://t/x', 'POST', { rulesJson: rules() }), ctx(mine.version.id))).status).toBe(429);
+    limiter.deny.add('icp-save');
+    const saved = await save(mine.version.id, mine.version.updatedAt);
+    expect(saved.status).toBe(429);
+    expect(saved.headers.get('retry-after')).toBe('30');
+    limiter.deny.add('icp-create-custom');
+    expect((await createProfile({ campaignId: ids.c1 })).status).toBe(429);
+    signInAs(actors.tl1);
+    const lib = await libraryIcp();
+    const campaignRes = await postCampaign(jsonReq('http://t/api/campaigns', 'POST', { name: `RL ${randomUUID().slice(0, 5)}`, clientId: ids.client, icp: { mode: 'custom', source: 'blank' } }));
+    expect(campaignRes.status).toBe(429);
+    // The shared-ICP path is not a custom creation and is unaffected.
+    const ok = await postCampaign(jsonReq('http://t/api/campaigns', 'POST', { name: `RL ${randomUUID().slice(0, 5)}`, clientId: ids.client, icp: { mode: 'library', icpVersionId: lib.version.id } }));
+    expect(ok.status).toBe(201);
+  });
+
+  it('M5: a failure after the campaign exists never deletes the custom ICP it points at', async () => {
+    signInAs(actors.tl1);
+    const spy = vi.spyOn(prisma.campaignSdr, 'upsert').mockRejectedValueOnce(new Error('boom after create'));
+    const name = `Post-create ${randomUUID().slice(0, 6)}`;
+    const res = await postCampaign(jsonReq('http://t/api/campaigns', 'POST', { name, clientId: ids.client, icp: { mode: 'custom', source: 'blank' } }));
+    spy.mockRestore();
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    const campaign = await db(() => prisma.campaign.findFirst({ where: { tenantId, name } }));
+    expect(campaign?.icpProfileId).toBeTruthy();
+    const profile = await db(() => prisma.icpProfile.findFirst({ where: { id: campaign!.icpProfileId! }, include: { versions: true } }));
+    expect(profile?.versions).toHaveLength(1);
+  });
+
+  it('M5: when the campaign row itself is not created, the orphan custom ICP is removed', async () => {
+    signInAs(actors.tl1);
+    const before = await db(() => prisma.icpProfile.count({ where: { tenantId, kind: 'custom' } }));
+    const spy = vi.spyOn(prisma.campaign, 'create').mockRejectedValueOnce(new Error('boom on create'));
+    const res = await postCampaign(jsonReq('http://t/api/campaigns', 'POST', { name: `No row ${randomUUID().slice(0, 6)}`, clientId: ids.client, icp: { mode: 'custom', source: 'blank' } }));
+    spy.mockRestore();
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    expect(await db(() => prisma.icpProfile.count({ where: { tenantId, kind: 'custom' } }))).toBe(before);
+  });
+
+  it('L1: someone outside the chain gets the same 404 for a pending and a decided version', async () => {
+    const decided = await customIcp('s1', 'published', { submittedById: ids.s1, submittedAt: new Date() });
+    const pending = await customIcp('s1', 'pending_review');
+    signInAs(actors.tl2);
+    expect((await approve(decided.version.id)).status).toBe(404);
+    expect((await approve(pending.version.id)).status).toBe(404);
+    expect((await reject(decided.version.id, 'nope')).status).toBe(404);
+    signInAs(actors.tl1);
+    expect((await approve(decided.version.id)).status).toBe(409);
+  });
+
+  it('L2: creating a campaign with an API key needs scoring:write', async () => {
+    const lib = await libraryIcp();
+    const token = `tl_live_${crypto.randomBytes(24).toString('hex')}`;
+    await db(() =>
+      prisma.apiKey.create({
+        data: { tenantId, name: 'k', keyPrefix: token.slice(0, 14), keyHash: crypto.createHash('sha256').update(token).digest('hex'), scopes: ['leads:read'], createdById: ids.tl1 },
+      }),
+    );
+    requestHeaders = new Headers({ authorization: `Bearer ${token}` });
+    const res = await postCampaign(jsonReq('http://t/api/campaigns', 'POST', { name: `Key ${randomUUID().slice(0, 5)}`, clientId: ids.client, icp: { mode: 'library', icpVersionId: lib.version.id } }));
+    expect(res.status).toBe(403);
+  });
+
+  it('L3: draft saves and edits are audited, and an approval records the version it archived', async () => {
+    const base = await customIcp('s1', 'published');
+    signInAs(actors.s1);
+    const clone = await postClone(jsonReq('http://t/x', 'POST', { sourceVersionId: base.version.id }));
+    expect(clone.status).toBe(201);
+    const draft = (await clone.json()).version;
+    expect(await auditActions(draft.id)).toContain('admin.icp.start_edit');
+    expect((await save(draft.id, new Date(draft.updatedAt), rules('CTO'))).status).toBe(200);
+    expect(await auditActions(draft.id)).toContain('admin.icp.save_draft');
+    expect((await publish(draft.id, (await reload(draft.id)).updatedAt)).status).toBe(200);
+    signInAs(actors.tl1);
+    expect((await approve(draft.id)).status).toBe(200);
+    const row = await db(() => prisma.auditLog.findFirst({ where: { recordId: draft.id, action: 'admin.icp.approve' } }));
+    expect((row?.changedFields as { archivedVersionIds?: string[] }).archivedVersionIds).toEqual([base.version.id]);
+  });
+
+  it('L4: the database allows one published version per profile', async () => {
+    const lib = await libraryIcp();
+    await expect(
+      db(() => prisma.icpVersion.create({ data: { tenantId, icpProfileId: lib.profile.id, versionNumber: 2, status: 'published', rulesJson: rules() as never } })),
+    ).rejects.toMatchObject({ code: 'P2002' });
   });
 });

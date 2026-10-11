@@ -77,9 +77,25 @@ export async function PATCH(
     );
   }
 
-  // Who may switch the campaign: its reps may attach a library ICP or their own approved one; team
-  // lead and up any ICP they can see. Clearing the ICP stops scoring for everyone on the campaign,
-  // so that is team lead and up. A version still in review (or a draft) is never attachable.
+  // Who may change the campaign's ICP. The ICP scores every lead of the campaign for every rep on it,
+  // so a rep (sdr, leadgen) may only SET one on a campaign that has none; replacing one is team lead
+  // and up. A rep who wants a different ICP for the whole campaign asks their lead; for their own
+  // working they copy into a custom ICP and submit it. Clearing stops scoring for everyone: team
+  // lead and up. A version still in review (or a draft) is never attachable.
+  const existing = await prisma.campaign.findFirst({
+    where: { id, tenantId },
+    select: { icpProfileId: true, icpVersionId: true },
+  });
+  if (!existing) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+  if (!isScoringStaff(user) && (existing.icpProfileId || existing.icpVersionId)) {
+    return NextResponse.json(
+      {
+        error: "This campaign already has an ICP. Ask your team lead to switch it.",
+        code: "icp_already_set",
+      },
+      { status: 403 },
+    );
+  }
   if (parsed.data.icpVersionId === null) {
     if (!isScoringStaff(user)) {
       return NextResponse.json(

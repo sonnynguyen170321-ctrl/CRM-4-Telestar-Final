@@ -10,6 +10,62 @@ import {
   hasScoringWriteScope,
 } from "@/lib/leads/scoringAccess";
 import { prisma } from "@/lib/prisma";
+import { consumeAttempt } from "@/lib/security/attemptLimit";
+
+/** Largest request body the ICP routes read. A real rule set is a few KB; this is generous. */
+export const ICP_BODY_MAX_BYTES = 64 * 1024;
+
+/**
+ * Read a JSON body, refusing anything over the cap before it is parsed. `Content-Length` can lie,
+ * so the text itself is measured too.
+ */
+export async function readBoundedJson(
+  req: Request,
+  maxBytes: number = ICP_BODY_MAX_BYTES,
+): Promise<{ ok: true; body: unknown } | { ok: false; response: NextResponse }> {
+  const declared = Number(req.headers.get("content-length") ?? 0);
+  const tooLarge = () => ({
+    ok: false as const,
+    response: NextResponse.json(
+      { error: "Request body too large", code: "body_too_large" },
+      { status: 413 },
+    ),
+  });
+  if (declared > maxBytes) return tooLarge();
+  let text: string;
+  try {
+    text = await req.text();
+  } catch {
+    return { ok: false, response: NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }) };
+  }
+  if (Buffer.byteLength(text, "utf8") > maxBytes) return tooLarge();
+  try {
+    return { ok: true, body: JSON.parse(text) };
+  } catch {
+    return { ok: false, response: NextResponse.json({ error: "Invalid JSON body" }, { status: 400 }) };
+  }
+}
+
+/** Per-user limit for an ICP action. Returns a 429 response when the caller is over it. */
+export async function icpRateLimit(
+  user: SessionUser,
+  bucket: string,
+  limit: number,
+  windowSeconds: number,
+): Promise<NextResponse | null> {
+  const attempt = await consumeAttempt({ bucket: `icp-${bucket}`, subject: user.id, limit, windowSeconds });
+  if (attempt.allowed) return null;
+  return NextResponse.json(
+    { error: "Too many requests. Try again shortly.", code: "rate_limited" },
+    { status: 429, headers: { "Retry-After": String(attempt.retryAfterSeconds) } },
+  );
+}
+
+export const ICP_LIMITS = {
+  preview: { limit: 30, windowSeconds: 60 },
+  save: { limit: 60, windowSeconds: 60 },
+  createCustom: { limit: 20, windowSeconds: 24 * 60 * 60 },
+} as const;
 
 /**
  * Three doors into the ICP routes. Pick by what the route does, then check the object:
@@ -132,7 +188,8 @@ export function icpAuthoringErrorResponse(error: unknown) {
             error.code === "published_immutable" ||
             error.code === "simplification_required" ||
             error.code === "review_pending" ||
-            error.code === "not_pending"
+            error.code === "not_pending" ||
+            error.code === "changed_since_opened"
           ? 409
           : 400;
     return NextResponse.json(

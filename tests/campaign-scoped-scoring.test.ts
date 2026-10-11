@@ -55,6 +55,10 @@ describe.skipIf(!hasDb)("campaign-scoped ICP scoring", () => {
     await prisma.icpProfile.create({
       data: { id: profileId, tenantId, name: "Scoring ICP" },
     });
+    // One published version per profile (a database rule), so the second pinned version lives in its own.
+    await prisma.icpProfile.create({
+      data: { id: `${profileId}-b`, tenantId, name: "Scoring ICP B" },
+    });
     await prisma.icpVersion.createMany({
       data: [
         {
@@ -68,7 +72,7 @@ describe.skipIf(!hasDb)("campaign-scoped ICP scoring", () => {
         {
           id: versionB,
           tenantId,
-          icpProfileId: profileId,
+          icpProfileId: `${profileId}-b`,
           versionNumber: 2,
           status: "published",
           rulesJson: rules as never,

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { loadIcpVersion, requireIcpUser } from "@/app/api/icp/manager";
+import {
+  ICP_LIMITS,
+  icpRateLimit,
+  loadIcpVersion,
+  readBoundedJson,
+  requireIcpUser,
+} from "@/app/api/icp/manager";
 import { safeValidateIcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";
 import { requireTenantId } from "@/lib/api/tenant";
 import { getLeadWhereScope, getVisibleCampaignIds } from "@/lib/auth";
@@ -32,13 +38,12 @@ export async function POST(
   const tenantId = requireTenantId(user);
   if (tenantId instanceof NextResponse) return tenantId;
 
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-  const body = (raw ?? {}) as { rulesJson?: unknown; campaignId?: unknown };
+  // Each call scores up to 200 leads, and the editor calls it on every pause in typing.
+  const limited = await icpRateLimit(user, "preview", ICP_LIMITS.preview.limit, ICP_LIMITS.preview.windowSeconds);
+  if (limited) return limited;
+  const read = await readBoundedJson(req);
+  if (!read.ok) return read.response;
+  const body = (read.body ?? {}) as { rulesJson?: unknown; campaignId?: unknown };
 
   const validated = safeValidateIcpVersionRulesV2(body.rulesJson);
   if (!validated.success) {

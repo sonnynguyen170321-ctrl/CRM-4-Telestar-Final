@@ -85,6 +85,9 @@ export function CampaignIcpPanel({ campaignId, backHref }: { campaignId: string;
   const current = profiles.find((p) => p.id === campaign?.icpProfileId) ?? null;
   const currentPublished = current ? newestPublished(current) : null;
   const editing = profiles.find((p) => p.id === editId) ?? null;
+  // The campaign's ICP scores every rep's leads, so a rep sets one only while the campaign has none;
+  // replacing it is for a team lead or above (the server enforces this too).
+  const canSwitch = isStaff || !campaign?.icpProfileId;
 
   /** What this person may attach: published, and a library ICP, their own, or (team lead and up) anyone's. */
   const attachable = useMemo(
@@ -199,6 +202,13 @@ export function CampaignIcpPanel({ campaignId, backHref }: { campaignId: string;
           <p className="mt-4 border-l-2 border-amber-500 bg-amber-500/5 px-4 py-3 text-xs text-text-secondary" role="status">{notice}</p>
         )}
 
+        {!canSwitch && (
+          <p className="mt-5 text-xs text-text-secondary" role="status">
+            This campaign already has an ICP. Ask your team lead to switch it. To work with different rules, copy
+            it into a custom ICP below and submit it for review.
+          </p>
+        )}
+        {canSwitch && (
         <div className="mt-5 grid grid-cols-[1fr_auto] items-end gap-4">
           <Field label="Score this campaign with">
             <select className={inputClass} value={switchTo} onChange={(e) => setSwitchTo(e.target.value)}>
@@ -225,9 +235,12 @@ export function CampaignIcpPanel({ campaignId, backHref }: { campaignId: string;
             primary
           />
         </div>
-        <p className="mt-2 text-xs text-text-secondary">
-          A custom ICP that is still in review cannot be chosen until it is approved.
-        </p>
+        )}
+        {canSwitch && (
+          <p className="mt-2 text-xs text-text-secondary">
+            A custom ICP that is still in review cannot be chosen until it is approved.
+          </p>
+        )}
       </section>
 
       {rescoreOffered &&
@@ -299,7 +312,7 @@ export function CampaignIcpPanel({ campaignId, backHref }: { campaignId: string;
             onChanged={() => load(editing.id)}
             onOutcome={onOutcome}
             extraActions={
-              editing.id !== campaign.icpProfileId && newestPublished(editing) && attachable.some((p) => p.id === editing.id) ? (
+              canSwitch && editing.id !== campaign.icpProfileId && newestPublished(editing) && attachable.some((p) => p.id === editing.id) ? (
                 <ActionButton label="Use for this campaign" icon={Check} busy={busy === 'attach'} disabled={Boolean(busy)} onClick={() => attach(editing)} primary />
               ) : null
             }

@@ -29,6 +29,8 @@ async function seedDefaultIcp(): Promise<string> {
       data: { name: `rescore-default-${randomUUID().slice(0, 8)}`, tenantId: TENANT, isDefault: true },
     }));
 
+  // Publishing archives the previous version (one published version per profile is a database rule).
+  await prisma.icpVersion.updateMany({ where: { icpProfileId: profile.id, status: 'published' }, data: { status: 'archived' } });
   const version = await prisma.icpVersion.create({
     data: {
       icpProfileId: profile.id,

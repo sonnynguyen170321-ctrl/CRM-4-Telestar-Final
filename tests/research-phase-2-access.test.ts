@@ -21,6 +21,7 @@ vi.mock("@/app/api/research/guard", () => ({
   requireResearchRunner: mocks.requireResearchRunner,
   requireResearchUser: vi.fn(),
 }));
+vi.mock("@/lib/research/icpGuard", () => ({ researchIcpAllowed: async () => true }));
 vi.mock("@/lib/research/discovery", () => ({
   createResearchRun: mocks.createResearchRun,
 }));

@@ -57,10 +57,12 @@ describe.skipIf(!hasDb)('CampaignProspect reference integrity', () => {
     await prisma.icpProfile.create({
       data: { id: profileId, tenantId, name: 'Reference ICP' },
     });
+    // One published version per profile (a database rule): the second pinned version gets its own.
+    await prisma.icpProfile.create({ data: { id: `${profileId}-b`, tenantId, name: 'Reference ICP B' } });
     await prisma.icpVersion.createMany({
       data: [
         { id: versionA, tenantId, icpProfileId: profileId, versionNumber: 1, status: 'published' },
-        { id: versionB, tenantId, icpProfileId: profileId, versionNumber: 2, status: 'published' },
+        { id: versionB, tenantId, icpProfileId: `${profileId}-b`, versionNumber: 1, status: 'published' },
       ],
     });
     await prisma.campaign.createMany({

@@ -8,7 +8,8 @@ import { createCampaignSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
 import { cacheGet, cacheSet, listKey, invalidateList } from '@/lib/cache';
 import { logAdminAudit } from '@/lib/audit';
-import { icpAuthoringErrorResponse } from '@/app/api/icp/manager';
+import { ICP_LIMITS, icpAuthoringErrorResponse, icpRateLimit } from '@/app/api/icp/manager';
+import { hasScoringWriteScope } from '@/lib/leads/scoringAccess';
 import { createCustomIcp } from '@/lib/leadgen/customIcp';
 import { IcpAuthoringError } from '@/lib/leadgen/icpAuthoring';
 import { publishModeFor } from '@/lib/leadgen/icpAccess';
@@ -132,6 +133,10 @@ export async function POST(req: NextRequest) {
   const user = userOrRes as SessionUser;
   if (!user.tenantId) return NextResponse.json({ error: 'No tenant context' }, { status: 403 });
   const tenantId = user.tenantId;
+  // Creating a campaign now also chooses what scores it, so an API key needs the scoring scope too.
+  if (!hasScoringWriteScope(user)) {
+    return NextResponse.json({ error: 'Forbidden: the scoring:write scope is required to create a campaign' }, { status: 403 });
+  }
 
   const parsed = await parseBody(req, createCampaignSchema, 'Invalid campaign create');
   if (parsed.error) return parsed.error;
@@ -200,8 +205,10 @@ export async function POST(req: NextRequest) {
   }
 
   let customIcp: Awaited<ReturnType<typeof createCustomIcp>> | null = null;
-  try {
-    if (body.icp.mode === 'custom') {
+  if (body.icp.mode === 'custom') {
+    const limited = await icpRateLimit(user, 'create-custom', ICP_LIMITS.createCustom.limit, ICP_LIMITS.createCustom.windowSeconds);
+    if (limited) return limited;
+    try {
       const choice = body.icp;
       customIcp = await createCustomIcp({
         tenantId,
@@ -215,8 +222,17 @@ export async function POST(req: NextRequest) {
               ? { source: 'library', sourceProfileId: choice.sourceProfileId as string }
               : { source: 'blank' },
       });
+    } catch (err) {
+      if (err instanceof IcpAuthoringError) return icpAuthoringErrorResponse(err);
+      return handleApiError('api/campaigns POST (custom ICP)', err);
     }
-    const campaign = await prisma.campaign.create({
+  }
+
+  // The orphan cleanup below belongs to THIS call only. Once the campaign row exists the profile is
+  // its ICP: nothing after this point may delete it, whatever fails.
+  let campaign: Awaited<ReturnType<typeof prisma.campaign.create>>;
+  try {
+    campaign = await prisma.campaign.create({
       data: {
         icpProfileId: libraryChoice?.profileId ?? customIcp?.profile.id ?? null,
         icpVersionId: libraryChoice?.versionId ?? null,
@@ -229,7 +245,14 @@ export async function POST(req: NextRequest) {
         endDate: null,
       },
     });
+  } catch (err) {
+    if (customIcp) {
+      await prisma.icpProfile.deleteMany({ where: { id: customIcp.profile.id, tenantId } }).catch(() => {});
+    }
+    return handleApiError('api/campaigns POST', err);
+  }
 
+  try {
     // Classified as an admin action so it shows under the Audit Log's default "Admin actions
     // only" view. The Prisma extension already records `create_campaign`, but that lands in
     // the "all changes" firehose beside every notification and job run; a director who has
@@ -284,11 +307,6 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
   } catch (err) {
-    // A custom ICP made for a campaign that was not created would be an orphan draft nobody sees.
-    if (customIcp) {
-      await prisma.icpProfile.deleteMany({ where: { id: customIcp.profile.id, tenantId } }).catch(() => {});
-    }
-    if (err instanceof IcpAuthoringError) return icpAuthoringErrorResponse(err);
     return handleApiError('api/campaigns POST', err);
   }
 }

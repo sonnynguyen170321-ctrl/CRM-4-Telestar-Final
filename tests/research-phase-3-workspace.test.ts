@@ -16,6 +16,7 @@ vi.mock('@/app/api/research/guard', () => ({
 vi.mock('@/lib/api/tenant', () => ({
   requireTenantId: mocks.requireTenantId,
 }));
+vi.mock('@/lib/research/icpGuard', () => ({ researchIcpAllowed: async () => true }));
 vi.mock('@/lib/research/discovery', () => ({
   planResearchRunQueries: mocks.planResearchRunQueries,
 }));
@@ -152,6 +153,8 @@ describe('phase 3 research workspace contract', () => {
     expect(versionsRoute).toContain('canAccessPool(user.role)');
     expect(versionsRoute).toContain('user.apiKey');
     expect(versionsRoute).toContain('canUseResearch(user, "read")');
-    expect(versionsRoute).toContain('where: { tenantId, status: "published" }');
+    // Published only, and only shared ICPs plus the caller's own chain's custom ones.
+    expect(versionsRoute).toContain('status: "published"');
+    expect(versionsRoute).toContain('visibleCustomOwnerIds');
   });
 });

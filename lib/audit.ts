@@ -263,6 +263,8 @@ export const ADMIN_AUDIT_ACTIONS = [
   'admin.icp.create',
   'admin.icp.publish',
   // Review workflow for a rep's personal ICP: submit (Publish by a rep), approve, reject, withdraw.
+  'admin.icp.save_draft',
+  'admin.icp.start_edit',
   'admin.icp.submit',
   'admin.icp.approve',
   'admin.icp.reject',

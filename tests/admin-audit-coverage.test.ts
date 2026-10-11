@@ -30,6 +30,8 @@ const MANAGEMENT_ROUTES: Array<[string, string]> = [
   ['app/api/icp/profiles/route.ts', 'admin.icp.create'],
   ['app/api/icp/versions/[id]/publish/route.ts', 'admin.icp.publish'],
   ['app/api/icp/versions/[id]/publish/route.ts', 'admin.icp.submit'],
+  ['app/api/icp/versions/[id]/route.ts', 'admin.icp.save_draft'],
+  ['app/api/icp/versions/route.ts', 'admin.icp.start_edit'],
   ['app/api/icp/versions/[id]/approve/route.ts', 'admin.icp.approve'],
   ['app/api/icp/versions/[id]/reject/route.ts', 'admin.icp.reject'],
   ['app/api/icp/versions/[id]/withdraw/route.ts', 'admin.icp.withdraw'],

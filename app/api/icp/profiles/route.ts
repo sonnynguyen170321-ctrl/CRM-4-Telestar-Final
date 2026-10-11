@@ -3,7 +3,9 @@ import { ICP_TEMPLATES_V2 } from "@telestar/core-scoring/rules/icpTemplatesV2";
 import { z } from "zod";
 
 import {
+  ICP_LIMITS,
   icpAuthoringErrorResponse,
+  icpRateLimit,
   requireIcpUser,
 } from "@/app/api/icp/manager";
 import { requireTenantId } from "@/lib/api/tenant";
@@ -43,11 +45,17 @@ export async function GET() {
 
   const profiles = await listIcpProfiles(tenantId, await visibleCustomOwnerIds(user));
   return NextResponse.json({
-    profiles: profiles.map((profile) => ({
-      ...profile,
-      canEdit: canEditProfile(user, profile),
-      publishMode: publishModeFor(user, profile),
-    })),
+    profiles: profiles.map((profile) => {
+      const canEdit = canEditProfile(user, profile);
+      return {
+        ...profile,
+        // Drafts and versions in review are the owner's working copy (a reviewer reads those through
+        // the review queue). Everyone else sees only what is live.
+        versions: canEdit ? profile.versions : profile.versions.filter((v) => v.status === "published"),
+        canEdit,
+        publishMode: publishModeFor(user, profile),
+      };
+    }),
     templates: ICP_TEMPLATES_V2.map(({ id, name, description }) => ({
       id,
       name,
@@ -109,6 +117,9 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json(result, { status: 201 });
     }
+
+    const limited = await icpRateLimit(user, "create-custom", ICP_LIMITS.createCustom.limit, ICP_LIMITS.createCustom.windowSeconds);
+    if (limited) return limited;
 
     // Custom: a rep may make one for a campaign they can see; library managers need no campaign.
     let campaignName: string | null = null;

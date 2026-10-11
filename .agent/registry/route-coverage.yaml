@@ -984,18 +984,22 @@ routes:
   - path: app/api/research/preview/route.ts
     methods: [POST]
     tests:
+      - tests/icp-review-workflow.test.ts
       - tests/research-phase-3-workspace.test.ts
   - path: app/api/research/runs/[id]/execute/route.ts
     methods: [POST]
     tests:
+      - tests/icp-review-workflow.test.ts
       - tests/research-phase-2-access.test.ts
   - path: app/api/research/runs/[id]/pause/route.ts
     methods: [POST]
     tests:
+      - tests/icp-review-workflow.test.ts
       - tests/research-phase-2-access.test.ts
   - path: app/api/research/runs/route.ts
     methods: [GET, POST]
     tests:
+      - tests/icp-review-workflow.test.ts
       - tests/research-phase-2-access.test.ts
   - path: app/api/seed/route.ts
     methods: [POST]

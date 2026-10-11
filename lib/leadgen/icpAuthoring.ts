@@ -26,7 +26,8 @@ export class IcpAuthoringError extends Error {
       | "simplification_required"
       | "invalid_rules"
       | "review_pending"
-      | "not_pending",
+      | "not_pending"
+      | "changed_since_opened",
     message: string,
   ) {
     super(message);

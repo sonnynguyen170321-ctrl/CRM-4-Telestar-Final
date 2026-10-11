@@ -383,7 +383,9 @@ routes:
     reason: requireIcpUser, then the profile's ownerUserId must equal the caller (anyone else gets 404). Only a pending_review version moves, back to draft. Audited as admin.icp.withdraw.
   - path: app/api/icp/versions/route.ts
     methods: [GET, POST]
-    guards: []
+    guards:
+      - canAccessUser (via lib/leadgen/icpAccess.ts)
+      - getVisibleUserIds (via lib/leadgen/icpAccess.ts)
     reason: GET is the published-version picker (pool or research read permission). POST starts an edit and goes through authorizeVersionEdit (canViewProfile then canEditProfile), tenant-scoped.
   - path: app/api/inbox/route.ts
     methods: [GET, PATCH]

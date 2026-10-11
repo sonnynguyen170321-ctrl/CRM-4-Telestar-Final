@@ -77,12 +77,13 @@ export function IcpReviewQueue({ onDecided }: { onDecided?: () => void }) {
   const decide = async (review: Review, kind: 'approve' | 'reject') => {
     setBusy(`${kind}:${review.id}`);
     try {
+      if (!review.submittedAt) throw new Error('This submission has no timestamp; reload the queue');
       if (kind === 'approve') {
-        const result = await icpApi.approve(review.id);
+        const result = await icpApi.approve(review.id, review.submittedAt);
         setApproved((current) => [...current, { profile: review.profile.name, campaigns: result.campaigns }]);
         showToast(`${review.profile.name} approved. Rescore its campaigns to apply it to existing leads.`, 'success');
       } else {
-        await icpApi.reject(review.id, note);
+        await icpApi.reject(review.id, note, review.submittedAt);
         showToast('Sent back to the rep with your note', 'success');
         setRejecting(null);
         setNote('');

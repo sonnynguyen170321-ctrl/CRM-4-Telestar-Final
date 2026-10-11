@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { requireResearchRunner } from '@/app/api/research/guard';
 import { requireTenantId } from '@/lib/api/tenant';
 import { validateResearchQueryLimit } from '@/lib/research/access';
+import { researchIcpAllowed } from '@/lib/research/icpGuard';
 import { planResearchRunQueries } from '@/lib/research/discovery';
 
 const previewSchema = z
@@ -39,6 +40,10 @@ export async function POST(req: NextRequest) {
       { error: 'Invalid preview request', details: parsed.error.issues },
       { status: 400 },
     );
+  }
+
+  if (parsed.data.icpVersionId && !(await researchIcpAllowed(user, tenantId, parsed.data.icpVersionId))) {
+    return NextResponse.json({ error: 'ICP version not found in this tenant' }, { status: 400 });
   }
 
   const limit = validateResearchQueryLimit(user.role, parsed.data.queryLimit);

@@ -11,7 +11,9 @@ import { logAdminAudit } from "@/lib/audit";
 import { canReviewSubmission } from "@/lib/leadgen/icpAccess";
 import { rejectIcpVersion } from "@/lib/leadgen/icpReview";
 
-const rejectSchema = z.object({ note: z.string().trim().min(3).max(500) }).strict();
+const rejectSchema = z
+  .object({ note: z.string().trim().min(3).max(500), expectedSubmittedAt: z.string().datetime() })
+  .strict();
 
 /** Send a submitted custom ICP back to its owner as a draft, with the reason. Same reviewers as approve. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -35,15 +37,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   }
 
+  // Chain first: someone outside it learns nothing, not even the version's status.
   const target = await loadIcpVersion(tenantId, id);
-  if (!target || target.status !== "pending_review") {
+  if (!target || !(await canReviewSubmission(user, target.submittedById))) {
+    return NextResponse.json({ error: "ICP version not found" }, { status: 404 });
+  }
+  if (target.status !== "pending_review") {
     return NextResponse.json(
       { error: "ICP version is not waiting for review", code: "not_pending" },
-      { status: target ? 409 : 404 },
+      { status: 409 },
     );
-  }
-  if (!(await canReviewSubmission(user, target.submittedById))) {
-    return NextResponse.json({ error: "ICP version not found" }, { status: 404 });
   }
 
   try {
@@ -52,6 +55,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       versionId: id,
       reviewerId: user.id,
       note: parsed.data.note,
+      expectedSubmittedAt: parsed.data.expectedSubmittedAt,
     });
     await logAdminAudit({
       actorId: user.id,
