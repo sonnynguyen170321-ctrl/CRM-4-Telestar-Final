@@ -5,6 +5,8 @@ import { getIcpTemplateV2 } from "@telestar/core-scoring/rules/icpTemplatesV2";
 import { emptyIcpRulesV2 } from "@telestar/core-scoring/rules/emptyIcpRulesV2";
 import { validateIcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";
 
+import type { IcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";
+
 import {
   managerSimplificationNotes,
   normalizeManagerRules,
@@ -22,7 +24,10 @@ export class IcpAuthoringError extends Error {
       | "draft_conflict"
       | "published_immutable"
       | "simplification_required"
-      | "invalid_rules",
+      | "invalid_rules"
+      | "review_pending"
+      | "not_pending"
+      | "changed_since_opened",
     message: string,
   ) {
     super(message);
@@ -88,17 +93,35 @@ export function validateManagerRules(rulesJson: unknown, requireConstraint = fal
   return rules;
 }
 
-export async function listIcpProfiles(tenantId: string) {
-  return prisma.icpProfile.findMany({
-    where: { tenantId },
-    orderBy: [{ isDefault: "desc" }, { updatedAt: "desc" }],
-    take: 100,
+/**
+ * The profiles a caller may see: every library ICP, plus the custom ICPs owned by `customOwnerIds`
+ * (the caller's own and their chain's; `lib/leadgen/icpAccess.ts#visibleCustomOwnerIds`).
+ */
+export async function listIcpProfiles(
+  tenantId: string,
+  /** Whose custom ICPs to include. Omit for all (the caller already authorized). */
+  customOwnerIds?: string[],
+) {
+  const customFilter: Prisma.IcpProfileWhereInput | null = customOwnerIds
+    ? { kind: "custom", ownerUserId: { in: customOwnerIds } }
+    : null;
+  const profiles = await prisma.icpProfile.findMany({
+    where: {
+      tenantId,
+      ...(customFilter ? { OR: [{ kind: "library" }, customFilter] } : {}),
+    },
+    orderBy: [{ isDefault: "desc" }, { kind: "asc" }, { updatedAt: "desc" }],
+    take: 200,
     select: {
       id: true,
       name: true,
       description: true,
       isDefault: true,
+      kind: true,
+      ownerUserId: true,
+      owner: { select: { id: true, firstName: true, lastName: true } },
       updatedAt: true,
+      _count: { select: { campaigns: true } },
       versions: {
         orderBy: { versionNumber: "desc" },
         take: 20,
@@ -108,12 +131,17 @@ export async function listIcpProfiles(tenantId: string) {
           status: true,
           rulesJson: true,
           publishedAt: true,
+          submittedAt: true,
+          submittedById: true,
+          reviewedAt: true,
+          reviewNote: true,
           createdAt: true,
           updatedAt: true,
         },
       },
     },
   });
+  return profiles;
 }
 
 export async function createIcpProfile(input: {
@@ -122,7 +150,13 @@ export async function createIcpProfile(input: {
   description?: string | null;
   templateId?: string;
   isDefault?: boolean;
+  /** `library` (default) is shared and managed; `custom` belongs to `ownerUserId`. */
+  kind?: "library" | "custom";
+  ownerUserId?: string | null;
+  /** Start from these rules instead of the template / empty set (a copy of a library ICP, a prefill). */
+  rules?: IcpVersionRulesV2;
 }) {
+  const kind = input.kind ?? "library";
   const template = input.templateId
     ? getIcpTemplateV2(input.templateId)
     : null;
@@ -131,9 +165,10 @@ export async function createIcpProfile(input: {
   }
 
   const rules = normalizeManagerRules(
-    template
-      ? template.build(randomUUID())
-      : emptyIcpRulesV2(randomUUID(), input.name),
+    input.rules ??
+      (template
+        ? template.build(randomUUID())
+        : emptyIcpRulesV2(randomUUID(), input.name)),
   );
 
   let lastError: unknown;
@@ -141,10 +176,13 @@ export async function createIcpProfile(input: {
     try {
       return await prisma.$transaction(
         async (tx) => {
+          // Only library ICPs can be the template; a custom ICP never is, and does not count
+          // towards "the first library ICP becomes the default".
           const profileCount = await tx.icpProfile.count({
-            where: { tenantId: input.tenantId },
+            where: { tenantId: input.tenantId, kind: "library" },
           });
-          const makeDefault = input.isDefault === true || profileCount === 0;
+          const makeDefault =
+            kind === "library" && (input.isDefault === true || profileCount === 0);
           if (makeDefault) {
             await tx.icpProfile.updateMany({
               where: { tenantId: input.tenantId, isDefault: true },
@@ -158,8 +196,10 @@ export async function createIcpProfile(input: {
               name: input.name,
               description: input.description || null,
               isDefault: makeDefault,
+              kind,
+              ownerUserId: kind === "custom" ? (input.ownerUserId ?? null) : null,
             },
-            select: { id: true, name: true, isDefault: true },
+            select: { id: true, name: true, isDefault: true, kind: true, ownerUserId: true },
           });
           const version = await tx.icpVersion.create({
             data: {
@@ -215,6 +255,7 @@ export async function cloneIcpVersionAsDraft(input: {
     orderBy: { versionNumber: "desc" },
   });
   if (existingDraft) return existingDraft;
+  await assertNoVersionInReview(input.tenantId, source.icpProfileId);
 
   const simplificationNotes = managerSimplificationNotes(source.rulesJson);
   if (simplificationNotes.length && !input.acknowledgeSimplification) {
@@ -277,6 +318,12 @@ export async function saveIcpDraft(input: {
     select: { id: true, status: true },
   });
   if (!current) throw new IcpAuthoringError("not_found", "ICP draft not found");
+  if (current.status === "pending_review") {
+    throw new IcpAuthoringError(
+      "review_pending",
+      "This version is waiting for review and cannot be edited. Withdraw it or wait for the decision.",
+    );
+  }
   if (current.status !== "draft") {
     throw new IcpAuthoringError(
       "published_immutable",
@@ -421,4 +468,21 @@ export async function assignCampaignIcp(input: {
     data: next,
     select: { id: true, icpVersionId: true, icpProfileId: true },
   });
+}
+
+/**
+ * A profile has at most one version open at a time: a draft, or one waiting for review. Editing a
+ * published version while another is in review would fork the rules the reviewer is approving.
+ */
+export async function assertNoVersionInReview(tenantId: string, icpProfileId: string) {
+  const pending = await prisma.icpVersion.findFirst({
+    where: { tenantId, icpProfileId, status: "pending_review" },
+    select: { id: true },
+  });
+  if (pending) {
+    throw new IcpAuthoringError(
+      "review_pending",
+      "A version of this ICP is waiting for review. Withdraw it or wait for the decision before editing.",
+    );
+  }
 }

@@ -8,6 +8,11 @@ import { createCampaignSchema } from '@/lib/validation/schemas';
 import { handleApiError } from '@/lib/api/errors';
 import { cacheGet, cacheSet, listKey, invalidateList } from '@/lib/cache';
 import { logAdminAudit } from '@/lib/audit';
+import { ICP_LIMITS, icpAuthoringErrorResponse, icpRateLimit } from '@/app/api/icp/manager';
+import { hasScoringWriteScope } from '@/lib/leads/scoringAccess';
+import { createCustomIcp } from '@/lib/leadgen/customIcp';
+import { IcpAuthoringError } from '@/lib/leadgen/icpAuthoring';
+import { publishModeFor } from '@/lib/leadgen/icpAccess';
 
 const CACHE_TTL = 60;
 
@@ -126,10 +131,38 @@ export async function POST(req: NextRequest) {
   const userOrRes = await requireRole('team_lead');
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
+  if (!user.tenantId) return NextResponse.json({ error: 'No tenant context' }, { status: 403 });
+  const tenantId = user.tenantId;
+  // Creating a campaign now also chooses what scores it, so an API key needs the scoring scope too.
+  if (!hasScoringWriteScope(user)) {
+    return NextResponse.json({ error: 'Forbidden: the scoring:write scope is required to create a campaign' }, { status: 403 });
+  }
 
   const parsed = await parseBody(req, createCampaignSchema, 'Invalid campaign create');
   if (parsed.error) return parsed.error;
   const body = parsed.data;
+
+  // The ICP is checked before anything is written, so a bad choice cannot leave a new client behind.
+  // A campaign scores only against its own ICP, so "create now, pick an ICP later" is not offered.
+  let libraryChoice: { versionId: string; profileId: string } | null = null;
+  if (body.icp.mode === 'library') {
+    const version = await prisma.icpVersion.findFirst({
+      where: {
+        id: body.icp.icpVersionId,
+        tenantId,
+        status: 'published',
+        icpProfile: { kind: 'library' },
+      },
+      select: { id: true, icpProfileId: true },
+    });
+    if (!version) {
+      return NextResponse.json(
+        { error: 'Choose a published shared ICP for this campaign', code: 'icp_not_found' },
+        { status: 400 }
+      );
+    }
+    libraryChoice = { versionId: version.id, profileId: version.icpProfileId };
+  }
 
   let clientId = body.clientId;
 
@@ -171,9 +204,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Client not found' }, { status: 404 });
   }
 
+  let customIcp: Awaited<ReturnType<typeof createCustomIcp>> | null = null;
+  if (body.icp.mode === 'custom') {
+    const limited = await icpRateLimit(user, 'create-custom', ICP_LIMITS.createCustom.limit, ICP_LIMITS.createCustom.windowSeconds);
+    if (limited) return limited;
+    try {
+      const choice = body.icp;
+      customIcp = await createCustomIcp({
+        tenantId,
+        user,
+        name: choice.name,
+        campaignName: body.name,
+        source:
+          choice.source === 'template'
+            ? { source: 'template', templateId: choice.templateId as string }
+            : choice.source === 'library'
+              ? { source: 'library', sourceProfileId: choice.sourceProfileId as string }
+              : { source: 'blank' },
+      });
+    } catch (err) {
+      if (err instanceof IcpAuthoringError) return icpAuthoringErrorResponse(err);
+      return handleApiError('api/campaigns POST (custom ICP)', err);
+    }
+  }
+
+  // The orphan cleanup below belongs to THIS call only. Once the campaign row exists the profile is
+  // its ICP: nothing after this point may delete it, whatever fails.
+  let campaign: Awaited<ReturnType<typeof prisma.campaign.create>>;
   try {
-    const campaign = await prisma.campaign.create({
+    campaign = await prisma.campaign.create({
       data: {
+        icpProfileId: libraryChoice?.profileId ?? customIcp?.profile.id ?? null,
+        icpVersionId: libraryChoice?.versionId ?? null,
         name: body.name,
         clientId,
         targetVertical: body.targetVertical ?? null,
@@ -183,7 +245,14 @@ export async function POST(req: NextRequest) {
         endDate: null,
       },
     });
+  } catch (err) {
+    if (customIcp) {
+      await prisma.icpProfile.deleteMany({ where: { id: customIcp.profile.id, tenantId } }).catch(() => {});
+    }
+    return handleApiError('api/campaigns POST', err);
+  }
 
+  try {
     // Classified as an admin action so it shows under the Audit Log's default "Admin actions
     // only" view. The Prisma extension already records `create_campaign`, but that lands in
     // the "all changes" firehose beside every notification and job run; a director who has
@@ -202,11 +271,41 @@ export async function POST(req: NextRequest) {
       action: 'admin.campaign.create',
       tableName: 'Campaign',
       recordId: campaign.id,
-      changedFields: { name: campaign.name, clientId, status: campaign.status },
+      changedFields: {
+        name: campaign.name,
+        clientId,
+        status: campaign.status,
+        icpMode: body.icp.mode,
+        icpProfileId: campaign.icpProfileId,
+      },
     });
+    if (customIcp) {
+      await logAdminAudit({
+        actorId: user.id,
+        action: 'admin.icp.create',
+        tableName: 'IcpProfile',
+        recordId: customIcp.profile.id,
+        changedFields: { name: customIcp.profile.name, kind: 'custom', campaignId: campaign.id },
+      });
+    }
 
     await invalidateList(user.tenantId, 'campaigns');
-    return NextResponse.json(campaign, { status: 201 });
+    return NextResponse.json(
+      {
+        ...campaign,
+        icp: customIcp
+          ? {
+              mode: 'custom',
+              profileId: customIcp.profile.id,
+              draftVersionId: customIcp.version.id,
+              // 'publish': the creator's Publish makes it live; 'submit': it goes to review first.
+              publishMode: publishModeFor(user, { kind: 'custom', ownerUserId: user.id }),
+              scored: false,
+            }
+          : { mode: 'library', profileId: campaign.icpProfileId, scored: true },
+      },
+      { status: 201 }
+    );
   } catch (err) {
     return handleApiError('api/campaigns POST', err);
   }

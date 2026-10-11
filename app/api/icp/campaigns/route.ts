@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { requireIcpManager } from "@/app/api/icp/manager";
+import { requireIcpStaff } from "@/app/api/icp/manager";
 import { getVisibleCampaignIds } from "@/lib/auth";
 import { requireTenantId } from "@/lib/api/tenant";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const user = await requireIcpManager();
+  const user = await requireIcpStaff();
   if (user instanceof NextResponse) return user;
   const tenantId = requireTenantId(user);
   if (tenantId instanceof NextResponse) return tenantId;

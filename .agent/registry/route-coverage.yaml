@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 212   mutating: 131   mutating without a test: 19
+# routes: 216   mutating: 134   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -201,6 +201,7 @@ routes:
       - tests/campaign-create-team-lead.test.ts
       - tests/campaign-edit-archive.test.ts
       - tests/campaign-members-team-lead.test.ts
+      - tests/icp-review-workflow.test.ts
       - tests/leads-campaign-filter.test.ts
       - tests/team-lead-campaign-page.test.ts
       - tests/ui-reads-what-api-sends.test.ts
@@ -219,6 +220,7 @@ routes:
       - tests/campaign-create-team-lead.test.ts
       - tests/campaign-edit-archive.test.ts
       - tests/campaign-members-team-lead.test.ts
+      - tests/icp-review-workflow.test.ts
       - tests/leads-campaign-filter.test.ts
       - tests/team-lead-campaign-page.test.ts
       - tests/ui-reads-what-api-sends.test.ts
@@ -237,6 +239,7 @@ routes:
       - tests/campaign-create-team-lead.test.ts
       - tests/campaign-edit-archive.test.ts
       - tests/campaign-members-team-lead.test.ts
+      - tests/icp-review-workflow.test.ts
       - tests/leads-campaign-filter.test.ts
       - tests/team-lead-campaign-page.test.ts
       - tests/ui-reads-what-api-sends.test.ts
@@ -255,6 +258,7 @@ routes:
       - tests/campaign-create-team-lead.test.ts
       - tests/campaign-edit-archive.test.ts
       - tests/campaign-members-team-lead.test.ts
+      - tests/icp-review-workflow.test.ts
       - tests/leads-campaign-filter.test.ts
       - tests/team-lead-campaign-page.test.ts
       - tests/ui-reads-what-api-sends.test.ts
@@ -273,6 +277,7 @@ routes:
       - tests/campaign-create-team-lead.test.ts
       - tests/campaign-edit-archive.test.ts
       - tests/campaign-members-team-lead.test.ts
+      - tests/icp-review-workflow.test.ts
       - tests/leads-campaign-filter.test.ts
       - tests/team-lead-campaign-page.test.ts
       - tests/ui-reads-what-api-sends.test.ts
@@ -291,6 +296,7 @@ routes:
       - tests/campaign-create-team-lead.test.ts
       - tests/campaign-edit-archive.test.ts
       - tests/campaign-members-team-lead.test.ts
+      - tests/icp-review-workflow.test.ts
       - tests/leads-campaign-filter.test.ts
       - tests/team-lead-campaign-page.test.ts
       - tests/ui-reads-what-api-sends.test.ts
@@ -530,35 +536,51 @@ routes:
       - tests/certification-rollback-orchestration.test.ts
       - tests/migration-status.test.ts
   - path: app/api/icp/campaigns/[id]/route.ts
-    methods: [PATCH]
+    methods: [GET, PATCH]
     tests:
       - tests/admin-audit-coverage.test.ts
-      - tests/icp-campaign-assign-route.test.ts
       - tests/icp-management-ui.test.ts
+      - tests/icp-review-workflow.test.ts
   - path: app/api/icp/campaigns/route.ts
     methods: [GET]
     tests:
       - tests/admin-audit-coverage.test.ts
-      - tests/icp-campaign-assign-route.test.ts
       - tests/icp-management-ui.test.ts
+      - tests/icp-review-workflow.test.ts
   - path: app/api/icp/profiles/[id]/default/route.ts
     methods: [POST]
     tests:
       - tests/admin-audit-coverage.test.ts
       - tests/icp-management-ui.test.ts
       - tests/icp-preview-score.test.ts
+      - tests/icp-review-workflow.test.ts
   - path: app/api/icp/profiles/route.ts
     methods: [GET, POST]
     tests:
       - tests/admin-audit-coverage.test.ts
       - tests/icp-management-ui.test.ts
       - tests/icp-preview-score.test.ts
+      - tests/icp-review-workflow.test.ts
+  - path: app/api/icp/reviews/route.ts
+    methods: [GET]
+    tests:
+      - tests/icp-management-ui.test.ts
+      - tests/icp-review-workflow.test.ts
+  - path: app/api/icp/versions/[id]/approve/route.ts
+    methods: [POST]
+    tests:
+      - tests/admin-audit-coverage.test.ts
+      - tests/icp-management-ui.test.ts
+      - tests/icp-preview-score.test.ts
+      - tests/icp-review-workflow.test.ts
+      - tests/research-phase-3-workspace.test.ts
   - path: app/api/icp/versions/[id]/preview-score/route.ts
     methods: [POST]
     tests:
       - tests/admin-audit-coverage.test.ts
       - tests/icp-management-ui.test.ts
       - tests/icp-preview-score.test.ts
+      - tests/icp-review-workflow.test.ts
       - tests/research-phase-3-workspace.test.ts
   - path: app/api/icp/versions/[id]/publish/route.ts
     methods: [POST]
@@ -566,6 +588,15 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/icp-management-ui.test.ts
       - tests/icp-preview-score.test.ts
+      - tests/icp-review-workflow.test.ts
+      - tests/research-phase-3-workspace.test.ts
+  - path: app/api/icp/versions/[id]/reject/route.ts
+    methods: [POST]
+    tests:
+      - tests/admin-audit-coverage.test.ts
+      - tests/icp-management-ui.test.ts
+      - tests/icp-preview-score.test.ts
+      - tests/icp-review-workflow.test.ts
       - tests/research-phase-3-workspace.test.ts
   - path: app/api/icp/versions/[id]/route.ts
     methods: [PATCH]
@@ -573,6 +604,15 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/icp-management-ui.test.ts
       - tests/icp-preview-score.test.ts
+      - tests/icp-review-workflow.test.ts
+      - tests/research-phase-3-workspace.test.ts
+  - path: app/api/icp/versions/[id]/withdraw/route.ts
+    methods: [POST]
+    tests:
+      - tests/admin-audit-coverage.test.ts
+      - tests/icp-management-ui.test.ts
+      - tests/icp-preview-score.test.ts
+      - tests/icp-review-workflow.test.ts
       - tests/research-phase-3-workspace.test.ts
   - path: app/api/icp/versions/route.ts
     methods: [GET, POST]
@@ -580,6 +620,7 @@ routes:
       - tests/admin-audit-coverage.test.ts
       - tests/icp-management-ui.test.ts
       - tests/icp-preview-score.test.ts
+      - tests/icp-review-workflow.test.ts
       - tests/research-phase-3-workspace.test.ts
   - path: app/api/inbox/route.ts
     methods: [GET, PATCH]
@@ -686,6 +727,7 @@ routes:
       - tests/admin.test.ts
       - tests/campaign-icp-resolver.test.ts
       - tests/certification-role-evidence.test.ts
+      - tests/icp-review-workflow.test.ts
       - tests/icp-scoring-research-and-edit.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
@@ -719,6 +761,7 @@ routes:
       - tests/admin.test.ts
       - tests/campaign-icp-resolver.test.ts
       - tests/certification-role-evidence.test.ts
+      - tests/icp-review-workflow.test.ts
       - tests/icp-scoring-research-and-edit.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
@@ -752,6 +795,7 @@ routes:
       - tests/admin.test.ts
       - tests/campaign-icp-resolver.test.ts
       - tests/certification-role-evidence.test.ts
+      - tests/icp-review-workflow.test.ts
       - tests/icp-scoring-research-and-edit.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
@@ -777,6 +821,7 @@ routes:
   - path: app/api/leads/rescore-icp/route.ts
     methods: [POST]
     tests:
+      - tests/icp-review-workflow.test.ts
       - tests/leads-rescore-icp-route.test.ts
   - path: app/api/leads/route.ts
     methods: [GET, POST]
@@ -800,6 +845,7 @@ routes:
       - tests/admin.test.ts
       - tests/campaign-icp-resolver.test.ts
       - tests/certification-role-evidence.test.ts
+      - tests/icp-review-workflow.test.ts
       - tests/icp-scoring-research-and-edit.test.ts
       - tests/lead-import-dry-run-warnings.test.ts
       - tests/lead-import-reference-integrity.test.ts
@@ -938,18 +984,22 @@ routes:
   - path: app/api/research/preview/route.ts
     methods: [POST]
     tests:
+      - tests/icp-review-workflow.test.ts
       - tests/research-phase-3-workspace.test.ts
   - path: app/api/research/runs/[id]/execute/route.ts
     methods: [POST]
     tests:
+      - tests/icp-review-workflow.test.ts
       - tests/research-phase-2-access.test.ts
   - path: app/api/research/runs/[id]/pause/route.ts
     methods: [POST]
     tests:
+      - tests/icp-review-workflow.test.ts
       - tests/research-phase-2-access.test.ts
   - path: app/api/research/runs/route.ts
     methods: [GET, POST]
     tests:
+      - tests/icp-review-workflow.test.ts
       - tests/research-phase-2-access.test.ts
   - path: app/api/seed/route.ts
     methods: [POST]

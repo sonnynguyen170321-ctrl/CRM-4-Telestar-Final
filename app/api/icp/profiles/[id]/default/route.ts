@@ -26,9 +26,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   const { id } = await params;
   const profile = await prisma.icpProfile.findFirst({
     where: { id, tenantId },
-    select: { id: true, name: true, isDefault: true, versions: { where: { status: "published" }, select: { id: true }, take: 1 } },
+    select: { id: true, name: true, isDefault: true, kind: true, versions: { where: { status: "published" }, select: { id: true }, take: 1 } },
   });
   if (!profile) return NextResponse.json({ error: "ICP profile not found" }, { status: 404 });
+  if (profile.kind !== "library") {
+    return NextResponse.json({ error: "Only a shared library ICP can be the template" }, { status: 409 });
+  }
   if (profile.versions.length === 0) {
     return NextResponse.json(
       { error: "Publish a version of this ICP before making it the default" },

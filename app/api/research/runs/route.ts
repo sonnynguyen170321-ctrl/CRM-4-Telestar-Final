@@ -7,6 +7,7 @@ import { requireTenantId } from '@/lib/api/tenant';
 import { createResearchRun } from '@/lib/research/discovery';
 import { listResearchRuns } from '@/lib/research/readModel';
 import { validateResearchQueryLimit } from '@/lib/research/access';
+import { researchIcpAllowed } from '@/lib/research/icpGuard';
 
 const createSchema = z.object({
   kind: z.enum(['company', 'contact']),
@@ -50,6 +51,10 @@ export async function POST(req: NextRequest) {
   const parsed = createSchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid run request', details: parsed.error.issues }, { status: 400 });
+  }
+
+  if (parsed.data.icpVersionId && !(await researchIcpAllowed(user, tenantId, parsed.data.icpVersionId))) {
+    return NextResponse.json({ error: 'ICP version not found in this tenant' }, { status: 400 });
   }
 
   const limit = validateResearchQueryLimit(user.role, parsed.data.queryLimit);

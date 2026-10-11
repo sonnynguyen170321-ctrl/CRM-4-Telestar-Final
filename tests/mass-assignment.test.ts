@@ -86,6 +86,7 @@ describe('SEC-003: Mass Assignment Protection & Schema Hardening', () => {
         clientId: 'client-1',
         startDate: '2026-09-01T00:00:00Z',
         tenantId: 'foreign-tenant',
+        icp: { mode: 'library', icpVersionId: 'v1' },
       };
 
       const parsed = createCampaignSchema.parse(payload);

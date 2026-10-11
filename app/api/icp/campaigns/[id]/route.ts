@@ -3,24 +3,56 @@ import { z } from "zod";
 
 import {
   icpAuthoringErrorResponse,
-  requireIcpManager,
+  requireIcpUser,
 } from "@/app/api/icp/manager";
 import { getVisibleCampaignIds } from "@/lib/auth";
 import { requireTenantId } from "@/lib/api/tenant";
 import { logAdminAudit } from "@/lib/audit";
 import { invalidateList } from "@/lib/cache";
+import { canAttachProfile, isScoringStaff } from "@/lib/leadgen/icpAccess";
 import { assignCampaignIcp } from "@/lib/leadgen/icpAuthoring";
+import { prisma } from "@/lib/prisma";
 
 const assignmentSchema = z
   // null clears the campaign's ICP: it is then not scored (there is no default fallback).
   .object({ icpVersionId: z.string().min(1).nullable() })
   .strict();
 
+/** The campaign's ICP facts for its ICP page: any signed-in user who can see the campaign. */
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const user = await requireIcpUser();
+  if (user instanceof NextResponse) return user;
+  const tenantId = requireTenantId(user);
+  if (tenantId instanceof NextResponse) return tenantId;
+  const { id } = await params;
+
+  const visibleCampaignIds = await getVisibleCampaignIds(user);
+  if (visibleCampaignIds !== null && !visibleCampaignIds.includes(id)) {
+    return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+  }
+  const campaign = await prisma.campaign.findFirst({
+    where: { id, tenantId },
+    select: {
+      id: true,
+      name: true,
+      icpProfileId: true,
+      icpVersionId: true,
+      client: { select: { name: true } },
+      _count: { select: { leads: true } },
+    },
+  });
+  if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+  return NextResponse.json({ campaign });
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const user = await requireIcpManager();
+  const user = await requireIcpUser();
   if (user instanceof NextResponse) return user;
   const tenantId = requireTenantId(user);
   if (tenantId instanceof NextResponse) return tenantId;
@@ -43,6 +75,60 @@ export async function PATCH(
       { error: "Invalid campaign ICP assignment", details: parsed.error.issues },
       { status: 400 },
     );
+  }
+
+  // Who may change the campaign's ICP. The ICP scores every lead of the campaign for every rep on it,
+  // so a rep (sdr, leadgen) may only SET one on a campaign that has none; replacing one is team lead
+  // and up. A rep who wants a different ICP for the whole campaign asks their lead; for their own
+  // working they copy into a custom ICP and submit it. Clearing stops scoring for everyone: team
+  // lead and up. A version still in review (or a draft) is never attachable.
+  const existing = await prisma.campaign.findFirst({
+    where: { id, tenantId },
+    select: { icpProfileId: true, icpVersionId: true },
+  });
+  if (!existing) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+  if (!isScoringStaff(user) && (existing.icpProfileId || existing.icpVersionId)) {
+    return NextResponse.json(
+      {
+        error: "This campaign already has an ICP. Ask your team lead to switch it.",
+        code: "icp_already_set",
+      },
+      { status: 403 },
+    );
+  }
+  if (parsed.data.icpVersionId === null) {
+    if (!isScoringStaff(user)) {
+      return NextResponse.json(
+        { error: "Forbidden: only a team lead or above can stop a campaign from being scored" },
+        { status: 403 },
+      );
+    }
+  } else {
+    const target = await prisma.icpVersion.findFirst({
+      where: { id: parsed.data.icpVersionId, tenantId },
+      select: {
+        status: true,
+        icpProfile: { select: { kind: true, ownerUserId: true } },
+      },
+    });
+    if (!target) {
+      return NextResponse.json({ error: "ICP version not found" }, { status: 404 });
+    }
+    if (target.status === "pending_review") {
+      return NextResponse.json(
+        { error: "This ICP is waiting for review. It can be attached once it is approved.", code: "pending_review" },
+        { status: 409 },
+      );
+    }
+    if (target.status !== "published") {
+      return NextResponse.json(
+        { error: "Only a published ICP version can be attached to a campaign", code: "not_published" },
+        { status: 409 },
+      );
+    }
+    if (!(await canAttachProfile(user, target.icpProfile))) {
+      return NextResponse.json({ error: "ICP version not found" }, { status: 404 });
+    }
   }
 
   try {

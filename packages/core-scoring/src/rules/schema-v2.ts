@@ -52,7 +52,11 @@ export type AccountSuppliedMode = (typeof ACCOUNT_SUPPLIED_MODES)[number];
 const enumOf = <T extends readonly [string, ...string[]]>(values: T) =>
   z.enum(values);
 
-const stringList = z.array(z.string().min(1));
+// Bounded: a rule list is typed by a person, the largest real one is about 20 titles, and an unbounded
+// one is a way to store (and then score every lead against) an arbitrarily large document.
+export const RULE_LIST_MAX_ITEMS = 200;
+export const RULE_STRING_MAX_CHARS = 200;
+const stringList = z.array(z.string().min(1).max(RULE_STRING_MAX_CHARS)).max(RULE_LIST_MAX_ITEMS);
 
 // ---------------------------------------------------------------------------
 // Geography (region expansion + office-location != HQ + priority tiers)

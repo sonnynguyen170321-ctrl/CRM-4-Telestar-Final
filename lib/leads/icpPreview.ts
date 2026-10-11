@@ -29,7 +29,7 @@ type Before = Counts & { unscored: number };
 
 export type IcpPreviewResult = {
   sampleSize: number;
-  scope: 'icp_campaigns' | 'recent_leads';
+  scope: 'icp_campaigns' | 'recent_leads' | 'campaign';
   before: Before;
   after: Counts;
   /** "from→to" for every lead whose verdict would change; "unscored" when it had none. */
@@ -55,8 +55,13 @@ export async function previewIcpRules(input: {
   tenantId: string;
   icpProfileId: string;
   rules: IcpVersionRulesV2;
+  /** Sample only this campaign's leads (never widened): "what would this do to MY campaign". */
+  campaignId?: string;
+  /** Extra Prisma `where` limiting which leads the caller may see (`getLeadWhereScope`). */
+  leadScope?: Record<string, unknown>;
 }): Promise<IcpPreviewResult> {
-  const { tenantId, icpProfileId, rules } = input;
+  const { tenantId, icpProfileId, rules, campaignId } = input;
+  const leadScope = input.leadScope ?? {};
   const select = {
     ...SCORABLE_LEAD_SELECT,
     firstName: true,
@@ -66,17 +71,25 @@ export async function previewIcpRules(input: {
     qualificationOverride: true,
   } as const;
 
-  let scope: IcpPreviewResult['scope'] = 'icp_campaigns';
+  let scope: IcpPreviewResult['scope'] = campaignId ? 'campaign' : 'icp_campaigns';
   let leads = await prisma.lead.findMany({
-    where: { tenantId, archivedAt: null, campaign: { OR: [{ icpProfileId }, { icpProfileId: null, icpVersion: { icpProfileId } }] } },
+    where: {
+      // AND, not a spread: the caller's scope may itself constrain `campaignId` or `OR`.
+      AND: [
+        leadScope,
+        campaignId
+          ? { tenantId, archivedAt: null, campaignId }
+          : { tenantId, archivedAt: null, campaign: { OR: [{ icpProfileId }, { icpProfileId: null, icpVersion: { icpProfileId } }] } },
+      ],
+    },
     select,
     orderBy: { createdAt: 'desc' },
     take: PREVIEW_SAMPLE_LIMIT,
   });
-  if (leads.length < MIN_SCOPED_SAMPLE) {
+  if (!campaignId && leads.length < MIN_SCOPED_SAMPLE) {
     scope = 'recent_leads';
     leads = await prisma.lead.findMany({
-      where: { tenantId, archivedAt: null },
+      where: { AND: [leadScope, { tenantId, archivedAt: null }] },
       select,
       orderBy: { createdAt: 'desc' },
       take: PREVIEW_SAMPLE_LIMIT,

@@ -118,14 +118,30 @@ describe('createSequenceSchema', () => {
   });
 });
 
+const LIBRARY_ICP = { mode: 'library', icpVersionId: 'v1' } as const;
+
 describe('createCampaignSchema', () => {
   it('accepts valid campaign payload with clientId', () => {
-    expect(createCampaignSchema.safeParse({ name: 'Campaign 1', clientId: 'c123' }).success).toBe(true);
+    expect(createCampaignSchema.safeParse({ name: 'Campaign 1', clientId: 'c123', icp: LIBRARY_ICP }).success).toBe(true);
+  });
+
+  it('requires an ICP choice: a campaign without one would not be scored', () => {
+    expect(createCampaignSchema.safeParse({ name: 'Campaign 1', clientId: 'c123' }).success).toBe(false);
+    expect(createCampaignSchema.safeParse({ name: 'Campaign 1', clientId: 'c123', icp: { mode: 'library' } }).success).toBe(false);
+  });
+
+  it('accepts a custom ICP from a template, a copy or blank, and names what each needs', () => {
+    const base = { name: 'Campaign 1', clientId: 'c123' };
+    expect(createCampaignSchema.safeParse({ ...base, icp: { mode: 'custom', source: 'blank' } }).success).toBe(true);
+    expect(createCampaignSchema.safeParse({ ...base, icp: { mode: 'custom', source: 'template', templateId: 't1' } }).success).toBe(true);
+    expect(createCampaignSchema.safeParse({ ...base, icp: { mode: 'custom', source: 'template' } }).success).toBe(false);
+    expect(createCampaignSchema.safeParse({ ...base, icp: { mode: 'custom', source: 'library', sourceProfileId: 'p1' } }).success).toBe(true);
+    expect(createCampaignSchema.safeParse({ ...base, icp: { mode: 'custom', source: 'library' } }).success).toBe(false);
   });
 
   it('accepts valid campaign payload with newClientName and null or undefined clientId', () => {
-    expect(createCampaignSchema.safeParse({ name: 'Campaign 1', newClientName: 'New Client Inc', clientId: null }).success).toBe(true);
-    expect(createCampaignSchema.safeParse({ name: 'Campaign 1', newClientName: 'New Client Inc', clientId: undefined }).success).toBe(true);
+    expect(createCampaignSchema.safeParse({ name: 'Campaign 1', newClientName: 'New Client Inc', clientId: null, icp: LIBRARY_ICP }).success).toBe(true);
+    expect(createCampaignSchema.safeParse({ name: 'Campaign 1', newClientName: 'New Client Inc', clientId: undefined, icp: LIBRARY_ICP }).success).toBe(true);
   });
 });
 

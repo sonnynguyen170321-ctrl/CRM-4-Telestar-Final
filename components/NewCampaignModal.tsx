@@ -5,6 +5,9 @@ import { X } from 'lucide-react';
 import { useEscapeClose } from '@/hooks/useEscapeClose';
 import { useToast } from '@/context/ToastContext';
 import { readApiError } from '@/lib/api/client';
+import { useRouter } from 'next/navigation';
+import { useAppContext } from '@/context/AppContext';
+import { icpApi, newestPublished, type IcpProfile, type IcpTemplate } from '@/components/icp/icpClient';
 
 interface Client {
   id: string;
@@ -19,11 +22,26 @@ interface Props {
 
 export default function NewCampaignModal({ onClose, onSuccess }: Props) {
   const { showToast } = useToast();
+  const router = useRouter();
+  const { currentRole } = useAppContext();
   useEscapeClose(onClose);
   const [saving, setSaving] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [newClientName, setNewClientName] = useState('');
   const [isNewClient, setIsNewClient] = useState(false);
+
+  // Every campaign scores against its own ICP, so choosing one is part of creating it.
+  const [icpProfiles, setIcpProfiles] = useState<IcpProfile[]>([]);
+  const [icpTemplates, setIcpTemplates] = useState<IcpTemplate[]>([]);
+  const [icpMode, setIcpMode] = useState<'library' | 'custom'>('library');
+  const [libraryProfileId, setLibraryProfileId] = useState('');
+  // 'blank' | `template:<id>` | `copy:<profileId>`
+  const [customStart, setCustomStart] = useState('blank');
+  const [icpLoaded, setIcpLoaded] = useState(false);
+
+  const libraryOptions = icpProfiles.filter((p) => p.kind === 'library' && newestPublished(p));
+  // Reps below team lead do not publish: their custom ICP waits for review.
+  const customNeedsReview = !['team_lead', 'floor_manager', 'director', 'leadgen_manager'].includes(currentRole);
 
   const [form, setForm] = useState({
     name: '',
@@ -39,6 +57,17 @@ export default function NewCampaignModal({ onClose, onSuccess }: Props) {
       .then((r) => (r.ok ? r.json() : { clients: [] }))
       .then((data) => setClients(Array.isArray(data.clients) ? data.clients : []))
       .catch(() => {});
+    icpApi
+      .list()
+      .then((data) => {
+        setIcpProfiles(data.profiles);
+        setIcpTemplates(data.templates);
+        // The tenant's template ICP is preselected; it is only a starting choice.
+        const preselected = data.profiles.find((p) => p.kind === 'library' && p.isDefault && newestPublished(p));
+        setLibraryProfileId(preselected?.id ?? '');
+      })
+      .catch(() => {})
+      .finally(() => setIcpLoaded(true));
   }, []);
 
   const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -56,6 +85,23 @@ export default function NewCampaignModal({ onClose, onSuccess }: Props) {
       return;
     }
 
+    let icp: Record<string, unknown>;
+    if (icpMode === 'library') {
+      const chosen = icpProfiles.find((p) => p.id === libraryProfileId);
+      const version = chosen ? newestPublished(chosen) : null;
+      if (!version) {
+        showToast('Choose an ICP for this campaign, or make a custom one', 'error');
+        return;
+      }
+      icp = { mode: 'library', icpVersionId: version.id };
+    } else if (customStart.startsWith('template:')) {
+      icp = { mode: 'custom', source: 'template', templateId: customStart.slice('template:'.length) };
+    } else if (customStart.startsWith('copy:')) {
+      icp = { mode: 'custom', source: 'library', sourceProfileId: customStart.slice('copy:'.length) };
+    } else {
+      icp = { mode: 'custom', source: 'blank' };
+    }
+
     setSaving(true);
     const res = await fetch('/api/campaigns', {
       method: 'POST',
@@ -64,14 +110,23 @@ export default function NewCampaignModal({ onClose, onSuccess }: Props) {
         ...form,
         clientId: isNewClient ? undefined : (form.clientId || undefined),
         newClientName: isNewClient ? newClientName : undefined,
+        icp,
       }),
     });
     setSaving(false);
 
     if (res.ok) {
-      showToast('Campaign created successfully!', 'success');
+      const created = (await res.json().catch(() => ({}))) as { id?: string };
+      showToast(
+        icpMode === 'custom'
+          ? 'Campaign created. Set up its ICP next: the campaign is not scored until the ICP is live.'
+          : 'Campaign created successfully!',
+        'success'
+      );
       onSuccess?.();
       onClose();
+      // A custom ICP is a draft: open its editor on the campaign's ICP page.
+      if (icpMode === 'custom' && created.id) router.push(`/campaigns/${created.id}/icp`);
     } else {
       showToast(await readApiError(res, 'Failed to create campaign'), 'error');
     }
@@ -208,6 +263,70 @@ export default function NewCampaignModal({ onClose, onSuccess }: Props) {
                   <option value="paused">Paused</option>
                 </select>
               </div>
+            </div>
+
+            {/* ICP */}
+            <div>
+              <label className={labelClass}>ICP * (who this campaign scores leads against)</label>
+              <div className="flex gap-2 mb-2">
+                {(['library', 'custom'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    aria-pressed={icpMode === mode}
+                    onClick={() => setIcpMode(mode)}
+                    className={`flex-1 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
+                      icpMode === mode
+                        ? 'bg-brand-red text-white border-brand-red'
+                        : 'bg-bg-main text-text-secondary border-card-border hover:border-brand-red/40'
+                    }`}
+                  >
+                    {mode === 'library' ? 'Shared ICP' : 'Custom ICP for this campaign'}
+                  </button>
+                ))}
+              </div>
+              {icpMode === 'library' ? (
+                <>
+                  <select
+                    aria-label="Shared ICP"
+                    value={libraryProfileId}
+                    onChange={(e) => setLibraryProfileId(e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="">{icpLoaded ? 'Select an ICP...' : 'Loading ICPs...'}</option>
+                    {libraryOptions.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}{p.isDefault ? ' (template)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[10px] text-text-muted">
+                    The campaign follows this ICP&apos;s newest published version. Directors and managers keep it up to date.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <select
+                    aria-label="Start the custom ICP from"
+                    value={customStart}
+                    onChange={(e) => setCustomStart(e.target.value)}
+                    className={inputClass}
+                  >
+                    <option value="blank">Start blank</option>
+                    {icpTemplates.map((t) => (
+                      <option key={t.id} value={`template:${t.id}`}>Template: {t.name}</option>
+                    ))}
+                    {libraryOptions.map((p) => (
+                      <option key={p.id} value={`copy:${p.id}`}>Copy of {p.name}</option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-[10px] text-text-muted">
+                    {customNeedsReview
+                      ? 'You will edit it next and submit it for review. The campaign stays unscored until a team lead or manager approves it.'
+                      : 'You will edit it next and publish it. The campaign is not scored until you do.'}
+                  </p>
+                </>
+              )}
             </div>
 
             {/* Footer */}

@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import {
   Award,
   BarChart3,
@@ -9,6 +10,7 @@ import {
   MessageSquare,
   Mail,
   Zap,
+  Target,
 } from 'lucide-react';
 import {
   BarChart,
@@ -61,6 +63,8 @@ interface CampaignDetailProps {
   onExportCSV: () => void;
   showTabsSwitcher: boolean;
   canExport: boolean;
+  /** When given, the header links to this campaign's ICP & scoring page. */
+  campaignId?: string;
 }
 
 export default function CampaignDetail({
@@ -70,7 +74,8 @@ export default function CampaignDetail({
   onExportPDF,
   onExportCSV,
   showTabsSwitcher,
-  canExport
+  canExport,
+  campaignId,
 }: CampaignDetailProps) {
   const { kpis, stageCounts, sequences, reps } = data;
 
@@ -118,6 +123,16 @@ export default function CampaignDetail({
             </h2>
           </div>
         </div>
+
+        {campaignId && (
+          <Link
+            href={`/campaigns/${campaignId}/icp`}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-card-bg hover:bg-gray-50 border border-card-border text-text-secondary text-xs font-semibold rounded-lg transition-colors"
+          >
+            <Target className="w-3.5 h-3.5" aria-hidden="true" />
+            ICP &amp; scoring
+          </Link>
+        )}
 
         {canExport && (
           <div className="flex items-center gap-2 self-auto">

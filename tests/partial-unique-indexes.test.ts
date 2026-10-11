@@ -75,6 +75,11 @@ const REQUIRED = [
     table: 'TelephonyNumber',
     protects: 'two default caller IDs for one country of one team',
   },
+  {
+    name: 'icp_version_one_published_per_profile',
+    table: 'IcpVersion',
+    protects: 'two published versions of one ICP after two concurrent publishes or approvals',
+  },
 ] as const;
 
 describe.skipIf(!hasDb)('partial unique indexes that schema.prisma cannot express', () => {
@@ -106,7 +111,8 @@ describe.skipIf(!hasDb)('partial unique indexes that schema.prisma cannot expres
           'suppression_domain_scope_unique',
           'suppression_company_scope_unique',
           'telephony_number_overall_default_unique',
-          'telephony_number_country_default_unique'
+          'telephony_number_country_default_unique',
+          'icp_version_one_published_per_profile'
         )
     `;
 

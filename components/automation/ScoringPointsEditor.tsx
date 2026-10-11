@@ -63,12 +63,15 @@ export function ScoringPointsEditor({
   rules,
   editable,
   versionId,
+  campaignId,
   onChange,
   onEdit,
 }: {
   rules: IcpVersionRulesV2;
   editable: boolean;
   versionId: string;
+  /** Preview on this campaign's leads instead of the ICP's campaigns. */
+  campaignId?: string;
   onChange: (rules: IcpVersionRulesV2) => void;
   /** Starts a draft from a published version — the "Edit" path. */
   onEdit: () => void;
@@ -93,7 +96,7 @@ export function ScoringPointsEditor({
       ],
     });
 
-  const preview = useLivePreview(versionId, rules);
+  const preview = useLivePreview(versionId, rules, campaignId);
   const ceiling = points ? maxPossible(points) : 0;
 
   return (
@@ -275,12 +278,12 @@ export function ScoringPointsEditor({
   );
 }
 
-type PreviewState = { loading: boolean; error: string | null; result: IcpPreviewResult | null };
+export type PreviewState = { loading: boolean; error: string | null; result: IcpPreviewResult | null };
 
 /** Re-scores a sample of real leads 600ms after the rules stop changing. Never writes. */
-function useLivePreview(versionId: string, rules: IcpVersionRulesV2): PreviewState {
+export function useLivePreview(versionId: string, rules: IcpVersionRulesV2, campaignId?: string): PreviewState {
   const [state, setState] = useState<PreviewState>({ loading: false, error: null, result: null });
-  const body = useMemo(() => JSON.stringify({ rulesJson: rules }), [rules]);
+  const body = useMemo(() => JSON.stringify({ rulesJson: rules, ...(campaignId ? { campaignId } : {}) }), [rules, campaignId]);
   const controller = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -314,7 +317,7 @@ function useLivePreview(versionId: string, rules: IcpVersionRulesV2): PreviewSta
   return state;
 }
 
-function PreviewPanel({ state }: { state: PreviewState }) {
+export function PreviewPanel({ state }: { state: PreviewState }) {
   const { result, loading, error } = state;
   return (
     <aside className="sticky top-4 self-start rounded-xl border border-card-border bg-bg-main p-4" aria-live="polite">
@@ -328,7 +331,7 @@ function PreviewPanel({ state }: { state: PreviewState }) {
       ) : (
         <>
           <p className="mt-1 text-xs text-text-muted">
-            If saved — {result.sampleSize} {result.scope === 'icp_campaigns' ? 'leads in this ICP’s campaigns' : 'most recent leads'}.
+            If saved — {result.sampleSize} {result.scope === 'campaign' ? 'leads in this campaign that you can see' : result.scope === 'icp_campaigns' ? 'leads in this ICP’s campaigns' : 'most recent leads'}.
             Nothing is written.
           </p>
           <div className="mt-3 grid grid-cols-3 gap-2">

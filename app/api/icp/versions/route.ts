@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { requireIcpManager, icpAuthoringErrorResponse } from "@/app/api/icp/manager";
+import { authorizeVersionEdit, icpAuthoringErrorResponse, requireIcpUser } from "@/app/api/icp/manager";
 import { canAccessPool } from "@/app/api/leadgen-pool/guard";
 import { requireTenantId } from "@/lib/api/tenant";
+import { logAdminAudit } from "@/lib/audit";
 import { requireAuth } from "@/lib/auth";
+import { visibleCustomOwnerIds } from "@/lib/leadgen/icpAccess";
 import { cloneIcpVersionAsDraft } from "@/lib/leadgen/icpAuthoring";
 import { prisma } from "@/lib/prisma";
 import { canUseResearch } from "@/lib/research/access";
@@ -35,8 +37,18 @@ export async function GET() {
   const tenantId = requireTenantId(user);
   if (tenantId instanceof NextResponse) return tenantId;
 
+  const customOwners = await visibleCustomOwnerIds(user);
   const versions = await prisma.icpVersion.findMany({
-    where: { tenantId, status: "published" },
+    where: {
+      tenantId,
+      status: "published",
+      // Shared ICPs, plus only the custom ones in the caller's chain: another rep's personal ICP is not
+      // theirs to see or to start research from.
+      icpProfile:
+        customOwners === undefined
+          ? {}
+          : { OR: [{ kind: "library" }, { kind: "custom", ownerUserId: { in: customOwners } }] },
+    },
     orderBy: [{ createdAt: "desc" }],
     take: 100,
     select: {
@@ -54,7 +66,7 @@ export async function GET() {
 
 // A published version is immutable. Editing always starts by cloning it into one draft.
 export async function POST(req: NextRequest) {
-  const user = await requireIcpManager();
+  const user = await requireIcpUser();
   if (user instanceof NextResponse) return user;
   const tenantId = requireTenantId(user);
   if (tenantId instanceof NextResponse) return tenantId;
@@ -73,11 +85,22 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Starting an edit is editing: library ICPs need a library manager, a custom one its owner.
+  const allowed = await authorizeVersionEdit(user, tenantId, parsed.data.sourceVersionId);
+  if (allowed instanceof NextResponse) return allowed;
+
   try {
     const version = await cloneIcpVersionAsDraft({
       tenantId,
       sourceVersionId: parsed.data.sourceVersionId,
       acknowledgeSimplification: parsed.data.acknowledgeSimplification,
+    });
+    await logAdminAudit({
+      actorId: user.id,
+      action: "admin.icp.start_edit",
+      tableName: "IcpVersion",
+      recordId: version.id,
+      changedFields: { profileId: allowed.icpProfileId, sourceVersionId: parsed.data.sourceVersionId },
     });
     return NextResponse.json({ version }, { status: 201 });
   } catch (error) {

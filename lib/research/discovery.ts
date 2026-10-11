@@ -76,7 +76,8 @@ export async function planResearchRunQueries(
     queries = buildQueriesFromBuilderParams(PACKAGE_KIND[kind], input.builderParams);
   } else if (input.icpVersionId) {
     const version = await prisma.icpVersion.findFirst({
-      where: { id: input.icpVersionId, tenantId },
+      // Published only: a draft or a version in review is not a live definition of who to find.
+      where: { id: input.icpVersionId, tenantId, status: 'published' },
       select: { rulesJson: true },
     });
     if (!version) throw new Error('ICP version not found in this tenant');

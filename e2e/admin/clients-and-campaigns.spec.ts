@@ -13,6 +13,7 @@
 import { test, expect } from '../support/test';
 import { apiAs, readJson } from '../support/api';
 import { fixture } from '../support/fixture';
+import { ensureLibraryIcpVersionId, libraryIcp } from '../support/icp';
 import { uniqueSuffix } from '../support/ids';
 import type { APIRequestContext } from '@playwright/test';
 
@@ -119,6 +120,7 @@ test.describe('campaigns', () => {
   test('a floor manager can create and edit a campaign, and it persists', async ({ baseURL }) => {
     const api = await apiAs('floorManager', baseURL!);
     const clientId = await createClient(api);
+    const icp = libraryIcp(await ensureLibraryIcpVersionId(api));
     const s = stamp();
 
     const created = await readJson(
@@ -126,6 +128,7 @@ test.describe('campaigns', () => {
         data: {
           name: `PW_AUDIT_CAMPAIGN_${s}`,
           clientId,
+          icp,
           targetVertical: 'SaaS',
           targetGeo: 'SEA',
           startDate: new Date().toISOString(),
@@ -158,10 +161,13 @@ test.describe('campaigns', () => {
   test('a team lead can create a campaign and edit it, but not one outside their pod', async ({ baseURL, recorder }) => {
     recorder.expectFailures(404);
     const api = await apiAs('teamLead', baseURL!);
+    // Only a library manager can author the shared ICP; the team lead then picks it, as in the modal.
+    const admin = await apiAs('director', baseURL!);
+    const icp = libraryIcp(await ensureLibraryIcpVersionId(admin));
 
     const create = await readJson(
       await api.post('/api/campaigns', {
-        data: { name: `PW_AUDIT_CAMPAIGN_TL_${stamp()}`, clientId: fixture().clientA },
+        data: { name: `PW_AUDIT_CAMPAIGN_TL_${stamp()}`, clientId: fixture().clientA, icp },
       })
     );
     expect(create.status, `a team lead could not create a campaign (${create.status})`).toBe(201);
@@ -176,9 +182,8 @@ test.describe('campaigns', () => {
 
     // A campaign the director creates has no member from the team lead's pod: out of reach,
     // and answered like a missing one.
-    const admin = await apiAs('director', baseURL!);
     const foreign = await readJson(
-      await admin.post('/api/campaigns', { data: { name: `PW_AUDIT_CAMPAIGN_DIR_${stamp()}`, clientId: fixture().clientA } })
+      await admin.post('/api/campaigns', { data: { name: `PW_AUDIT_CAMPAIGN_DIR_${stamp()}`, clientId: fixture().clientA, icp } })
     );
     expect(foreign.status).toBe(201);
     const foreignId = (foreign.body as { id?: string }).id;
@@ -196,9 +201,11 @@ test.describe('campaigns', () => {
     // tenant A manager naming tenant B's client would attach a campaign across the boundary.
     recorder.expectFailures(400, 403, 404, 422);
     const api = await apiAs('floorManager', baseURL!);
+    // A valid ICP, so the 400+ below is the foreign client being refused and not a missing ICP.
+    const icp = libraryIcp(await ensureLibraryIcpVersionId(api));
     const name = `PW_AUDIT_CROSS_${stamp()}`;
     const { status } = await readJson(
-      await api.post('/api/campaigns', { data: { name, clientId: fixture().clientB } })
+      await api.post('/api/campaigns', { data: { name, clientId: fixture().clientB, icp } })
     );
     expect(
       status,

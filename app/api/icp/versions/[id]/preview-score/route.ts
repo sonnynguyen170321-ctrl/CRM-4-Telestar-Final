@@ -1,10 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireIcpManager } from "@/app/api/icp/manager";
+import {
+  ICP_LIMITS,
+  icpRateLimit,
+  loadIcpVersion,
+  readBoundedJson,
+  requireIcpUser,
+} from "@/app/api/icp/manager";
 import { safeValidateIcpVersionRulesV2 } from "@telestar/core-scoring/rules/schema-v2";
 import { requireTenantId } from "@/lib/api/tenant";
+import { getLeadWhereScope, getVisibleCampaignIds } from "@/lib/auth";
+import {
+  canEditProfile,
+  canViewProfile,
+  isScoringStaff,
+} from "@/lib/leadgen/icpAccess";
 import { previewIcpRules } from "@/lib/leads/icpPreview";
-import { prisma } from "@/lib/prisma";
 
 /**
  * Score a sample of real leads against *unsaved* ICP rules, for the scoring editor's live preview.
@@ -14,45 +25,62 @@ import { prisma } from "@/lib/prisma";
  * anchors which ICP profile's leads to sample, and must belong to the caller's tenant; the rules
  * come from the body and are validated by the same schema a save would use.
  *
- * Same gate as every ICP write — the four manager roles, and `scoring:write` for API keys — because
- * it reads verdicts across the tenant's leads, not only the caller's own.
+ * Who: whoever may edit this ICP (a rep previewing their own draft) and team lead and up (a
+ * reviewer previewing a submission). With `campaignId` the sample is that campaign's leads, limited
+ * to the leads the caller may see, so a rep previewing never reads a colleague's leads.
  */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const user = await requireIcpManager();
+  const user = await requireIcpUser();
   if (user instanceof NextResponse) return user;
   const tenantId = requireTenantId(user);
   if (tenantId instanceof NextResponse) return tenantId;
 
-  let raw: unknown;
-  try {
-    raw = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
+  // Each call scores up to 200 leads, and the editor calls it on every pause in typing.
+  const limited = await icpRateLimit(user, "preview", ICP_LIMITS.preview.limit, ICP_LIMITS.preview.windowSeconds);
+  if (limited) return limited;
+  const read = await readBoundedJson(req);
+  if (!read.ok) return read.response;
+  const body = (read.body ?? {}) as { rulesJson?: unknown; campaignId?: unknown };
 
-  const validated = safeValidateIcpVersionRulesV2((raw as { rulesJson?: unknown } | null)?.rulesJson);
+  const validated = safeValidateIcpVersionRulesV2(body.rulesJson);
   if (!validated.success) {
     return NextResponse.json(
       { error: "Rules are not valid yet", details: validated.error.issues.slice(0, 5) },
       { status: 400 },
     );
   }
+  const campaignId =
+    typeof body.campaignId === "string" && body.campaignId ? body.campaignId : undefined;
 
   const { id } = await params;
-  const version = await prisma.icpVersion.findFirst({
-    where: { id, tenantId },
-    select: { icpProfileId: true },
-  });
-  if (!version) return NextResponse.json({ error: "ICP version not found" }, { status: 404 });
+  const version = await loadIcpVersion(tenantId, id);
+  if (!version || !(await canViewProfile(user, version.icpProfile))) {
+    return NextResponse.json({ error: "ICP version not found" }, { status: 404 });
+  }
+  if (!canEditProfile(user, version.icpProfile) && !isScoringStaff(user)) {
+    return NextResponse.json(
+      { error: "Forbidden: you can preview ICPs you can edit, or review" },
+      { status: 403 },
+    );
+  }
+
+  if (campaignId) {
+    const visible = await getVisibleCampaignIds(user);
+    if (visible !== null && !visible.includes(campaignId)) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
+    }
+  }
 
   try {
     const preview = await previewIcpRules({
       tenantId,
       icpProfileId: version.icpProfileId,
       rules: validated.data,
+      campaignId,
+      leadScope: await getLeadWhereScope(user),
     });
     return NextResponse.json(preview);
   } catch (error) {

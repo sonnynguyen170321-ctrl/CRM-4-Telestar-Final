@@ -22,6 +22,7 @@
     "/admin/worker-health",
     "/ai",
     "/automation",
+    "/campaigns/[id]/icp",
     "/client-reports",
     "/client-reports/[id]",
     "/client-reports/public/[token]",
@@ -140,10 +141,14 @@
     "/api/icp/campaigns/[id]",
     "/api/icp/profiles",
     "/api/icp/profiles/[id]/default",
+    "/api/icp/reviews",
     "/api/icp/versions",
     "/api/icp/versions/[id]",
+    "/api/icp/versions/[id]/approve",
     "/api/icp/versions/[id]/preview-score",
     "/api/icp/versions/[id]/publish",
+    "/api/icp/versions/[id]/reject",
+    "/api/icp/versions/[id]/withdraw",
     "/api/inbox",
     "/api/inbox/threads/[id]/reply",
     "/api/inbox/views",
@@ -261,6 +266,6 @@
     "/api/work-orders",
     "/api/work-orders/[id]/dispatch"
   ],
-  "pageCount": 39,
-  "apiRouteCount": 212
+  "pageCount": 40,
+  "apiRouteCount": 216
 }
