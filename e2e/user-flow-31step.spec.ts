@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
+import { ensureLibraryIcpVersionId, libraryIcp } from './support/icp';
 
 /**
  * The full product journey from the post-migration instructions doc §6:
@@ -105,9 +106,11 @@ test.describe('31-Step Director & SDR E2E Journey', () => {
     expect(createdSdrId).toBeTruthy();
 
     // ── 4 & 5. Create Client & Campaign ──────────────────────
+    const icpVersionId = await ensureLibraryIcpVersionId(request, { headers });
     const campaignRes = await request.post('/api/campaigns', {
       headers,
       data: {
+        icp: libraryIcp(icpVersionId),
         name: `Demo SDR Campaign ${stamp}`,
         newClientName: `Demo Client ${stamp}`,
         status: 'active',
