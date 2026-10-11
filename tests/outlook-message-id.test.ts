@@ -7,7 +7,19 @@
  */
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
-import { OutlookAdapter } from '@/lib/email/adapters/OutlookAdapter';
+const mockStored = vi.fn();
+const redisStore = new Map<string, string>();
+vi.mock('@/lib/prisma', () => ({
+  prisma: { outboundMessage: { findMany: (...a: unknown[]) => mockStored(...a) } },
+}));
+vi.mock('@/lib/bullmq/connection', () => ({
+  getConnection: () => ({
+    get: async (k: string) => redisStore.get(k) ?? null,
+    set: async (k: string, v: string) => { redisStore.set(k, v); return 'OK'; },
+  }),
+}));
+
+import { OutlookAdapter, __resetSentReadDenied } from '@/lib/email/adapters/OutlookAdapter';
 
 type Call = { url: string; method: string; body?: string };
 
@@ -31,7 +43,7 @@ function mockGraph(routes: (call: Call) => { status: number; json?: unknown }) {
 }
 
 const adapter = () =>
-  new OutlookAdapter({ accessToken: 'tok', refreshToken: 'ref', sentLookupDelaysMs: [0, 0] });
+  new OutlookAdapter({ accessToken: 'tok', refreshToken: 'ref', accountId: 'acct-outlook', sentLookupDelaysMs: [0, 0] });
 
 const SEND = {
   from: 'mei@acme-outlook.test',
@@ -45,7 +57,12 @@ const decodedMime = (calls: Call[]) =>
   Buffer.from(calls.find((c) => c.url.endsWith('/me/sendMail'))!.body!, 'base64').toString('utf8');
 
 describe('OutlookAdapter.send', () => {
-  beforeEach(() => vi.spyOn(console, 'warn').mockImplementation(() => undefined));
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockStored.mockResolvedValue([]);
+    redisStore.clear();
+    __resetSentReadDenied();
+  });
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -120,6 +137,94 @@ describe('OutlookAdapter.send', () => {
     const mime = decodedMime(calls);
     expect(mime).toMatch(/In-Reply-To: <prospect-1@mail\.acme\.test>/i);
     expect(mime).toMatch(/References: <root@t\.test> <prospect-1@mail\.acme\.test>/i);
+  });
+});
+
+describe('OutlookAdapter Sent Items fallback is bounded and unambiguous', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    mockStored.mockResolvedValue([]);
+    redisStore.clear();
+    __resetSentReadDenied();
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  const copy = (id: string) => ({
+    internetMessageId: id, subject: 'Quick question', toRecipients: [{ emailAddress: { address: 'linh@prospect.test' } }],
+  });
+  const fallbackRoutes = (items: unknown[]) => (c: Call) => {
+    if (c.url.endsWith('/me/sendMail')) return { status: 202 };
+    if (decodeURIComponent(c.url).includes('internetMessageId eq')) return { status: 200, json: { value: [] } };
+    return { status: 200, json: { value: items } };
+  };
+
+  it('asks only for copies sent between our request and Graph’s 202', async () => {
+    const before = Date.now();
+    const calls = mockGraph(fallbackRoutes([]));
+    await adapter().send(SEND);
+    const url = decodeURIComponent(calls.find((c) => c.url.includes('sentDateTime'))!.url);
+    const from = Date.parse(/sentDateTime ge ([^ ]+)/.exec(url)![1]);
+    const until = Date.parse(/sentDateTime le ([^&]+)/.exec(url)![1]);
+    expect(from).toBeGreaterThanOrEqual(before - 11_000);
+    expect(from).toBeLessThanOrEqual(Date.now());
+    expect(until - from).toBeLessThan(30_000);
+  });
+
+  it('skips a copy that already belongs to a stored send', async () => {
+    mockGraph(fallbackRoutes([copy('<earlier-send@outlook.com>'), copy('<this-send@outlook.com>')]));
+    mockStored.mockResolvedValue([{ rfcMessageId: '<earlier-send@outlook.com>' }]);
+
+    const receipt = await adapter().send(SEND);
+
+    expect(receipt).toEqual({ providerMessageId: '<this-send@outlook.com>', rfcMessageId: '<this-send@outlook.com>' });
+  });
+
+  it('returns no id rather than guess between two unclaimed copies', async () => {
+    mockGraph(fallbackRoutes([copy('<a@outlook.com>'), copy('<b@outlook.com>')]));
+    expect(await adapter().send(SEND)).toEqual({});
+  });
+
+  it('remembers a mailbox without Mail.Read and stops asking, in this process and in Redis', async () => {
+    const calls = mockGraph((c) => (c.url.endsWith('/me/sendMail') ? { status: 202 } : { status: 403 }));
+    await adapter().send(SEND);
+    const lookups = () => calls.filter((c) => c.url.includes('sentitems')).length;
+    expect(lookups()).toBe(1);
+
+    await adapter().send(SEND);
+    expect(lookups()).toBe(1);
+
+    // A different worker process: nothing in memory, the Redis flag is enough.
+    __resetSentReadDenied();
+    await adapter().send(SEND);
+    expect(lookups()).toBe(1);
+    expect([...redisStore.keys()][0]).toContain('acct-outlook');
+  });
+
+  it('stops at once when Graph throttles (429)', async () => {
+    const calls = mockGraph((c) => (c.url.endsWith('/me/sendMail') ? { status: 202 } : { status: 429 }));
+    const receipt = await new OutlookAdapter({ accessToken: 't', refreshToken: 'r', accountId: 'a2', sentLookupDelaysMs: [0, 0, 0] }).send(SEND);
+    expect(receipt).toEqual({});
+    expect(calls.filter((c) => c.url.includes('sentitems'))).toHaveLength(1);
+  });
+
+  it('never spends more than the budget waiting for the sent copy', async () => {
+    vi.useFakeTimers();
+    try {
+      mockGraph(fallbackRoutes([]));
+      const slow = new OutlookAdapter({ accessToken: 't', refreshToken: 'r', accountId: 'a3', sentLookupDelaysMs: [2_000, 2_000, 2_000] });
+      const started = Date.now();
+      const pending = slow.send(SEND);
+      await vi.advanceTimersByTimeAsync(10_000);
+      await pending;
+      expect(Date.now() - started).toBeLessThanOrEqual(10_000);
+      // Waits are cut to the 3 s budget in total: far fewer lookups than three full delays would allow.
+      expect((fetch as unknown as { mock: { calls: unknown[] } }).mock.calls.length).toBeLessThanOrEqual(5);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -24,6 +24,19 @@ interface MailComposerModalProps {
   initialBody?: string;
 }
 
+/**
+ * The preview of a template body. Nothing remote is fetched while previewing: a shared template
+ * could otherwise carry a tracking pixel that fires for whoever opens it. Images, stylesheets and
+ * inline styles (which can load `url(...)`) are removed from the preview only; the markup that is
+ * sent is untouched.
+ */
+function previewHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    FORBID_TAGS: ['img', 'picture', 'source', 'video', 'audio', 'iframe', 'object', 'embed', 'link', 'style', 'svg'],
+    FORBID_ATTR: ['style', 'srcset', 'background', 'src'],
+  });
+}
+
 /** The text of an HTML body, read by the parser (no regex stripping of markup). */
 function htmlToPlain(html: string): string {
   const doc = new DOMParser().parseFromString(DOMPurify.sanitize(html), 'text/html');
@@ -271,7 +284,7 @@ export default function MailComposerModal({ lead, onClose, task, onSent, initial
                   role="document"
                   aria-label="Email body preview"
                   className="w-full bg-white text-black border border-card-border rounded-xl p-3 h-48 overflow-y-auto text-xs leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(body) }}
+                  dangerouslySetInnerHTML={{ __html: previewHtml(body) }}
                 />
                 <p className="text-[10px] text-text-muted mt-1">
                   HTML template: shown as it will look and sent as written. Names and other merge fields are filled in when it is sent.{' '}

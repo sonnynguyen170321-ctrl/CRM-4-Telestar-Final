@@ -106,9 +106,10 @@ export async function POST(
     const outbound = await createOutboundMessage({
       source: {
         kind: 'reply',
-        // The lead is part of the key: the thread key arrives from the client, and two replies may
-        // only ever collapse into one when they are the same reply on the same lead.
-        threadKey: `${lead.id}:${threadKey}`,
+        // The lead and the sender are part of the key: the thread key and request id arrive from
+        // the client, and two replies may only ever collapse into one when they are the same reply
+        // on the same lead by the same person. A colleague's colliding id lands on its own row.
+        threadKey: `${lead.id}:${user.id}:${threadKey}`,
         requestId: clientRequestId ?? newRequestId(),
       },
       leadId: lead.id,
@@ -124,7 +125,7 @@ export async function POST(
 
     // An idempotency hit returns the row first written under this key. It must be this reply on
     // this lead; anything else is refused rather than sent with this request's content.
-    if (outbound.leadId !== lead.id || outbound.tenantId !== user.tenantId) {
+    if (outbound.leadId !== lead.id || outbound.tenantId !== user.tenantId || outbound.accountId !== account.id) {
       return NextResponse.json({ error: 'Duplicate request' }, { status: 409 });
     }
 

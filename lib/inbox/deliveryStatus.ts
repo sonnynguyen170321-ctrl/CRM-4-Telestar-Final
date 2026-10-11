@@ -24,24 +24,42 @@ function formatResume(iso: string): string {
   return at.toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+/**
+ * The reason, in our words. `OutboundMessage.errorMessage` can hold a provider's raw answer (an
+ * SMTP transcript, a Graph error with tenant ids), which must never reach the browser; only a
+ * known cause is named, and anything else becomes a generic sentence.
+ */
+export function plainReason(status: string, raw: string | null | undefined): string {
+  const text = raw ?? '';
+  if (/suppress/i.test(text)) return 'The recipient is on the do-not-contact list.';
+  if (/bounced earlier/i.test(text)) return 'This address bounced earlier, so nothing more is sent to it.';
+  if (/paused for this inbox|global email pause|auto-pause/i.test(text)) return 'Sending is paused for this mailbox.';
+  if (/inactive|account not found|disconnected/i.test(text)) return 'The mailbox is no longer connected.';
+  if (/canary|restriction/i.test(text)) return 'Sending to this address is switched off right now.';
+  if (/quota|limit/i.test(text)) return 'A sending limit was reached.';
+  if (status === 'bounced') return 'The recipient address did not accept the message.';
+  return 'The mail provider did not accept the message.';
+}
+
 /** The wording for one outgoing message, or null for a message that is not ours (an inbound one). */
 export function describeDelivery(
   status: string | null | undefined,
   error: string | null | undefined
 ): DeliveryDisplay | null {
   if (!status) return null;
-  const reason = (error ?? '').trim() || null;
+  const rawReason = (error ?? '').trim() || null;
+  const reason = rawReason ? plainReason(status, rawReason) : null;
 
   switch (status) {
     case 'sent':
       return { label: 'Sent', tone: 'ok', detail: null };
     case 'pending': {
       // A pending message with a reason was held back, not forgotten: a sending limit, with a time.
-      const deferred = reason ? DEFERRED.exec(reason) : null;
+      const deferred = rawReason ? DEFERRED.exec(rawReason) : null;
       if (deferred) {
-        const why = /daily/i.test(reason!)
+        const why = /daily/i.test(rawReason!)
           ? 'the daily sending limit was reached'
-          : /hourly/i.test(reason!)
+          : /hourly/i.test(rawReason!)
             ? 'the hourly sending limit was reached'
             : "the mailbox provider's sending limit was reached";
         return { label: 'Deferred', tone: 'warn', detail: `Held back because ${why}. It will be sent ${formatResume(deferred[1])}.` };

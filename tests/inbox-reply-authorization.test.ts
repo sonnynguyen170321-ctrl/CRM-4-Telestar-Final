@@ -72,7 +72,7 @@ beforeEach(() => {
   mockLeadFindFirst.mockResolvedValue(LEAD);
   mockInboundFindMany.mockResolvedValue([{ accountId: 'acct-sender', subject: 'Re: Intro' }]);
   mockAccountFindFirst.mockResolvedValue({ ...SENDABLE, id: 'acct-sender', email: 'mei@nekko.tech', userId: 'u-team-lead' });
-  mockCreateOutbound.mockResolvedValue({ id: 'out-1', leadId: LEAD.id, tenantId: 't1', to: LEAD.email, subject: 'Re: Intro', body: 'hello', createdAt: new Date() });
+  mockCreateOutbound.mockResolvedValue({ id: 'out-1', leadId: LEAD.id, tenantId: 't1', accountId: 'acct-sender', to: LEAD.email, subject: 'Re: Intro', body: 'hello', createdAt: new Date() });
   mockEnqueueSend.mockResolvedValue('job-1');
 });
 
@@ -164,7 +164,7 @@ describe('POST /api/inbox/threads/[id]/reply — review findings', () => {
     const res = await POST(...threadReq('thread-1', { leadId: LEAD.id, body: 'hello', subject: 'Intro', clientRequestId: 'req-12345678' }));
 
     expect(mockCreateOutbound).toHaveBeenCalledWith(expect.objectContaining({
-      source: { kind: 'reply', threadKey: `${LEAD.id}:thread-1`, requestId: 'req-12345678' },
+      source: { kind: 'reply', threadKey: `${LEAD.id}:${SDR.id}:thread-1`, requestId: 'req-12345678' },
     }));
     expect(res.status).toBe(409);
     expect(mockEnqueueSend).not.toHaveBeenCalled();

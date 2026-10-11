@@ -18,9 +18,61 @@ interface OutlookConfig {
 const GRAPH_SEND_URL = 'https://graph.microsoft.com/v1.0/me/sendMail';
 const GRAPH_SENT_URL = 'https://graph.microsoft.com/v1.0/me/mailFolders/sentitems/messages';
 /** Waits before each look into Sent Items: the sent copy appears a moment after the 202. */
-const SENT_LOOKUP_DELAYS_MS = [1_500, 3_500];
+const SENT_LOOKUP_DELAYS_MS = [500, 1_000, 1_000];
+/** The whole read-back, waits included. A send must not be held up by a bookkeeping lookup. */
+const SENT_LOOKUP_BUDGET_MS = 3_000;
+/** How long a mailbox without Mail.Read is left alone before it is tried again (after a reconnect). */
+const SENT_READ_DENIED_TTL_S = 3_600;
 /** The sent time Exchange records can sit slightly behind our clock. */
-const SENT_CLOCK_SKEW_MS = 60_000;
+const SENT_CLOCK_SKEW_MS = 10_000;
+
+// Mailboxes known to lack Mail.Read: in this process, and in Redis so every worker learns it.
+const deniedInProcess = new Map<string, number>();
+const deniedKey = (accountId: string) => `crm4u:outlook-sent-read-denied:${accountId}`;
+const REDIS_TIMEOUT_MS = 300;
+
+const withTimeout = <T>(work: Promise<T>): Promise<T | undefined> =>
+  Promise.race([work, new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), REDIS_TIMEOUT_MS))]);
+
+async function sentReadDenied(accountId: string): Promise<boolean> {
+  const until = deniedInProcess.get(accountId);
+  if (until && until > Date.now()) return true;
+  try {
+    const { getConnection } = await import('@/lib/bullmq/connection');
+    const hit = await withTimeout(getConnection().get(deniedKey(accountId)));
+    if (hit) {
+      deniedInProcess.set(accountId, Date.now() + SENT_READ_DENIED_TTL_S * 1000);
+      return true;
+    }
+  } catch {
+    // Redis is a convenience here; the in-process flag still works.
+  }
+  return false;
+}
+
+async function rememberSentReadDenied(accountId: string): Promise<void> {
+  deniedInProcess.set(accountId, Date.now() + SENT_READ_DENIED_TTL_S * 1000);
+  try {
+    const { getConnection } = await import('@/lib/bullmq/connection');
+    await withTimeout(getConnection().set(deniedKey(accountId), '1', 'EX', SENT_READ_DENIED_TTL_S));
+  } catch {
+    // See sentReadDenied.
+  }
+}
+
+/** Test hook: forget what this process knows about denied mailboxes. */
+export function __resetSentReadDenied(): void {
+  deniedInProcess.clear();
+}
+
+/** The ids not already recorded on a stored send. */
+async function withoutStoredSends(ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const { prisma } = await import('@/lib/prisma');
+  const stored = await prisma.outboundMessage.findMany({ where: { rfcMessageId: { in: ids } }, select: { rfcMessageId: true } });
+  const taken = new Set(stored.map((row) => row.rfcMessageId));
+  return ids.filter((id) => !taken.has(id));
+}
 const TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
 
 /**
@@ -98,7 +150,6 @@ export class OutlookAdapter implements EmailAdapter {
     const MailComposer = (await import('nodemailer/lib/mail-composer')).default;
     const domain = options.from.split('@')[1] || 'localhost';
     const ownMessageId = `<${randomUUID()}@${domain}>`;
-    const startedAt = new Date(Date.now() - SENT_CLOCK_SKEW_MS);
     const mail = new MailComposer({
       from: fromHeaderValue(options.from, options.fromName),
       to: options.to,
@@ -130,6 +181,7 @@ export class OutlookAdapter implements EmailAdapter {
       });
     };
 
+    const requestedAt = Date.now();
     let res = await sendRequest(this.config.accessToken);
 
     // Token expired — refresh and retry once
@@ -143,12 +195,15 @@ export class OutlookAdapter implements EmailAdapter {
       throw new Error(`Microsoft Graph API error: ${err.error?.message ?? res.statusText}`);
     }
 
+    const acceptedAt = Date.now();
     try {
       const rfcMessageId = await this.findSentMessageId({
         ownMessageId,
         to: options.to,
         subject: options.subject,
-        since: startedAt,
+        // The sent copy was made between our request and Graph's 202, give or take clock skew.
+        from: new Date(requestedAt - SENT_CLOCK_SKEW_MS),
+        until: new Date(acceptedAt + SENT_CLOCK_SKEW_MS),
       });
       return rfcMessageId ? { providerMessageId: rfcMessageId, rfcMessageId } : {};
     } catch (err) {
@@ -157,54 +212,83 @@ export class OutlookAdapter implements EmailAdapter {
     }
   }
 
-  /** One GET against Graph with the current token, refreshed once on 401. */
-  private async graphGet(url: string): Promise<Response> {
-    let res = await fetch(url, { headers: { Authorization: `Bearer ${this.config.accessToken}` } });
+  /** One GET against Graph with the current token, refreshed once on 401, bounded by `signal`. */
+  private async graphGet(url: string, signal?: AbortSignal): Promise<Response> {
+    let res = await fetch(url, { headers: { Authorization: `Bearer ${this.config.accessToken}` }, signal });
     if (res.status === 401) {
       const token = await this.refreshAccessToken();
-      res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal });
     }
     return res;
   }
 
-  /** The Message-ID of the copy of this message in Sent Items, or undefined when it cannot be found. */
+  /**
+   * The Message-ID of the copy of this message in Sent Items, or undefined when it cannot be
+   * found. Bounded: at most SENT_LOOKUP_BUDGET_MS in total, nothing at all for a mailbox that
+   * lacks Mail.Read (remembered, so it is not asked again for every send), and a throttled (429)
+   * answer ends it at once.
+   */
   private async findSentMessageId(input: {
     ownMessageId: string;
     to: string;
     subject: string;
-    since: Date;
+    from: Date;
+    until: Date;
   }): Promise<string | undefined> {
+    const accountKey = this.config.accountId;
+    if (accountKey && (await sentReadDenied(accountKey))) return undefined;
+
+    const deadline = Date.now() + SENT_LOOKUP_BUDGET_MS;
     const delays = this.config.sentLookupDelaysMs ?? SENT_LOOKUP_DELAYS_MS;
     const odataString = (value: string) => value.replace(/'/g, "''");
     const byOwnId =
       `${GRAPH_SENT_URL}?$filter=internetMessageId eq '${odataString(input.ownMessageId)}'` +
       '&$select=internetMessageId&$top=1';
     const recent =
-      `${GRAPH_SENT_URL}?$filter=sentDateTime ge ${input.since.toISOString()}` +
+      `${GRAPH_SENT_URL}?$filter=sentDateTime ge ${input.from.toISOString()} and sentDateTime le ${input.until.toISOString()}` +
       '&$select=internetMessageId,subject,toRecipients,sentDateTime&$orderby=sentDateTime desc&$top=25';
 
-    for (const delay of delays) {
-      if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+    // false = stop looking (denied or throttled); otherwise the response to read.
+    const get = async (url: string): Promise<Response | false> => {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) return false;
+      const res = await this.graphGet(url, AbortSignal.timeout(remaining));
+      if (res.status === 403) {
+        if (accountKey) await rememberSentReadDenied(accountKey);
+        return false;
+      }
+      if (res.status === 429) return false;
+      return res;
+    };
 
-      const own = await this.graphGet(byOwnId);
+    for (const delay of delays) {
+      const wait = Math.min(delay, deadline - Date.now());
+      if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+
+      const own = await get(byOwnId);
+      if (own === false) return undefined;
       if (own.ok) {
         const found = ((await own.json()) as { value?: Array<{ internetMessageId?: string }> }).value?.[0];
         if (found?.internetMessageId) return found.internetMessageId;
       }
 
-      const list = await this.graphGet(recent);
+      const list = await get(recent);
+      if (list === false) return undefined;
       if (list.ok) {
         const items = ((await list.json()) as { value?: any[] }).value ?? [];
         const wanted = input.to.trim().toLowerCase();
-        const match = items.find(
+        const candidates = items.filter(
           (m) =>
             m?.internetMessageId &&
             m.subject === input.subject &&
-            (m.toRecipients ?? []).some(
-              (r: any) => String(r?.emailAddress?.address ?? '').toLowerCase() === wanted
-            )
+            (m.toRecipients ?? []).some((rcpt: any) => String(rcpt?.emailAddress?.address ?? '').toLowerCase() === wanted)
         );
-        if (match) return match.internetMessageId as string;
+        // Same subject to the same person twice in the window is possible (two quick sends). A
+        // copy that already belongs to a stored send is not this one; if more than one candidate
+        // is left, the answer is ambiguous and a wrong id would thread under the wrong message.
+        const unclaimed = await withoutStoredSends(candidates.map((m) => m.internetMessageId as string));
+        if (unclaimed.length === 1) return unclaimed[0];
+        if (unclaimed.length > 1) return undefined;
       }
     }
     return undefined;

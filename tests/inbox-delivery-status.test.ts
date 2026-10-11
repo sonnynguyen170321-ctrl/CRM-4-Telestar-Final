@@ -15,7 +15,7 @@ describe('describeDelivery', () => {
     expect(describeDelivery('pending', null)).toMatchObject({ label: 'Queued', tone: 'pending' });
     expect(describeDelivery('sending', null)).toMatchObject({ label: 'Sending', tone: 'pending' });
     expect(describeDelivery('failed', 'Sending is paused for this inbox: bounce spike')).toEqual({
-      label: 'Failed', tone: 'bad', detail: 'Sending is paused for this inbox: bounce spike',
+      label: 'Failed', tone: 'bad', detail: 'Sending is paused for this mailbox.',
     });
     expect(describeDelivery('permanently_failed', null)).toMatchObject({ label: 'Failed', tone: 'bad' });
     expect(describeDelivery('bounced', null)).toMatchObject({ label: 'Bounced', tone: 'bad' });
@@ -27,6 +27,15 @@ describe('describeDelivery', () => {
     expect(daily).toMatchObject({ label: 'Deferred', tone: 'warn' });
     expect(daily!.detail).toContain('daily sending limit');
     expect(describeDelivery('pending', 'Mailbox hourly limit reached — deferred to 2026-10-11T10:30:00.000Z')!.detail).toContain('hourly');
+  });
+
+  it('never passes a provider’s raw error text to the client', () => {
+    const raw = 'Microsoft Graph API error: tenant 7d1c-secret rejected 550 5.7.1 mx.internal.example';
+    for (const status of ['failed', 'permanently_failed', 'bounced', 'reconciliation_required', 'mystery']) {
+      const shown = describeDelivery(status, raw);
+      expect(JSON.stringify(shown)).not.toMatch(/secret|550|internal|Graph/);
+    }
+    expect(describeDelivery('failed', raw)!.detail).toBe('The mail provider did not accept the message.');
   });
 
   it('shows nothing for a message that is not an outgoing one', () => {
@@ -55,7 +64,8 @@ describe('what the screens no longer carry', () => {
     expect(inbox).not.toMatch(/Reply sent successfully/);
     expect(inbox).toContain("showToast('Reply queued'");
     expect(inbox).toContain('clientRequestId: replyRequestIdRef.current');
-    expect(inbox).toContain('describeDelivery(msg.deliveryStatus, msg.deliveryError)');
+    expect(inbox).toContain('describeDelivery(msg.deliveryStatus, null)');
+    expect(inbox).toContain('msg.deliveryError ?? base.detail');
   });
 
   it('the composer renders no merge fields in the browser and shows the pause notice for any mailbox', () => {
@@ -71,7 +81,14 @@ describe('what the screens no longer carry', () => {
   it('the composer shows an HTML template as a rendered preview, and keeps the markup to send', () => {
     const composer = read('components', 'MailComposerModal.tsx');
     expect(composer).toContain('bodyIsHtml');
-    expect(composer).toContain('DOMPurify.sanitize(body)');
+    expect(composer).toContain('previewHtml(body)');
+  });
+
+  it('the preview fetches nothing remote: no images, styles or srcs', () => {
+    const composer = read('components', 'MailComposerModal.tsx');
+    const forbidden = /FORBID_TAGS: \[([^\]]*)\]/.exec(composer)![1];
+    for (const tag of ['img', 'link', 'style', 'iframe', 'svg']) expect(forbidden).toContain(`'${tag}'`);
+    expect(/FORBID_ATTR: \[([^\]]*)\]/.exec(composer)![1]).toContain("'style'");
   });
 });
 

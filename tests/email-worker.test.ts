@@ -354,6 +354,56 @@ describe('handleEmailSend', () => {
     });
   });
 
+  describe('hostile threading headers are never written (CRLF injection)', () => {
+    function arrange(row: Record<string, unknown>) {
+      mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage({ inReplyToInboundId: 'in-1', subject: 'Re: Intro' }));
+      mockInboundFindFirst.mockResolvedValueOnce(row);
+      mockSuppressionFindFirst.mockResolvedValueOnce(null);
+      mockExecuteRaw.mockResolvedValueOnce(1);
+      mockServiceSend.mockResolvedValueOnce('gm-x');
+    }
+
+    it.each([
+      ['an inbound Message-ID carrying a header line', '<a@b.test>\r\nBcc: attacker@evil.test'],
+      ['an inbound Message-ID with spaces inside', '<a b@c.test>'],
+      ['an inbound Message-ID with nested brackets', '<a<b>@c.test>'],
+    ])('goes out unthreaded for %s', async (_c, rfc) => {
+      arrange({ accountId: 'acc-1', rfcMessageId: rfc, referencesHeader: null });
+
+      await handleEmailSend(buildPayload({ subject: 'Re: Intro' }));
+
+      expect(mockServiceSend.mock.calls[0][0]).not.toHaveProperty('threading');
+    });
+
+    it('drops injected and oversized ids from References and keeps the valid ones', async () => {
+      arrange({
+        accountId: 'acc-1',
+        rfcMessageId: '<ok@b.test>',
+        referencesHeader: '<root@b.test>\r\nBcc: x@evil.test <' + 'a'.repeat(400) + '@b.test> <mid@b.test>',
+      });
+
+      await handleEmailSend(buildPayload({ subject: 'Re: Intro' }));
+
+      const { references, inReplyTo } = mockServiceSend.mock.calls[0][0].threading as { references: string; inReplyTo: string };
+      expect(inReplyTo).toBe('<ok@b.test>');
+      expect(references).not.toMatch(/[\r\n]|Bcc/);
+      expect(references.split(' ')).toEqual(['<root@b.test>', '<x@evil.test>', '<mid@b.test>', '<ok@b.test>']);
+    });
+
+    it('caps the number and total length of References', async () => {
+      const long = Array.from({ length: 80 }, (_, i) => `<id${i}-${'x'.repeat(60)}@b.test>`).join(' ');
+      arrange({ accountId: 'acc-1', rfcMessageId: '<ok@b.test>', referencesHeader: long });
+
+      await handleEmailSend(buildPayload({ subject: 'Re: Intro' }));
+
+      const { references } = mockServiceSend.mock.calls[0][0].threading as { references: string };
+      expect(references.split(' ').length).toBeLessThanOrEqual(20);
+      expect(references.length).toBeLessThanOrEqual(2000);
+      expect(references.startsWith('<id0-')).toBe(true);
+      expect(references.endsWith('<ok@b.test>')).toBe(true);
+    });
+  });
+
   describe('reply to a prospect’s message from the inbox', () => {
     const inbound = { accountId: 'acc-1', rfcMessageId: 'abc123@mail.prospect.test', referencesHeader: '<root@prospect.test>' };
 

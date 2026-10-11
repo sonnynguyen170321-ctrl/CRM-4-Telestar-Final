@@ -273,8 +273,9 @@ export default function InboxPage() {
           return;
         }
         if (found.deliveryStatus && !['pending', 'sending'].includes(found.deliveryStatus)) {
-          const shown = describeDelivery(found.deliveryStatus, found.deliveryError);
-          showToast(`Reply ${shown?.label.toLowerCase() ?? 'not sent'}${shown?.detail ? `: ${shown.detail}` : ''}`, 'error');
+          const shown = describeDelivery(found.deliveryStatus, null);
+          const why = found.deliveryError ?? shown?.detail;
+          showToast(`Reply ${shown?.label.toLowerCase() ?? 'not sent'}${why ? `: ${why}` : ''}`, 'error');
           return;
         }
       } catch {
@@ -798,8 +799,10 @@ export default function InboxPage() {
 
                         {/* Where an outgoing message stands, and why it did not go */}
                         {isOutbound && (() => {
-                          const shown = describeDelivery(msg.deliveryStatus, msg.deliveryError);
-                          if (!shown) return null;
+                          // The server already put the reason in plain words (deliveryError); the label and tone come from the status.
+                          const base = describeDelivery(msg.deliveryStatus, null);
+                          if (!base) return null;
+                          const shown = { ...base, detail: msg.deliveryError ?? base.detail };
                           const tone =
                             shown.tone === 'ok'
                               ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'

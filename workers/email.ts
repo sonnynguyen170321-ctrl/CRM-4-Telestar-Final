@@ -19,7 +19,7 @@ import {
 } from '@/lib/email/idempotency';
 import { isHtml } from '@/lib/email/sanitize';
 import { composeEmailBody } from '@/lib/email/signature';
-import { buildReferences, normalizeMessageId, replySubject, stripReplyPrefix } from '@/lib/sequences/threadingRules';
+import { buildReferences, cleanMessageId, normalizeMessageId, replySubject, stripReplyPrefix } from '@/lib/sequences/threadingRules';
 import { nextSendAttemptAt } from '@/lib/email/sendWindow';
 import { businessDayPolicyFor } from '@/lib/sequences/rules';
 
@@ -670,10 +670,11 @@ async function handleEmailSend(payload: EmailSendPayload) {
         },
       });
       const parentSubject = replySubject(parent?.subject);
-      if (parent && parent.status === OUTBOUND_STATUS.SENT && parent.accountId === account.id && parent.rfcMessageId && parentSubject) {
+      const parentId = cleanMessageId(parent?.rfcMessageId);
+      if (parent && parent.status === OUTBOUND_STATUS.SENT && parent.accountId === account.id && parentId && parentSubject) {
         threading = {
-          inReplyTo: normalizeMessageId(parent.rfcMessageId),
-          references: buildReferences(parent.referencesHeader, parent.rfcMessageId),
+          inReplyTo: parentId,
+          references: buildReferences(parent.referencesHeader, parentId),
           threadId: parent.providerThreadId ?? undefined,
         };
         // Gmail only threads when the subject matches the conversation, so it comes from the
@@ -691,10 +692,11 @@ async function handleEmailSend(payload: EmailSendPayload) {
         where: { id: existing.inReplyToInboundId, tenantId: existing.tenantId },
         select: { accountId: true, rfcMessageId: true, referencesHeader: true },
       });
-      if (inbound && inbound.accountId === account.id && inbound.rfcMessageId) {
+      const inboundId = cleanMessageId(inbound?.rfcMessageId);
+      if (inbound && inbound.accountId === account.id && inboundId) {
         threading = {
-          inReplyTo: normalizeMessageId(inbound.rfcMessageId),
-          references: buildReferences(inbound.referencesHeader, inbound.rfcMessageId),
+          inReplyTo: inboundId,
+          references: buildReferences(inbound.referencesHeader, inboundId),
         };
       }
     }

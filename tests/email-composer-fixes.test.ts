@@ -141,6 +141,14 @@ describe('inbox reply gates and threading', () => {
     expect(await outboundCount()).toBe(1);
   });
 
+  it('a colleague with the same clientRequestId gets their own reply, not the first one’s row', async () => {
+    const mine = await (await doReply({ clientRequestId: 'req-collide1' })).json();
+    const theirs = await (await doReply({ clientRequestId: 'req-collide1' }, w.director)).json();
+
+    expect(theirs.outboundMessage.id).not.toBe(mine.outboundMessage.id);
+    expect(await outboundCount()).toBe(2);
+  });
+
   it('a different clientRequestId is a different reply', async () => {
     await doReply({ clientRequestId: 'req-cccccccc' });
     await doReply({ clientRequestId: 'req-dddddddd' });
