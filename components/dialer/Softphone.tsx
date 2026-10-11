@@ -6,7 +6,17 @@ import { Phone, X } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { dialWarning, phoneCallTarget, type DialFlags, type LoggedCall } from '@/lib/telephony/logPhoneCall';
 import { getPhoneOutcome, type PhoneOutcomeId } from '@/lib/telephony/outcomes';
-import { describeMicError, eventsForRtcState, requestCall, rtcErrorToSoftphoneError, saveCallOutcome } from '@/lib/telephony/softphoneFlow';
+import { FINAL_CALL_STATUSES, rawHangupFromRow } from '@/lib/telephony/hangupReason';
+import { playTone, BUSY, RINGBACK } from '@/lib/telephony/tones';
+import {
+  describeMicError,
+  eventsForRtcState,
+  fetchCallRow,
+  requestCall,
+  rtcErrorToSoftphoneError,
+  saveCallOutcome,
+  sdkHangup,
+} from '@/lib/telephony/softphoneFlow';
 import {
   canClose,
   hasProviderCall,
@@ -46,6 +56,8 @@ type Props = {
   onMeetingBooked: () => void;
   /** Reopen the wrap-up of an earlier call that has no outcome yet, instead of placing a new call. */
   resumeCallId?: string;
+  /** "Call from my own phone instead": hands over to the phone-call panel. */
+  onOwnPhone?: () => void;
 };
 
 const STATUS_TEXT = {
@@ -60,7 +72,12 @@ type Notification = { type?: string; call?: RtcCallLike & { id?: string } };
 
 const toOptions = (devices: MediaDeviceInfo[]): DeviceOption[] => devices.map((d) => ({ deviceId: d.deviceId, label: d.label }));
 
-export default function Softphone({ lead, onClose, onLogged, onMeetingBooked, resumeCallId }: Props) {
+function formatClock(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  return `${minutes}:${String(totalSeconds % 60).padStart(2, '0')}`;
+}
+
+export default function Softphone({ lead, onClose, onLogged, onMeetingBooked, resumeCallId, onOwnPhone }: Props) {
   const { showToast } = useToast();
   // Finishing an earlier call's outcome needs no phone connection, so none is made.
   const rtc = useTelnyxClient(!resumeCallId);
@@ -179,7 +196,7 @@ export default function Softphone({ lead, onClose, onLogged, onMeetingBooked, re
         const updated = notification.call;
         if (notification.type !== 'callUpdate' || !updated) return;
         if (updated !== call && (updated.id === undefined || updated.id !== call.id)) return;
-        eventsForRtcState(updated.state).forEach(dispatch);
+        eventsForRtcState(updated.state, sdkHangup(updated)).forEach(dispatch);
       };
       client.on('telnyx.notification', listener as (payload: never) => void);
       detachRef.current = () => client.off?.('telnyx.notification', listener as (payload: never) => void);
@@ -287,6 +304,54 @@ export default function Softphone({ lead, onClose, onLogged, onMeetingBooked, re
     if (outcome === 'connected_meeting_booked') onMeetingBooked();
   };
 
+  // Elapsed seconds for the ringing and connected timers: counted from when the phase began.
+  const [phaseStart, setPhaseStart] = useState(() => Date.now());
+  const [tick, setTick] = useState(() => Date.now());
+  const [talkSeconds, setTalkSeconds] = useState(0);
+  const phaseName = state.phase;
+  useEffect(() => {
+    if (phaseName === 'wrap_up') {
+      setTalkSeconds(stateRef.current.phase === 'wrap_up' && stateRef.current.answered ? Math.max(0, Math.round((Date.now() - phaseStart) / 1000)) : 0);
+    }
+    setPhaseStart(Date.now());
+    setTick(Date.now());
+    if (phaseName !== 'ringing' && phaseName !== 'in_call') return;
+    const timer = setInterval(() => setTick(Date.now()), 1000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- phaseStart is set here
+  }, [phaseName]);
+  const elapsed = Math.max(0, Math.round((tick - phaseStart) / 1000));
+
+  // Ringback while it rings, unless the provider's early media is already playing it; a busy tone when busy.
+  useEffect(() => {
+    if (phaseName !== 'ringing') return;
+    const earlyMedia = audioRef.current?.srcObject;
+    if (earlyMedia) return;
+    return playTone(RINGBACK);
+  }, [phaseName]);
+  const endKind = state.phase === 'wrap_up' ? state.end.kind : null;
+  useEffect(() => {
+    if (endKind !== 'busy') return;
+    return playTone(BUSY);
+  }, [endKind]);
+
+  // The browser SDK does not always say why a call ended. While a call is live, ask the server what the
+  // provider reported for it; a final status ends the softphone with the reason.
+  const liveCallId = state.phase === 'connecting' || state.phase === 'ringing' || state.phase === 'in_call' ? state.callId : null;
+  useEffect(() => {
+    if (!liveCallId) return;
+    let cancelled = false;
+    const timer = setInterval(async () => {
+      const row = await fetchCallRow(liveCallId);
+      if (cancelled || !row || !(FINAL_CALL_STATUSES as readonly string[]).includes(row.status)) return;
+      dispatch({ type: 'REMOTE_ENDED', hangup: rawHangupFromRow(row) });
+    }, 2500);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [liveCallId, dispatch]);
+
   const canDial = (state.phase === 'idle' || state.phase === 'blocked' || state.phase === 'error') && rtc.status === 'registered' && !warning?.block && Boolean(target.e164);
 
   return (
@@ -361,11 +426,11 @@ export default function Softphone({ lead, onClose, onLogged, onMeetingBooked, re
 
         {state.phase === 'checking' && <p role="status">Checking the call is allowed…</p>}
         {state.phase === 'connecting' && <p role="status">Connecting…</p>}
-        {state.phase === 'ringing' && <p role="status">Ringing…</p>}
+        {state.phase === 'ringing' && <p role="status">Ringing… {formatClock(elapsed)}</p>}
         {state.phase === 'in_call' && (
           <div className="space-y-3">
             <p role="status" className="font-semibold text-emerald-700">
-              {state.held ? 'On hold' : state.muted ? 'In call (you are muted)' : 'In call'}
+              {state.held ? 'On hold' : state.muted ? 'Connected (you are muted)' : 'Connected'} {formatClock(elapsed)}
             </p>
             <CallControls muted={state.muted} held={state.held} onMute={toggleMute} onHold={toggleHold} onDtmf={(digit) => callRef.current?.dtmf(digit)} />
           </div>
@@ -375,7 +440,9 @@ export default function Softphone({ lead, onClose, onLogged, onMeetingBooked, re
           <OutcomeForm
             saving={state.saving}
             error={state.saveError}
-            endedNote={state.answered ? 'The call ended.' : state.endedBy === 'error' ? 'The call was interrupted.' : 'The call ended before it was answered.'}
+            end={state.end}
+            initialOutcome={state.end.suggestedOutcome}
+            talkTime={state.answered && talkSeconds > 0 ? formatClock(talkSeconds) : null}
             onSubmit={saveOutcome}
           />
         )}
@@ -387,6 +454,11 @@ export default function Softphone({ lead, onClose, onLogged, onMeetingBooked, re
           {isLive(state) && <HangupButton onClick={hangup} label={state.phase === 'checking' || state.phase === 'connecting' ? 'Cancel' : 'Hang up'} />}
           {(state.phase === 'idle' || state.phase === 'blocked' || state.phase === 'error') && !resumeCallId && (
             <>
+              {onOwnPhone && (
+                <button type="button" onClick={onOwnPhone} className="mr-auto px-3 py-1.5 border border-card-border rounded-lg text-text-secondary hover:text-text-primary">
+                  Call from my own phone instead
+                </button>
+              )}
               <button type="button" onClick={requestClose} className="px-3 py-1.5 border border-card-border rounded-lg text-text-secondary hover:text-text-primary">
                 Close
               </button>

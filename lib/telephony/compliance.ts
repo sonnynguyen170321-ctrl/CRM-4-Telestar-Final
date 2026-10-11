@@ -32,7 +32,6 @@ export const BLOCK_REASONS = [
   'no_phone',
   'invalid_number',
   'number_type_not_allowed',
-  'vietnam_own_phone',
   'suppressed',
   'lead_do_not_call',
   'contact_do_not_call',
@@ -140,9 +139,8 @@ function decide(facts: GateFacts): GateDecision {
   else if (!number.e164) reasons.push('invalid_number');
   else {
     if (BLOCKED_LINE_TYPES.has(phoneLineType(number.e164) ?? '')) reasons.push('number_type_not_allowed');
-    // The country lock lives at Telnyx (the outbound profile's destination whitelist); the CRM keeps
-    // only this one: Vietnamese numbers are called from the rep's own phone, never the browser dialer.
-    if (number.country === 'VN') reasons.push('vietnam_own_phone');
+    // No country rule here: the country lock lives at Telnyx (the outbound profile's destination
+    // whitelist), and Vietnam is dialled like any other country once that profile allows it.
   }
 
   if (facts.suppressed) reasons.push('suppressed');

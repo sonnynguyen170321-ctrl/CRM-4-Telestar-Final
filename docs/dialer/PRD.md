@@ -4,7 +4,7 @@
 > later decision replaced it, the old text is struck through or marked *Superseded* with the new rule
 > beside it. In force today:
 > - **Outbound only, no inbound.** G4, US5 and US6 are not built.
-> - **Vietnam is never dialled through Telnyx.** Vietnamese numbers are called from the rep's own phone and logged in the CRM (`components/dialer/PhoneCallPanel.tsx`). The softphone serves other countries; the gate refuses VN (`vietnam_own_phone`). The country lock is the Telnyx outbound profile whitelist; the CRM has no country allow-list.
+> - **(Superseded 2026-10-11: Vietnam is now dialled through the softphone like any other country once the Telnyx profile whitelists it.) Vietnam was never dialled through Telnyx.** Vietnamese numbers are called from the rep's own phone and logged in the CRM (`components/dialer/PhoneCallPanel.tsx`). The softphone serves other countries; the gate refuses VN (`vietnam_own_phone`). The country lock is the Telnyx outbound profile whitelist; the CRM has no country allow-list.
 > - **Call any time** by default: hours 00:00-24:00 every day. A manager can still narrow hours and weekdays; the 08:00-17:00 rule below is now only an option, not the default.
 > - **Recording on, no spoken notice by default**; the notice is a manager toggle. Retention is a manager setting (default 90 days).
 > - **Whole team at once**, no pilot batches: one manager's live check on production, then everyone (stages 2 to 4 of section 8 are replaced).

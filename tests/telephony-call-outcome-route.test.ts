@@ -22,6 +22,7 @@ import { OUTCOME_WINDOW_MS } from '@/lib/telephony/callOutcome';
 import { PHONE_OUTCOMES } from '@/lib/telephony/outcomes';
 import { tenantStorage } from '@/lib/tenant-context';
 import { PATCH } from '@/app/api/telephony/calls/[id]/outcome/route';
+import { GET as GET_CALL } from '@/app/api/telephony/calls/[id]/route';
 import { GET as GET_STATUS } from '@/app/api/telephony/status/route';
 import { GET as GET_PENDING } from '@/app/api/telephony/calls/pending-outcome/route';
 import { createTestTenant } from './helpers/testTenant';
@@ -354,5 +355,37 @@ describe('GET /api/telephony/calls/pending-outcome', () => {
     expect((await pending(users.rep, `?leadId=${ids.lead}`)).body.calls).toHaveLength(1);
     await patch(users.rep, callId, { outcome: 'no_answer' });
     expect((await pending(users.rep)).body.calls).toEqual([]);
+  });
+});
+
+describe('GET /api/telephony/calls/[id]', () => {
+  const read = async (user: SessionUser | null, callId: string) => {
+    authUser.current = user;
+    const response = await GET_CALL(new Request(`https://crm.telestar.cloud/api/telephony/calls/${callId}`), { params: Promise.resolve({ id: callId }) });
+    return { response, body: await response.json() };
+  };
+
+  it('requires a session and refuses an API key', async () => {
+    const callId = await makeCall(tenantId, users.rep.id, ids.lead);
+    expect((await read(null, callId)).response.status).toBe(401);
+    const keyed = { ...users.rep, apiKey: { id: 'k1', name: 'any', scopes: ['*'] } } as SessionUser;
+    expect((await read(keyed, callId)).response.status).toBe(403);
+  });
+
+  it('returns the status and why it ended for the rep own call, never cached', async () => {
+    const callId = await makeCall(tenantId, users.rep.id, ids.lead, { status: 'busy', hangupCause: 'user_busy' });
+    const { response, body } = await read(users.rep, callId);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Cache-Control')).toBe('no-store');
+    expect(body).toEqual({ status: 'busy', hangupCause: 'user_busy', answeredAt: null, endedAt: null });
+  });
+
+  it('answers 404 for another rep, another tenant, an inbound call and a missing call', async () => {
+    const callId = await makeCall(tenantId, users.rep.id, ids.lead);
+    expect((await read(users.peer, callId)).response.status).toBe(404);
+    expect((await read(users.other, callId)).response.status).toBe(404);
+    const inbound = await makeCall(tenantId, users.rep.id, ids.lead, { direction: 'inbound' });
+    expect((await read(users.rep, inbound)).response.status).toBe(404);
+    expect((await read(users.rep, 'nope')).response.status).toBe(404);
   });
 });

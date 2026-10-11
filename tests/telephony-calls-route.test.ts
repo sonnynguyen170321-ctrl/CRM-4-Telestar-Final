@@ -180,11 +180,11 @@ describe('POST /api/telephony/calls', () => {
     expect(row).toMatchObject({ status: 'blocked', blockedReasons: ['outside_hours'], authorizedAt: null });
   });
 
-  it('refuses a Vietnamese number with the own-phone reason, and needs no country list to allow a foreign one', async () => {
+  it('treats a Vietnamese number like any other country, with no country list anywhere', async () => {
     const vnLead = await makeLead(tenantId, ids.campaign, users.rep.id, { phone: '+84948200638' });
     const { body } = await call(users.rep, { leadId: vnLead });
-    expect(body).toMatchObject({ allowed: false, reasons: ['vietnam_own_phone'] });
-    expect(body).not.toHaveProperty('clientState');
+    expect(body).toMatchObject({ allowed: true, toE164: '+84948200638' });
+    expect(body).toHaveProperty('clientState');
     expect(await callRows()).toHaveLength(1);
 
     vi.setSystemTime(new Date(VN_10AM.getTime() + 10_000)); // past the per-rep spacing

@@ -46,10 +46,13 @@ The account has been in use for months, so check rather than create.
 ## 3. Outbound Voice Profile (Voice → Outbound Voice Profiles → Add)
 
 - Name: `crm-outbound` (new; leave the profile MicroSIP uses untouched).
-- [ ] **Whitelisted destinations**: every country the team calls **except Vietnam** (the default is
+- [ ] **Whitelisted destinations**: every country the team calls, **Vietnam included** (the default is
       only US/CA; a call to an unlisted country is refused). **This whitelist is the only country
-      lock: the CRM has no country allow-list** (removed 2026-10-11). Leaving VN out is a second lock
-      behind the CRM gate's `vietnam_own_phone` refusal.
+      lock: the CRM has no country allow-list** (removed 2026-10-11). Since 2026-10-11 the CRM
+      no longer refuses Vietnamese numbers (`vietnam_own_phone` is removed): leave VN off the whitelist and
+      Telnyx rejects those calls instead (the softphone shows "Number unavailable" or "Network or provider
+      error"), so add it when the team should dial Vietnam through the softphone. +84 numbers are accepted as
+      caller IDs.
 - [ ] **Concurrent call limit**: the account limit from step 1.
 - [ ] **Daily spend limit**: on, with a cap that stops a runaway day (e.g. 2× a normal day).
 - [ ] **Call recording**: **off** here. The CRM starts recordings itself, so it can follow the
