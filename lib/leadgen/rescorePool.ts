@@ -27,6 +27,8 @@ export type RescoreResult = {
   scored: number;
   unchanged: number;
   skippedNoIcp: number;
+  /** Of the skipped, campaign prospects whose old assessment pointer was cleared (campaign has no ICP). */
+  clearedNoIcp: number;
   failed: Array<{ poolItemId: string; campaignId?: string; reason: string }>;
 };
 
@@ -136,6 +138,7 @@ export async function rescorePool(params: {
     scored: 0,
     unchanged: 0,
     skippedNoIcp: 0,
+    clearedNoIcp: 0,
     failed: [],
   };
   const rulesCache = new Map<string, unknown | null>();
@@ -158,6 +161,21 @@ export async function rescorePool(params: {
       const icpVersionId = await versionFor(target.campaignId);
       if (!icpVersionId) {
         result.skippedNoIcp += 1;
+        // The campaign has no usable ICP: drop the prospect's old verdict pointer so no list shows
+        // a verdict from another ICP. The assessment rows stay (insert-only); no placeholder row.
+        if (target.campaignId) {
+          const cleared = await prisma.campaignProspect.updateMany({
+            where: {
+              tenantId,
+              campaignId: target.campaignId,
+              poolItemId: target.item.id,
+              status: { not: "removed" },
+              OR: [{ latestAssessmentId: { not: null } }, { assessedIcpVersionId: { not: null } }],
+            },
+            data: { latestAssessmentId: null, assessedIcpVersionId: null },
+          });
+          result.clearedNoIcp += cleared.count;
+        }
         continue;
       }
 

@@ -264,6 +264,7 @@ domains:
       # One-off (owner, 2026-10-07): adds accepted titles through the ICP builder's own path and
       # moves campaigns off archived versions. Dry run unless --apply.
       - scripts/icp-owner-titles-2026-10-07.ts
+      - scripts/campaign-icp-dry-run.ts
     tests:
       - tests/leadgen*.test.ts
       - tests/lead-filter*.test.ts

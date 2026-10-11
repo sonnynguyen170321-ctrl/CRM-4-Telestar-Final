@@ -27,6 +27,7 @@ import { assessIcpRulesV2 } from '@telestar/core-scoring/rules/deriveQualificati
 import type { IcpVersionRulesV2 } from '@telestar/core-scoring/rules/schema-v2';
 
 import { prisma } from '@/lib/prisma';
+import { campaignIdsWithoutIcp } from '@/lib/leadgen/campaignIcpAudit';
 import {
   assessmentFingerprint,
   buildScoringEvidence,
@@ -103,7 +104,11 @@ export async function scoreLeadIcp(params: { tenantId: string; leadId: string })
   const icpVersionId = resolution.icpVersionId;
 
   const version = await prisma.icpVersion.findFirst({ where: { id: icpVersionId, tenantId }, select: { rulesJson: true } });
-  if (!version?.rulesJson) return { status: 'not_scored', reason: 'icp_version_unreadable' };
+  if (!version?.rulesJson) {
+    // An ICP that cannot be read scores nothing: do not leave a verdict from some other ICP showing.
+    await clearLeadMirror(tenantId, lead.id);
+    return { status: 'not_scored', reason: 'icp_version_unreadable' };
+  }
   const rules = version.rulesJson as unknown as IcpVersionRulesV2;
 
   const intelligence = (await loadScoringIntelligence(tenantId, [lead.account?.id])).get(lead.account?.id ?? '') ?? null;
@@ -298,7 +303,13 @@ export async function previewLeadIcp(params: {
   }
   const icpVersionId = resolution.icpVersionId;
   const version = await prisma.icpVersion.findFirst({ where: { id: icpVersionId, tenantId }, select: { rulesJson: true } });
-  if (!version?.rulesJson) return { status: 'not_scored', reason: 'icp_version_unreadable' };
+  if (!version?.rulesJson) {
+    return {
+      status: 'not_scored',
+      reason: 'icp_version_unreadable',
+      clearsVerdict: lead.icpQualification != null || lead.latestIcpAssessmentId != null,
+    };
+  }
   const rules = version.rulesJson as unknown as IcpVersionRulesV2;
 
   const intelligence = (await loadScoringIntelligence(tenantId, [lead.account?.id])).get(lead.account?.id ?? '') ?? null;
@@ -358,6 +369,8 @@ function decodeRescoreCursor(cursor: string | undefined): { createdAt: Date; id:
 export async function rescoreLeadsIcp(params: {
   tenantId: string;
   campaignId?: string;
+  /** Restrict to these campaigns (the caller's visible set). An empty list matches nothing. */
+  campaignIds?: string[];
   onlyUnscored?: boolean;
   limit?: number;
   /** `nextCursor` from the previous batch. */
@@ -373,13 +386,21 @@ export async function rescoreLeadsIcp(params: {
   // `onlyUnscored: false` every lead still matches, so a 1,692-lead campaign never got past lead
   // 500 (2026-10-07). With `onlyUnscored` a lead that stays NOT SCORED also kept its place.
   const after = decodeRescoreCursor(params.cursor);
+  // `onlyUnscored` also takes leads that still carry a verdict although their campaign has no usable
+  // ICP, so the default call cleans verdicts left over from the old default fallback.
+  const noIcpCampaignIds = onlyUnscored ? await campaignIdsWithoutIcp(tenantId) : [];
   const targets = await prisma.lead.findMany({
     where: {
       tenantId,
       archivedAt: null,
       ...(campaignId ? { campaignId } : {}),
-      ...(onlyUnscored ? { latestIcpAssessmentId: null } : {}),
-      ...(after ? { OR: [{ createdAt: { gt: after.createdAt } }, { createdAt: after.createdAt, id: { gt: after.id } }] } : {}),
+      ...(params.campaignIds ? { campaignId: campaignId ? campaignId : { in: params.campaignIds } } : {}),
+      AND: [
+        ...(onlyUnscored
+          ? [{ OR: [{ latestIcpAssessmentId: null }, { campaignId: { in: noIcpCampaignIds } }] }]
+          : []),
+        ...(after ? [{ OR: [{ createdAt: { gt: after.createdAt } }, { createdAt: after.createdAt, id: { gt: after.id } }] }] : []),
+      ],
     },
     select: { id: true, createdAt: true },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],

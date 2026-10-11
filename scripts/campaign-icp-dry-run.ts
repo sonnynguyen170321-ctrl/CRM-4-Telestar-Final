@@ -33,12 +33,18 @@ async function main() {
   }
   for (const row of rows) {
     console.log(
-      `- ${row.name} [${row.status}] ${row.reason}: ${row.leads} active lead(s), ${row.withVerdict} carry a verdict that a rescore will clear`,
+      `- ${row.name} [${row.status}] ${row.reason}: ${row.leads} active lead(s), ${row.withVerdict} carry a verdict that a rescore will clear; ${row.prospects} pool prospect(s), ${row.prospectsWithVerdict} with an assessment a pool rescore will clear`,
     );
   }
   const leads = rows.reduce((sum, r) => sum + r.leads, 0);
   const flipping = rows.reduce((sum, r) => sum + r.withVerdict, 0);
-  console.log(`\n${rows.length} campaign(s), ${leads} lead(s), ${flipping} verdict(s) will flip to NOT SCORED.`);
+  const prospectsFlipping = rows.reduce((sum, r) => sum + r.prospectsWithVerdict, 0);
+  console.log(
+    `\n${rows.length} campaign(s), ${leads} lead(s), ${flipping} lead verdict(s) and ${prospectsFlipping} prospect assessment(s) will flip to NOT SCORED.`,
+  );
+  console.log(
+    'Lead verdicts clear on POST /api/leads/rescore-icp (the default call includes them); prospects clear on the pool rescore of the campaign.',
+  );
 }
 
 main()

@@ -50,11 +50,11 @@ export async function POST(req: NextRequest) {
   const tenantId = user.tenantId;
 
   // A campaign the caller cannot see is a campaign that does not exist for them (404, not 403).
-  if (parsed.data.campaignId) {
-    const visibleCampaignIds = await getVisibleCampaignIds(user);
-    if (visibleCampaignIds !== null && !visibleCampaignIds.includes(parsed.data.campaignId)) {
-      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
-    }
+  // With no campaign named, a caller who sees only some campaigns (team lead, floor manager) rescores
+  // only those; a tenant-wide caller (null) rescores everything.
+  const visibleCampaignIds = await getVisibleCampaignIds(user);
+  if (parsed.data.campaignId && visibleCampaignIds !== null && !visibleCampaignIds.includes(parsed.data.campaignId)) {
+    return NextResponse.json({ error: 'Campaign not found' }, { status: 404 });
   }
 
   try {
@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
       rescoreLeadsIcp({
         tenantId,
         campaignId: parsed.data.campaignId,
+        ...(visibleCampaignIds !== null && !parsed.data.campaignId ? { campaignIds: visibleCampaignIds } : {}),
         onlyUnscored: parsed.data.onlyUnscored,
         limit: parsed.data.limit,
         cursor: parsed.data.cursor,

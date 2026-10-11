@@ -11,7 +11,8 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { Prisma } from '@prisma/client';
+import { describe, expect, it, vi } from 'vitest';
 import { emptyIcpRulesV2 } from '@telestar/core-scoring/rules/emptyIcpRulesV2';
 
 import { prisma } from '@/lib/prisma';
@@ -24,10 +25,15 @@ import {
   resolveIcpVersionId,
   resolvePoolPreRankVersionId,
 } from '@/lib/leadgen/scorePoolItem';
+import { listLeadFilter } from '@/lib/leadFilter/readModel';
 import { listCampaignsWithoutIcp } from '@/lib/leadgen/campaignIcpAudit';
+import { previewIcpRules } from '@/lib/leads/icpPreview';
 import { rescoreLeadsIcp, scoreLeadIcp } from '@/lib/leads/icpScoring';
 import { scoreNewLead } from '@/lib/leads/scoreNewLead';
 import { createTestTenant } from './helpers/testTenant';
+
+// The lead filter asks `lib/auth` which campaigns the actor sees; a director sees all (null).
+vi.mock('@/lib/auth', () => ({ getVisibleCampaignIds: async () => null }));
 
 const RULES = (() => {
   const rules = emptyIcpRulesV2('campaign-icp', 'Campaign ICP');
@@ -527,5 +533,154 @@ describe('migration 20261012100000_campaign_icp_profile', () => {
     const detached = await w.run(() => prisma.campaign.findUniqueOrThrow({ where: { id: c.id } }));
     expect(detached.icpProfileId).toBeNull();
     expect(detached.tenantId).toBe(w.tenantId);
+  });
+});
+
+describe('review follow-ups', () => {
+  const poolItem = (w: World) =>
+    w.run(() =>
+      prisma.leadPoolItem.create({
+        data: {
+          tenantId: w.tenantId,
+          company: `Pool Co ${randomUUID().slice(0, 6)}`,
+          firstName: 'Jane',
+          lastName: 'Doe',
+          email: `jane-${randomUUID().slice(0, 8)}@example.com`,
+          title: 'CEO',
+          industry: 'Software',
+          sourceType: 'csv_import',
+          status: 'imported',
+          qualification: 'unreviewed',
+        },
+      }),
+    );
+
+  it('lead filter: after a publish + rescore the verdicts are current, not stale needs_review (H1)', async () => {
+    const { w } = await worldWithDefault();
+    const lib = await profile(w, 'Filter ICP');
+    const v1 = await version(w, lib.id, 1);
+    const c = await campaign(w, 'Filter campaign', { icpProfileId: lib.id });
+    const item = await poolItem(w);
+    await w.run(() => prisma.campaignProspect.create({ data: { tenantId: w.tenantId, campaignId: c.id, poolItemId: item.id, status: 'ready' } }));
+    await w.run(() => rescorePool({ tenantId: w.tenantId, selection: { kind: 'campaign', campaignId: c.id } }));
+
+    await w.run(() => prisma.icpVersion.update({ where: { id: v1.id }, data: { status: 'archived' } }));
+    const v2 = await version(w, lib.id, 2);
+    await w.run(() => rescorePool({ tenantId: w.tenantId, selection: { kind: 'campaign', campaignId: c.id } }));
+
+    const actor = { id: w.userId, tenantId: w.tenantId, role: 'director' } as never;
+    const out = await w.run(() => listLeadFilter(actor, w.tenantId, { campaignId: c.id }));
+    const prospect = await w.run(() => prisma.campaignProspect.findFirstOrThrow({ where: { campaignId: c.id }, include: { latestAssessment: true } }));
+
+    expect(prospect.assessedIcpVersionId).toBe(v2.id);
+    expect(out.selectedCampaign?.icpVersion?.id).toBe(v2.id);
+    expect(out.items[0].verdictReason).not.toBe('stale_assessment');
+    expect(out.items[0].verdict).toBe(prospect.latestAssessment!.qualification);
+    expect(out.counts.not_scored).toBe(0);
+  });
+
+  it('lead filter: a campaign with no ICP lists no current version and its prospects as not scored (H1)', async () => {
+    const { w } = await worldWithDefault();
+    const c = await campaign(w, 'Bare filter');
+    const item = await poolItem(w);
+    await w.run(() => prisma.campaignProspect.create({ data: { tenantId: w.tenantId, campaignId: c.id, poolItemId: item.id, status: 'ready' } }));
+    const actor = { id: w.userId, tenantId: w.tenantId, role: 'director' } as never;
+    const out = await w.run(() => listLeadFilter(actor, w.tenantId, { campaignId: c.id }));
+    expect(out.selectedCampaign?.icpVersion).toBeNull();
+    expect(out.counts.not_scored).toBe(1);
+  });
+
+  it('ICP preview samples the leads of campaigns linked by profile (H1)', async () => {
+    const { w } = await worldWithDefault();
+    const lib = await profile(w, 'Preview ICP');
+    await version(w, lib.id, 1);
+    const c = await campaign(w, 'Preview campaign', { icpProfileId: lib.id });
+    await w.run(() =>
+      prisma.lead.createMany({
+        data: Array.from({ length: 20 }, (_, i) => ({
+          tenantId: w.tenantId, firstName: 'P', lastName: `L${i}`, company: `Co ${i}`, title: 'CEO',
+          email: `p${i}-${randomUUID().slice(0, 5)}@acme.test`, assignedToId: w.userId, campaignId: c.id,
+        })),
+      }),
+    );
+    const out = await w.run(() => previewIcpRules({ tenantId: w.tenantId, icpProfileId: lib.id, rules: RULES }));
+    expect(out.scope).toBe('icp_campaigns');
+    expect(out.sampleSize).toBe(20);
+  });
+
+  it('rescore restricted to the visible campaigns leaves other campaigns untouched (M1)', async () => {
+    const { w } = await worldWithDefault();
+    const lib = await profile(w, 'Visible ICP');
+    await version(w, lib.id, 1);
+    const mine = await campaign(w, 'Mine', { icpProfileId: lib.id });
+    const theirs = await campaign(w, 'Theirs', { icpProfileId: lib.id });
+    const a = await lead(w, mine.id);
+    const b = await lead(w, theirs.id);
+
+    const dry = await w.run(() => rescoreLeadsIcp({ tenantId: w.tenantId, campaignIds: [mine.id], dryRun: true }));
+    expect(dry.considered).toBe(1);
+    await w.run(() => rescoreLeadsIcp({ tenantId: w.tenantId, campaignIds: [mine.id] }));
+    expect((await reloadLead(w, a.id)).latestIcpAssessmentId).not.toBeNull();
+    expect((await reloadLead(w, b.id)).latestIcpAssessmentId).toBeNull();
+    expect((await w.run(() => rescoreLeadsIcp({ tenantId: w.tenantId, campaignIds: [] }))).considered).toBe(0);
+  });
+
+  it('pool rescore of an ICP-less campaign clears the prospect pointer, keeps the assessment row (M3)', async () => {
+    const { w } = await worldWithDefault();
+    const lib = await profile(w, 'Prospect ICP');
+    const v1 = await version(w, lib.id, 1);
+    const c = await campaign(w, 'Prospect campaign', { icpProfileId: lib.id });
+    const item = await poolItem(w);
+    const m = await w.run(() => prisma.campaignProspect.create({ data: { tenantId: w.tenantId, campaignId: c.id, poolItemId: item.id, status: 'ready' } }));
+    await w.run(() => rescorePool({ tenantId: w.tenantId, selection: { kind: 'campaign', campaignId: c.id } }));
+    expect((await w.run(() => prisma.campaignProspect.findUniqueOrThrow({ where: { id: m.id } }))).assessedIcpVersionId).toBe(v1.id);
+
+    await w.run(() => assignCampaignIcp({ tenantId: w.tenantId, campaignId: c.id, icpVersionId: null }));
+    const audit = await w.run(() => listCampaignsWithoutIcp(w.tenantId));
+    expect(audit.find((r) => r.campaignId === c.id)).toMatchObject({ prospects: 1, prospectsWithVerdict: 1 });
+
+    const result = await w.run(() => rescorePool({ tenantId: w.tenantId, selection: { kind: 'campaign', campaignId: c.id } }));
+    expect(result).toMatchObject({ skippedNoIcp: 1, clearedNoIcp: 1, scored: 0 });
+    expect(await w.run(() => prisma.campaignProspect.findUniqueOrThrow({ where: { id: m.id } }))).toMatchObject({
+      assessedIcpVersionId: null,
+      latestAssessmentId: null,
+    });
+    expect(await w.run(() => prisma.leadPoolAssessment.count({ where: { poolItemId: item.id } }))).toBe(1);
+  });
+
+  it('an unreadable ICP version clears the lead mirror too (L2)', async () => {
+    const { w } = await worldWithDefault();
+    const lib = await profile(w, 'Unreadable ICP');
+    const v1 = await version(w, lib.id, 1);
+    const c = await campaign(w, 'Unreadable', { icpProfileId: lib.id });
+    const l = await lead(w, c.id);
+    await w.run(() => scoreLeadIcp({ tenantId: w.tenantId, leadId: l.id }));
+    expect((await reloadLead(w, l.id)).icpQualification).not.toBeNull();
+
+    await w.run(() => prisma.icpVersion.update({ where: { id: v1.id }, data: { rulesJson: Prisma.DbNull } }));
+    const out = await w.run(() => scoreLeadIcp({ tenantId: w.tenantId, leadId: l.id }));
+
+    expect(out).toEqual({ status: 'not_scored', reason: 'icp_version_unreadable' });
+    expect(await reloadLead(w, l.id)).toMatchObject({ latestIcpAssessmentId: null, icpQualification: null, icpFitScore: null });
+  });
+
+
+  it('the default onlyUnscored rescore also cleans verdicts on campaigns with no usable ICP (L3)', async () => {
+    const { w } = await worldWithDefault();
+    const lib = await profile(w, 'Cleanup ICP');
+    await version(w, lib.id, 1);
+    const c = await campaign(w, 'Cleanup', { icpProfileId: lib.id });
+    const other = await campaign(w, 'Still scored', { icpProfileId: lib.id });
+    const stale = await lead(w, c.id);
+    const fine = await lead(w, other.id);
+    await w.run(() => scoreLeadIcp({ tenantId: w.tenantId, leadId: stale.id }));
+    await w.run(() => scoreLeadIcp({ tenantId: w.tenantId, leadId: fine.id }));
+    await w.run(() => assignCampaignIcp({ tenantId: w.tenantId, campaignId: c.id, icpVersionId: null }));
+
+    const report = await w.run(() => rescoreLeadsIcp({ tenantId: w.tenantId }));
+
+    expect(report.considered).toBe(1); // only the stale one; the lead on a live ICP is not retouched
+    expect(await reloadLead(w, stale.id)).toMatchObject({ latestIcpAssessmentId: null, icpQualification: null });
+    expect((await reloadLead(w, fine.id)).latestIcpAssessmentId).not.toBeNull();
   });
 });

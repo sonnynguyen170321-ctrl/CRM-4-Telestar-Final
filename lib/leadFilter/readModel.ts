@@ -10,6 +10,37 @@ import {
 } from "@/lib/leadFilter/classification";
 import { RETIRED_QUALIFICATIONS } from "@/lib/leadgen/poolItemState";
 
+type ResolvedIcpVersion = { id: string; versionNumber: number; icpProfile: { name: string } };
+
+/**
+ * The ICP each campaign scores against TODAY, in two queries: its profile's newest published version,
+ * or (legacy, no profile) its pinned version while still published. Mirrors `resolveCampaignIcp`
+ * (lib/leadgen/scorePoolItem.ts) for a list; the stale pin is never treated as current.
+ */
+async function currentIcpVersions(
+  tenantId: string,
+  campaigns: Array<{ id: string; icpProfileId: string | null; icpVersionId: string | null }>,
+): Promise<Map<string, ResolvedIcpVersion | null>> {
+  const profileIds = [...new Set(campaigns.map((c) => c.icpProfileId).filter((id): id is string => Boolean(id)))];
+  const pinIds = campaigns.filter((c) => !c.icpProfileId && c.icpVersionId).map((c) => c.icpVersionId as string);
+  const select = { id: true, versionNumber: true, icpProfileId: true, icpProfile: { select: { name: true } } } as const;
+  const [profileVersions, pins] = await Promise.all([
+    profileIds.length
+      ? prisma.icpVersion.findMany({ where: { tenantId, icpProfileId: { in: profileIds }, status: "published" }, orderBy: { versionNumber: "desc" }, select })
+      : [],
+    pinIds.length ? prisma.icpVersion.findMany({ where: { tenantId, id: { in: pinIds }, status: "published" }, select }) : [],
+  ]);
+  const newestByProfile = new Map<string, ResolvedIcpVersion>();
+  for (const v of profileVersions) if (!newestByProfile.has(v.icpProfileId)) newestByProfile.set(v.icpProfileId, v);
+  const pinById = new Map(pins.map((v) => [v.id, v]));
+  return new Map(
+    campaigns.map((c) => [
+      c.id,
+      c.icpProfileId ? (newestByProfile.get(c.icpProfileId) ?? null) : c.icpVersionId ? (pinById.get(c.icpVersionId) ?? null) : null,
+    ]),
+  );
+}
+
 export class LeadFilterCampaignUnavailableError extends Error {
   constructor() {
     super("lead_filter_campaign_unavailable");
@@ -38,7 +69,7 @@ export async function listLeadFilter(
     status: "active",
     ...(visibleIds === null ? {} : { id: { in: visibleIds } }),
   };
-  const campaigns = await prisma.campaign.findMany({
+  const campaignRows = await prisma.campaign.findMany({
     where: campaignWhere,
     orderBy: { name: "asc" },
     take: 200,
@@ -46,15 +77,15 @@ export async function listLeadFilter(
       id: true,
       name: true,
       client: { select: { name: true } },
-      icpVersion: {
-        select: {
-          id: true,
-          versionNumber: true,
-          icpProfile: { select: { name: true } },
-        },
-      },
+      icpProfileId: true,
+      icpVersionId: true,
     },
   });
+  const currentByCampaign = await currentIcpVersions(tenantId, campaignRows);
+  const campaigns = campaignRows.map(({ icpProfileId: _p, icpVersionId: _v, ...campaign }) => ({
+    ...campaign,
+    icpVersion: currentByCampaign.get(campaign.id) ?? null,
+  }));
 
   const campaignId = query.campaignId ?? campaigns[0]?.id;
   if (!campaignId) {

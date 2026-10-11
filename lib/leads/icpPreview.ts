@@ -68,7 +68,7 @@ export async function previewIcpRules(input: {
 
   let scope: IcpPreviewResult['scope'] = 'icp_campaigns';
   let leads = await prisma.lead.findMany({
-    where: { tenantId, archivedAt: null, campaign: { icpVersion: { icpProfileId } } },
+    where: { tenantId, archivedAt: null, campaign: { OR: [{ icpProfileId }, { icpProfileId: null, icpVersion: { icpProfileId } }] } },
     select,
     orderBy: { createdAt: 'desc' },
     take: PREVIEW_SAMPLE_LIMIT,

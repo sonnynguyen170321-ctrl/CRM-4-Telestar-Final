@@ -532,10 +532,14 @@ routes:
   - path: app/api/icp/campaigns/[id]/route.ts
     methods: [PATCH]
     tests:
+      - tests/admin-audit-coverage.test.ts
+      - tests/icp-campaign-assign-route.test.ts
       - tests/icp-management-ui.test.ts
   - path: app/api/icp/campaigns/route.ts
     methods: [GET]
     tests:
+      - tests/admin-audit-coverage.test.ts
+      - tests/icp-campaign-assign-route.test.ts
       - tests/icp-management-ui.test.ts
   - path: app/api/icp/profiles/[id]/default/route.ts
     methods: [POST]

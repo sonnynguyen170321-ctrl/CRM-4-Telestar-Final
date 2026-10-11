@@ -264,6 +264,9 @@ export const ADMIN_AUDIT_ACTIONS = [
   'admin.icp.publish',
   // Changes which ICP scores every lead whose campaign has none of its own.
   'admin.icp.set_default',
+  // Point a campaign at an ICP, or clear it (then its leads are not scored).
+  'admin.campaign.icp_assign',
+  'admin.campaign.icp_clear',
   'admin.mailbox.pause',
   'admin.mailbox.resume',
   'admin.mailbox.cap',

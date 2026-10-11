@@ -71,9 +71,15 @@ describe('POST /api/leads/rescore-icp', () => {
     expect(mockRescore).toHaveBeenCalledTimes(1);
   });
 
-  it('does not look up visibility when no campaign is named', async () => {
+  it('restricts an unnamed-campaign rescore to the campaigns the caller can see', async () => {
+    mockVisible.mockResolvedValue(['c-mine', 'c-also']);
     expect((await POST(req({}))).status).toBe(200);
-    expect(mockVisible).not.toHaveBeenCalled();
+    expect(mockRescore).toHaveBeenCalledWith(expect.objectContaining({ campaignIds: ['c-mine', 'c-also'] }));
+  });
+
+  it('a tenant-wide caller passes no campaign restriction', async () => {
+    expect((await POST(req({}))).status).toBe(200);
+    expect(mockRescore.mock.calls[0][0]).not.toHaveProperty('campaignIds');
   });
 
   it('passes a continuation cursor through, and refuses a malformed one', async () => {
