@@ -503,6 +503,66 @@ describe('a parked call from the rep’s browser', () => {
   });
 });
 
+describe('the transfer leg without our client state (observed on production, 2026-10-11)', () => {
+  const GB = '+447400000001';
+  const bridging = (sessionId: string, overrides: Partial<EventSpec> = {}): EventSpec => ({
+    id: eventId(), type: 'call.initiated', sessionId, controlId: 'ctl-lead', direction: 'outgoing', state: 'bridging', from: GB, to: world.toE164, ...overrides,
+  });
+
+  it('replays the live sequence: parked leg connected, then our own leg left alone, and the call finalizes', async () => {
+    const call = await makeCall(world);
+    const parkedEvent = parked(call, { state: 'parked', direction: 'outgoing' });
+    await post(parkedEvent);
+    expect(transfers()).toHaveLength(1);
+    expect(hangups()).toHaveLength(0);
+
+    enqueueMock.mockClear();
+    const leg = bridging(parkedEvent.sessionId!);
+    await post(leg);
+    expect(hangups()).toHaveLength(0);
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
+    const stored = await reload(world.tenantId, call.id);
+    expect(stored.leadLegControlId).toBe('ctl-lead');
+    expect(stored.status).toBe('initiated');
+
+    // The worker then sees the lead leg, answer and hangup, and ends the call.
+    const { processTelephonyEvent } = await import('@/lib/telephony/applyEvent');
+    const answered = { id: eventId(), type: 'call.answered', sessionId: parkedEvent.sessionId!, controlId: 'ctl-lead', direction: 'outgoing' as const };
+    const hangup = { id: eventId(), type: 'call.hangup', sessionId: parkedEvent.sessionId!, controlId: 'ctl-lead', direction: 'outgoing' as const, hangupCause: 'normal_clearing' };
+    for (const spec of [answered, hangup]) {
+      await post(spec);
+      await processTelephonyEvent(spec.id);
+    }
+    expect((await reload(world.tenantId, call.id)).status).toBe('completed');
+  });
+
+  it('hangs up a second untokened initiated from a SIP address in the same session', async () => {
+    const call = await makeCall(world, { status: 'initiated', sessionId: 'sess-n1', controlId: 'ctl-a' });
+    await post(bridging('sess-n1', { from: 'sip:gencredEvil@sip.telnyx.com' }));
+    expect(hangups()).toHaveLength(1);
+    expect((await reload(world.tenantId, call.id)).leadLegControlId).toBeNull();
+  });
+
+  it('hangs up a bridging leg that dials a different number', async () => {
+    await makeCall(world, { status: 'initiated', sessionId: 'sess-n2', controlId: 'ctl-a' });
+    await post(bridging('sess-n2', { to: '+84900000009' }));
+    expect(hangups()).toHaveLength(1);
+  });
+
+  it('hangs up a bridging leg whose session matches no call', async () => {
+    await makeCall(world, { status: 'initiated', sessionId: 'sess-n3', controlId: 'ctl-a' });
+    await post(bridging('sess-other'));
+    expect(hangups()).toHaveLength(1);
+  });
+
+  it('hangs up a leg that is not in the bridging state, or reuses the parked leg’s control id', async () => {
+    await makeCall(world, { status: 'initiated', sessionId: 'sess-n4', controlId: 'ctl-a' });
+    await post(bridging('sess-n4', { state: 'parked' }));
+    await post(bridging('sess-n4', { controlId: 'ctl-a' }));
+    expect(hangups()).toHaveLength(2);
+  });
+});
+
 describe('the leg we create ourselves', () => {
   it('is not treated as a parked call: queued for the worker, never hung up', async () => {
     const call = await makeCall(world, { status: 'initiated', sessionId: 'sess-leg', controlId: 'ctl-a' });
