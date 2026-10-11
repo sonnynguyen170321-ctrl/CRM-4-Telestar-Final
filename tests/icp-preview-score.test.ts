@@ -21,6 +21,9 @@ vi.mock('@/lib/auth', async () => {
   return {
     requireAuth: async () => authUser.current ?? NextResponse.json({ error: 'Unauthorized' }, { status: 401 }),
     getVisibleCampaignIds: async () => null,
+    getLeadWhereScope: async () => ({}),
+    getVisibleUserIds: async () => null,
+    canAccessUser: async () => true,
   };
 });
 

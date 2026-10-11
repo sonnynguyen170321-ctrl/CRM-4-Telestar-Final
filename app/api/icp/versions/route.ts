@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { requireIcpManager, icpAuthoringErrorResponse } from "@/app/api/icp/manager";
+import { authorizeVersionEdit, icpAuthoringErrorResponse, requireIcpUser } from "@/app/api/icp/manager";
 import { canAccessPool } from "@/app/api/leadgen-pool/guard";
 import { requireTenantId } from "@/lib/api/tenant";
 import { requireAuth } from "@/lib/auth";
@@ -54,7 +54,7 @@ export async function GET() {
 
 // A published version is immutable. Editing always starts by cloning it into one draft.
 export async function POST(req: NextRequest) {
-  const user = await requireIcpManager();
+  const user = await requireIcpUser();
   if (user instanceof NextResponse) return user;
   const tenantId = requireTenantId(user);
   if (tenantId instanceof NextResponse) return tenantId;
@@ -72,6 +72,10 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
+
+  // Starting an edit is editing: library ICPs need a library manager, a custom one its owner.
+  const allowed = await authorizeVersionEdit(user, tenantId, parsed.data.sourceVersionId);
+  if (allowed instanceof NextResponse) return allowed;
 
   try {
     const version = await cloneIcpVersionAsDraft({

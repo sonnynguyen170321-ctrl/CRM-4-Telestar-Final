@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import {
+  authorizeVersionEdit,
   icpAuthoringErrorResponse,
-  requireIcpManager,
+  requireIcpUser,
 } from "@/app/api/icp/manager";
 import { requireTenantId } from "@/lib/api/tenant";
 import { saveIcpDraft } from "@/lib/leadgen/icpAuthoring";
@@ -20,7 +21,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const user = await requireIcpManager();
+  const user = await requireIcpUser();
   if (user instanceof NextResponse) return user;
   const tenantId = requireTenantId(user);
   if (tenantId instanceof NextResponse) return tenantId;
@@ -39,8 +40,11 @@ export async function PATCH(
     );
   }
 
+  const { id } = await params;
+  const allowed = await authorizeVersionEdit(user, tenantId, id);
+  if (allowed instanceof NextResponse) return allowed;
+
   try {
-    const { id } = await params;
     const version = await saveIcpDraft({
       tenantId,
       versionId: id,

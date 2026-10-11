@@ -13,7 +13,7 @@
 # `tests/route-authorization.test.ts` fails when a mutating route has neither a guard nor a
 # hand-written `reason`. Reasons survive regeneration; they are the only part a human owns.
 #
-# routes: 212   mutating: 131   mutating with neither guard nor reason: 38
+# routes: 216   mutating: 134   mutating with neither guard nor reason: 37
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -331,7 +331,7 @@ routes:
     methods: [GET]
     guards: []
   - path: app/api/icp/campaigns/[id]/route.ts
-    methods: [PATCH]
+    methods: [GET, PATCH]
     guards:
       - getVisibleCampaignIds
   - path: app/api/icp/campaigns/route.ts
@@ -341,26 +341,50 @@ routes:
   - path: app/api/icp/profiles/[id]/default/route.ts
     methods: [POST]
     guards: []
-    reason: requireIcpManager (manager roles, scoring:write for API keys); an ICP profile is tenant-level scoring configuration, not a personal record, and both writes are scoped by the session tenant inside one transaction. Audited as admin.icp.set_default.
+    reason: requireIcpManager (director, floor manager, leadgen manager; scoring:write for API keys). Only a shared library profile can be the template (a custom ICP is refused 409), and both writes are scoped by the session tenant inside one transaction. Audited as admin.icp.set_default.
   - path: app/api/icp/profiles/route.ts
     methods: [GET, POST]
-    guards: []
-    reason: requireIcpManager. An ICP profile is a tenant-level scoring definition with no owner column — nobody has a personal ICP — so the only meaningful question is whether the caller may manage scoring at all.
+    guards:
+      - getVisibleCampaignIds
+    reason: requireIcpUser, then per object. GET lists library ICPs plus the custom ICPs of the caller's own chain (visibleCustomOwnerIds). POST kind=library needs canManageLibraryIcp (403 otherwise); POST kind=custom needs a campaign in getVisibleCampaignIds (404 otherwise) and the new profile is owned by the caller. Copying another ICP goes through canViewProfile. Audited as admin.icp.create.
+  - path: app/api/icp/reviews/route.ts
+    methods: [GET]
+    guards:
+      - getVisibleCampaignIds
+  - path: app/api/icp/versions/[id]/approve/route.ts
+    methods: [POST]
+    guards:
+      - canAccessUser (via lib/leadgen/icpAccess.ts)
+      - getVisibleUserIds (via lib/leadgen/icpAccess.ts)
   - path: app/api/icp/versions/[id]/preview-score/route.ts
     methods: [POST]
-    guards: []
-    reason: requireIcpManager; read-only despite POST (the unsaved rules travel in the body) — previewIcpRules writes nothing, and the version id must belong to the session tenant or it answers 404.
+    guards:
+      - getLeadWhereScope
+      - getVisibleCampaignIds
+    reason: requireIcpUser, then canViewProfile (404 if invisible) and canEditProfile or team lead and up (403). Read-only despite POST (the unsaved rules travel in the body): previewIcpRules writes nothing, the campaign must be in getVisibleCampaignIds, and the sample is limited by getLeadWhereScope.
   - path: app/api/icp/versions/[id]/publish/route.ts
     methods: [POST]
-    guards: []
-    reason: requireIcpManager, and an ICP version belongs to the tenant rather than to a person. Publishing is exactly the act the manager role exists to gate.
+    guards:
+      - canAccessUser (via lib/leadgen/icpAccess.ts)
+      - getVisibleUserIds (via lib/leadgen/icpAccess.ts)
+    reason: requireIcpUser, then canViewProfile (404) and publishModeFor (403): a library ICP needs a library role; a custom ICP only its owner, who publishes directly at team lead and up and otherwise only SUBMITS for review. Audited as admin.icp.publish / admin.icp.submit.
+  - path: app/api/icp/versions/[id]/reject/route.ts
+    methods: [POST]
+    guards:
+      - canAccessUser (via lib/leadgen/icpAccess.ts)
+      - getVisibleUserIds (via lib/leadgen/icpAccess.ts)
   - path: app/api/icp/versions/[id]/route.ts
     methods: [PATCH]
     guards: []
-    reason: requireIcpManager, same as publish — a draft version has no owner axis to check.
+    reason: requireIcpUser, then authorizeVersionEdit: canViewProfile (404) and canEditProfile (403: a library ICP needs a library role, a custom ICP its owner or a library role). Tenant-scoped by loadIcpVersion.
+  - path: app/api/icp/versions/[id]/withdraw/route.ts
+    methods: [POST]
+    guards: []
+    reason: requireIcpUser, then the profile's ownerUserId must equal the caller (anyone else gets 404). Only a pending_review version moves, back to draft. Audited as admin.icp.withdraw.
   - path: app/api/icp/versions/route.ts
     methods: [GET, POST]
     guards: []
+    reason: GET is the published-version picker (pool or research read permission). POST starts an edit and goes through authorizeVersionEdit (canViewProfile then canEditProfile), tenant-scoped.
   - path: app/api/inbox/route.ts
     methods: [GET, PATCH]
     guards:

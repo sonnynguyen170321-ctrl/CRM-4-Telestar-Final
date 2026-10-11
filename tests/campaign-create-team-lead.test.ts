@@ -25,6 +25,7 @@ const campaignSdrUpsert = vi.fn();
 const clientFindUnique = vi.fn();
 const clientCreate = vi.fn();
 const auditCreate = vi.fn();
+const icpVersionFindFirst = vi.fn();
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -33,6 +34,7 @@ vi.mock('@/lib/prisma', () => ({
     campaignSdr: { upsert: (...a: unknown[]) => campaignSdrUpsert(...a) },
     client: { findUnique: (...a: unknown[]) => clientFindUnique(...a), create: (...a: unknown[]) => clientCreate(...a) },
     auditLog: { create: (...a: unknown[]) => auditCreate(...a) },
+    icpVersion: { findFirst: (...a: unknown[]) => icpVersionFindFirst(...a) },
   },
   tenantStorage: { run: (_: unknown, fn: () => unknown) => fn() },
 }));
@@ -56,7 +58,7 @@ const create = () =>
     new NextRequest('http://localhost:3000/api/campaigns', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Nekko Q4', clientId: 'client-1' }),
+      body: JSON.stringify({ name: 'Nekko Q4', clientId: 'client-1', icp: { mode: 'library', icpVersionId: 'v-1' } }),
     })
   );
 
@@ -64,6 +66,7 @@ describe('POST /api/campaigns', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clientFindUnique.mockResolvedValue({ id: 'client-1' });
+    icpVersionFindFirst.mockResolvedValue({ id: 'v-1', icpProfileId: 'p-1' });
     campaignCreate.mockResolvedValue({ id: 'camp-1', name: 'Nekko Q4', status: 'active' });
     campaignSdrUpsert.mockResolvedValue({});
     auditCreate.mockResolvedValue({});

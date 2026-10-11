@@ -264,7 +264,38 @@ export const createActivitySchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
+/**
+ * The ICP a new campaign scores against. Required: a campaign with no ICP is not scored at all
+ * (there is no default fallback), so creating one without a choice would create a dead campaign.
+ *
+ * `library`: a published version of a shared ICP; the campaign then follows that ICP's newest
+ * published version. `custom`: make a personal ICP for this campaign (from a template, as a copy of
+ * another ICP, or blank); it starts as a draft, so the campaign is unscored until the draft is
+ * published, or approved when the creator is not a team lead or above.
+ */
+export const campaignIcpChoice = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('library'), icpVersionId: id }).strict(),
+  z
+    .object({
+      mode: z.literal('custom'),
+      source: z.enum(['template', 'library', 'blank']),
+      templateId: z.string().trim().min(1).max(100).optional(),
+      sourceProfileId: id.optional(),
+      name: z.string().trim().min(2).max(120).optional(),
+    })
+    .strict()
+    .refine((v) => v.source !== 'template' || Boolean(v.templateId), {
+      message: 'Choose a template',
+      path: ['templateId'],
+    })
+    .refine((v) => v.source !== 'library' || Boolean(v.sourceProfileId), {
+      message: 'Choose the ICP to copy',
+      path: ['sourceProfileId'],
+    }),
+]);
+
 export const createCampaignSchema = z.object({
+  icp: campaignIcpChoice,
   name: z.string().min(1).max(200),
   clientId: id.nullish().optional(),
   newClientName: z.string().min(1).max(200).optional(),

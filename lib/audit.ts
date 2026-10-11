@@ -262,6 +262,11 @@ export const ADMIN_AUDIT_ACTIONS = [
   'admin.campaign.archive',
   'admin.icp.create',
   'admin.icp.publish',
+  // Review workflow for a rep's personal ICP: submit (Publish by a rep), approve, reject, withdraw.
+  'admin.icp.submit',
+  'admin.icp.approve',
+  'admin.icp.reject',
+  'admin.icp.withdraw',
   // Changes which ICP scores every lead whose campaign has none of its own.
   'admin.icp.set_default',
   // Point a campaign at an ICP, or clear it (then its leads are not scored).
