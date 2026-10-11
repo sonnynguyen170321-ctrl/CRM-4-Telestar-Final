@@ -32,7 +32,8 @@ import dynamic from 'next/dynamic';
 const PhoneCallPanel = dynamic(() => import('@/components/dialer/PhoneCallPanel'), { ssr: false });
 // The browser softphone pulls in the Telnyx SDK; it loads only when a rep opens it.
 const Softphone = dynamic(() => import('@/components/dialer/Softphone'), { ssr: false });
-import { useDialerEnabled } from '@/components/dialer/useDialerStatus';
+import { useDialerStatus } from '@/components/dialer/useDialerStatus';
+import type { DialerStatus } from '@/lib/telephony/dialerStatus';
 import { chooseCallSurface } from '@/lib/telephony/callSurface';
 import { phoneCallTarget } from '@/lib/telephony/logPhoneCall';
 import NextBestActionCard from '@/components/ai/NextBestActionCard';
@@ -278,7 +279,22 @@ function LeadDetailPanelBody({
   const [savingLog, setSavingLog] = useState(false);
   /** The Call button's screen: the call-by-phone panel or the browser softphone (chooseCallSurface). */
   const [showDialer, setShowDialer] = useState(false);
-  const dialerEnabled = useDialerEnabled();
+  const dialerStatus = useDialerStatus();
+  /** The dialer answer the open dialog was routed with (stable while it is open), and the Call button's wait. */
+  const [openStatus, setOpenStatus] = useState<DialerStatus>('disabled');
+  const [callWaiting, setCallWaiting] = useState(false);
+  // The Call button waits for the status instead of guessing "off": the answer, or the panel after ~2 s.
+  const openCall = async () => {
+    if (callWaiting) return;
+    let answer = dialerStatus.status;
+    if (answer === 'unknown') {
+      setCallWaiting(true);
+      answer = await dialerStatus.resolve();
+      setCallWaiting(false);
+    }
+    setOpenStatus(answer);
+    setShowDialer(true);
+  };
   /** A softphone call on this lead that ended without an outcome (tab closed mid-call): nudge to finish it. */
   const [pendingCallId, setPendingCallId] = useState<string | null>(null);
   const [resumeCallId, setResumeCallId] = useState<string | null>(null);
@@ -1191,7 +1207,7 @@ function LeadDetailPanelBody({
               if (action === 'REPLY' || action === 'FOLLOW_UP') {
                 setShowComposer(true);
               } else if (action === 'CALL') {
-                if (lead.phone) setShowDialer(true);
+                if (lead.phone) void openCall();
               } else if (action === 'SCHEDULE') {
                 setShowBookingModal(true);
               } else if (action === 'REVIEW') {
@@ -1241,10 +1257,11 @@ function LeadDetailPanelBody({
                 </button>
                 <button
                   type="button"
-                  disabled={!lead.phone}
+                  disabled={!lead.phone || callWaiting}
+                  aria-busy={callWaiting}
                   onClick={() => {
                     if (!lead.phone) return;
-                    setShowDialer(true);
+                    void openCall();
                   }}
                   title={!lead.phone ? 'No phone number' : `Call ${lead.phone} from your phone, then log it`}
                   className={`flex flex-col items-center justify-center p-2.5 rounded-xl transition-all text-center gap-1 ${
@@ -1253,8 +1270,8 @@ function LeadDetailPanelBody({
                       : 'bg-card-border/30 border border-transparent text-text-muted cursor-not-allowed opacity-50'
                   }`}
                 >
-                  <Phone className="w-4 h-4" />
-                  <span className="text-[10px] font-medium font-mono">Call</span>
+                  <Phone className={`w-4 h-4 ${callWaiting ? 'animate-pulse' : ''}`} />
+                  <span className="text-[10px] font-medium font-mono">{callWaiting ? 'Checking…' : 'Call'}</span>
                 </button>
                 <button
                   type="button"
@@ -2605,12 +2622,13 @@ function LeadDetailPanelBody({
           },
           onMeetingBooked: () => setShowBookingModal(true),
         };
-        // Vietnamese numbers, and every number while the browser dialer is off for this rep, keep the
-        // call-from-your-own-phone panel. The do-not-call warning blocks on both screens.
-        const surface = chooseCallSurface({ target: phoneCallTarget(lead.phone, lead.contact?.country), dialerEnabled });
+        // One call screen: the softphone (Vietnam included) with the QR for the rep's own phone inside it,
+        // or the phone panel alone while the dialer is off. The do-not-call warning blocks on both.
+        const surface = chooseCallSurface({ target: phoneCallTarget(lead.phone, lead.contact?.country), dialerStatus: openStatus });
         if (resumeCallId) return <Softphone {...dialerProps} resumeCallId={resumeCallId} />;
         if (surface === 'softphone' && !ownPhone) return <Softphone {...dialerProps} onOwnPhone={() => setOwnPhone(true)} />;
-        return <PhoneCallPanel {...dialerProps} />;
+        // With the dialer available the panel offers the way back to calling from the CRM.
+        return <PhoneCallPanel {...dialerProps} onCallFromCrm={openStatus === 'enabled' && phoneCallTarget(lead.phone, lead.contact?.country).e164 ? () => setOwnPhone(false) : undefined} />;
       })()}
 
       {showBookingModal && lead && (

@@ -1,3 +1,4 @@
+import type { DialerStatus } from './dialerStatus';
 import type { PhoneCallTarget } from './logPhoneCall';
 
 /**
@@ -10,10 +11,16 @@ import type { PhoneCallTarget } from './logPhoneCall';
  * the default for every number. A number that cannot be read goes to the panel, which says so. The
  * do-not-call warning blocks on both screens; it is not decided here.
  */
-export type CallSurface = 'phone_panel' | 'softphone';
+export type CallSurface = 'phone_panel' | 'softphone' | 'wait';
 
-export function chooseCallSurface(input: { target: PhoneCallTarget; dialerEnabled: boolean }): CallSurface {
-  if (!input.dialerEnabled) return 'phone_panel';
+/**
+ * `wait` is the answer while the dialer status is still `unknown`: the Call button holds (a spinner, at
+ * most about two seconds) instead of guessing, because guessing "off" sent a rep with the dialer on to the
+ * phone panel. The caller turns a timeout into `disabled`.
+ */
+export function chooseCallSurface(input: { target: PhoneCallTarget; dialerStatus: DialerStatus }): CallSurface {
+  if (input.dialerStatus === 'unknown') return 'wait';
+  if (input.dialerStatus === 'disabled') return 'phone_panel';
   if (!input.target.e164) return 'phone_panel';
   return 'softphone';
 }

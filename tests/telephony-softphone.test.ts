@@ -199,25 +199,31 @@ describe('the gate\'s words', () => {
 });
 
 describe('which screen the Call button opens', () => {
-  const surface = (phone: string, country: string | null, dialerEnabled: boolean) =>
-    chooseCallSurface({ target: phoneCallTarget(phone, country), dialerEnabled });
+  const surface = (phone: string, country: string | null, dialerStatus: 'unknown' | 'enabled' | 'disabled') =>
+    chooseCallSurface({ target: phoneCallTarget(phone, country), dialerStatus });
 
   it('sends a Vietnamese number to the softphone when the dialer is enabled', () => {
-    expect(surface('0948 200 638', 'Vietnam', true)).toBe('softphone');
-    expect(surface('0948200638', 'Singapore', true)).toBe('softphone');
+    expect(surface('0948 200 638', 'Vietnam', 'enabled')).toBe('softphone');
+    expect(surface('+84909099403', 'Vietnam', 'enabled')).toBe('softphone');
+    expect(surface('0948200638', 'Singapore', 'enabled')).toBe('softphone');
   });
 
   it('sends a foreign number to the softphone when the dialer is enabled', () => {
-    expect(surface('+1 415 555 2671', 'United States', true)).toBe('softphone');
+    expect(surface('+1 415 555 2671', 'United States', 'enabled')).toBe('softphone');
   });
 
-  it('keeps the phone panel for everything when the dialer is not enabled for this rep', () => {
-    expect(surface('+1 415 555 2671', 'United States', false)).toBe('phone_panel');
-    expect(surface('0948200638', 'Vietnam', false)).toBe('phone_panel');
+  it('keeps the phone panel for everything when the dialer is disabled for this rep', () => {
+    expect(surface('+1 415 555 2671', 'United States', 'disabled')).toBe('phone_panel');
+    expect(surface('0948200638', 'Vietnam', 'disabled')).toBe('phone_panel');
+  });
+
+  it('waits while the status is unknown instead of guessing the panel', () => {
+    expect(surface('+84909099403', 'Vietnam', 'unknown')).toBe('wait');
+    expect(surface('+1 415 555 2671', 'United States', 'unknown')).toBe('wait');
   });
 
   it('sends an unreadable number to the panel, which says so', () => {
-    expect(surface('not a number', null, true)).toBe('phone_panel');
+    expect(surface('not a number', null, 'enabled')).toBe('phone_panel');
   });
 });
 
