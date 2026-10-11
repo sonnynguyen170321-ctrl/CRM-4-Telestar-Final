@@ -90,6 +90,35 @@ function commandBody(command: CallCommand, commandId: string): Record<string, un
 
 type TelnyxReply = { status: number; text: string };
 
+/** Only the error's code and title: short, fixed vocabulary. The detail text can echo the request, so it is dropped. */
+async function readProviderError(response: Response): Promise<{ code: string | null; title: string | null } | null> {
+  const reader = response.body?.getReader();
+  if (!reader) return null;
+  try {
+    // A stalled error body must not hold the request: one second, 8 KB, then the stream is released.
+    const read = (async () => {
+      const decoder = new TextDecoder();
+      let text = '';
+      while (text.length < 8192) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        text += decoder.decode(value, { stream: true });
+      }
+      return text;
+    })();
+    const text = await Promise.race([read, new Promise<null>((resolve) => setTimeout(() => resolve(null), 1000))]);
+    if (text === null) return null;
+    const first = (JSON.parse(text) as { errors?: Array<{ code?: unknown; title?: unknown }> }).errors?.[0];
+    if (!first) return null;
+    const short = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v).slice(0, 80) : null);
+    return { code: short(first.code), title: short(first.title) };
+  } catch {
+    return null;
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+}
+
 function parseJson<T>(reply: TelnyxReply): T {
   try {
     return JSON.parse(reply.text) as T;
@@ -141,7 +170,8 @@ export class TelnyxProvider implements TelephonyProvider {
 
         const retryable = response.status === 429 || response.status >= 500;
         // Never echo the response body into the error: it can carry the request back.
-        lastError = new TelephonyProviderError(`Telnyx ${method} ${path} failed with ${response.status}`, response.status, retryable);
+        const providerError = await readProviderError(response);
+        lastError = new TelephonyProviderError(`Telnyx ${method} ${path} failed with ${response.status}`, response.status, retryable, providerError);
         // Release the socket: an unread error body keeps it busy through a 429/5xx storm.
         // A cancel can only fail on a stream that is already closed, which is the goal anyway.
         await response.body?.cancel().catch(() => undefined);

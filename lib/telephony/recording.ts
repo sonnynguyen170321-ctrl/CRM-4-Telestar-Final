@@ -51,6 +51,16 @@ export async function loadRecordingSettings(tenantId: string) {
   };
 }
 
+/** A refusal because the call is no longer there (Telnyx 404, or 422 "call has already ended"): expected after a short call, not an error. */
+export function isCallOverError(error: unknown): boolean {
+  if (!(error instanceof TelephonyProviderError)) return false;
+  if (error.status === 404) return true;
+  if (error.status !== 422) return false;
+  const code = error.providerError?.code;
+  const title = (error.providerError?.title ?? '').toLowerCase();
+  return code === '90018' || title.includes('already ended') || title.includes('not active') || title.includes('no longer');
+}
+
 /** Is this the lead's leg - the one we created with the transfer? Decided by our mark or the stored leg id, never by direction. */
 export function isLeadLegEvent(
   event: Pick<TelnyxEvent, 'controlId' | 'clientState'>,
@@ -80,7 +90,7 @@ export async function startRecordingOnAnswer(call: { id: string; tenantId: strin
   if (!event.controlId) return 'skipped';
   const row = await prisma.call.findFirst({
     where: { id: call.id, tenantId: call.tenantId },
-    select: { leadLegControlId: true, recordingStartedAt: true, recordingNoticeAt: true },
+    select: { leadLegControlId: true, providerControlId: true, recordingStartedAt: true, recordingNoticeAt: true },
   });
   if (!row || !isLeadLegEvent(event, call.id, row.leadLegControlId)) return 'skipped';
   await noteLeadLeg(call, event);
@@ -95,13 +105,23 @@ export async function startRecordingOnAnswer(call: { id: string; tenantId: strin
   let started = row.recordingStartedAt !== null;
 
   if (!started) {
-    try {
-      await provider.command(event.controlId, { action: 'record_start', channels: 'dual', playBeep: false }, `record:${call.id}`);
-      await markStarted();
-      started = true;
-    } catch (error) {
-      if (error instanceof TelephonyProviderError && error.retryable) throw error;
-      console.error('[telephony] could not start recording', { callId: call.id, error: safeError(error) });
+    // The lead's leg first. If the provider refuses it for a reason other than the call being over, the same
+    // dual-channel recording is tried on the rep's (parked) leg, which carries both sides once bridged.
+    const legs = [event.controlId, ...(row.providerControlId && row.providerControlId !== event.controlId ? [row.providerControlId] : [])];
+    for (const [index, leg] of legs.entries()) {
+      try {
+        await provider.command(leg, { action: 'record_start', channels: 'dual', playBeep: false }, index === 0 ? `record:${call.id}` : `record:${call.id}:rep`);
+        await markStarted();
+        started = true;
+        break;
+      } catch (error) {
+        if (error instanceof TelephonyProviderError && error.retryable) throw error;
+        if (isCallOverError(error)) {
+          console.info('[telephony] recording not started: the call had already ended', { callId: call.id, leg: index === 0 ? 'lead' : 'rep' });
+          break;
+        }
+        console.error('[telephony] could not start recording', { callId: call.id, leg: index === 0 ? 'lead' : 'rep', error: safeError(error) });
+      }
     }
   }
 

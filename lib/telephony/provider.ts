@@ -70,7 +70,9 @@ export class TelephonyProviderError extends Error {
   constructor(
     message: string,
     readonly status: number | null,
-    readonly retryable: boolean
+    readonly retryable: boolean,
+    /** Telnyx's own error code and title from the response (never the detail text, which can echo the request). */
+    readonly providerError: { code: string | null; title: string | null } | null = null
   ) {
     super(message);
     this.name = 'TelephonyProviderError';
