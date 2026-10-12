@@ -22,6 +22,7 @@ import ComposeEditor from '@/components/compose/ComposeEditor';
 import SubjectField from '@/components/compose/SubjectField';
 import { useSnippets } from '@/components/compose/useComposeData';
 import { blockRemoteImages, hasRemoteImages, hasUnsupportedHtml } from '@/lib/compose/html';
+import { bodySnippet, bodyToText } from '@/lib/compose/snippet';
 
 interface Template {
   id: string;
@@ -370,7 +371,7 @@ export default function TemplatesPage() {
     const matchesSearch =
       !debouncedSearch ||
       t.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      t.body.toLowerCase().includes(debouncedSearch.toLowerCase());
+      bodyToText(t.body).toLowerCase().includes(debouncedSearch.toLowerCase());
     return matchesChannel && matchesSearch;
   });
 
@@ -470,7 +471,7 @@ export default function TemplatesPage() {
                   <h2 className="font-display font-bold text-xs text-text-primary mt-1.5 truncate">
                     {temp.name}
                   </h2>
-                  <p className="text-xs text-text-muted mt-1 truncate">{temp.body}</p>
+                  <p className="text-xs text-text-muted mt-1 truncate">{bodySnippet(temp.body, 160)}</p>
                 </div>
                 <button
                   onClick={(e) => {
@@ -653,7 +654,7 @@ export default function TemplatesPage() {
                                 </p>
                               )}
                               <p className="text-[10px] text-text-muted line-clamp-2">
-                                <span className="font-semibold">Body:</span> {v.body || '(none)'}
+                                <span className="font-semibold">Body:</span> {bodySnippet(v.body, 200) || '(none)'}
                               </p>
                               <p className="text-[9px] text-text-muted">
                                 Sent: {v.sentCount} | Replies: {v.replyCount}

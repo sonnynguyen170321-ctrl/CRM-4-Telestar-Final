@@ -43,7 +43,7 @@ const W_COLLAPSED = '56px';
 const isLeadgenUser = (role: string) => role === 'leadgen' || role === 'leadgen_manager';
 
 /**
- * Roles the Lead Filter and Leadgen Manager screens actually admit.
+ * Roles the Leadgen Manager screens actually admit.
  *
  * These mirror `canUseResearchRole(role, 'manage')` in lib/research/access.ts and
  * `canAccessLeadgenManager` in app/leadgen-manager/page.tsx. Both are role lists that exclude
@@ -53,7 +53,6 @@ const isLeadgenUser = (role: string) => role === 'leadgen' || role === 'leadgen_
  * click looked like nothing happened. Rendering and authorization must read the same list.
  */
 const LEADGEN_ADMIN_ROLES = ['director', 'floor_manager', 'leadgen_manager'];
-const canManageLeadFilter = (role: string) => LEADGEN_ADMIN_ROLES.includes(role);
 const canAccessLeadgenManager = (role: string) => LEADGEN_ADMIN_ROLES.includes(role);
 
 interface NavItem {
@@ -155,9 +154,6 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
             ...(canUseResearchRole(userRole, 'read')
               ? [{ name: 'Research', href: '/research', icon: Radar }]
               : []),
-            ...(canManageLeadFilter(userRole)
-              ? [{ name: 'Lead Filter', href: '/lead-filter', icon: Funnel }]
-              : []),
             // app/automation/page.tsx gates on `isManager`, which is false for `leadgen`.
             ...(isManager
               ? [{ name: 'ICP & Scoring', href: '/automation?tab=scoring', icon: Target }]
@@ -216,9 +212,6 @@ function SidebarInner({ userRole = 'sdr' }: SidebarProps) {
           items: [
             ...(canUseResearchRole(userRole, 'read')
               ? [{ name: 'Research', href: '/research', icon: Radar }]
-              : []),
-            ...(canManageLeadFilter(userRole)
-              ? [{ name: 'Lead Filter', href: '/lead-filter', icon: Funnel }]
               : []),
             ...(isManager
               ? [{ name: 'ICP & Scoring', href: '/automation?tab=scoring', icon: Target, badge: icpReviewCount }]

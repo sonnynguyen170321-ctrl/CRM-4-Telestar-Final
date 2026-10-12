@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { Mail, AlertCircle, RefreshCw } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
+import { EmailBodyView } from '@/components/shared/EmailBodyView';
 
 interface OutboundMessage {
   id: string;
@@ -217,8 +218,8 @@ export default function OutboundAdminPage() {
                               {/* Right column: email content body */}
                               <div className="flex flex-col">
                                 <p className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Email Body</p>
-                                <div className="bg-bg-main/60 border border-card-border rounded-xl p-3 flex-1 font-mono text-[11px] text-text-secondary overflow-y-auto max-h-48 whitespace-pre-wrap break-words">
-                                  {msg.body || <span className="text-text-muted italic">— no content —</span>}
+                                <div className="bg-bg-main/60 border border-card-border rounded-xl p-3 flex-1 text-text-secondary">
+                                  {msg.body ? <EmailBodyView body={msg.body} collapsedClassName="max-h-40" /> : <span className="text-text-muted italic">— no content —</span>}
                                 </div>
                               </div>
                             </div>

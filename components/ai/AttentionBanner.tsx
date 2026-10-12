@@ -1,14 +1,16 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowRight, X, Sparkles } from 'lucide-react';
+import { leadIdFromLink, openLeadSlideOver } from '@/lib/leads/openLead';
 import type { AttentionReport, AttentionItem } from '@/lib/ai/engine/attention-engine';
 
 export default function AttentionBanner() {
   const [report, setReport] = useState<AttentionReport | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
 
   useEffect(() => {
     fetch('/api/ai/attention')
@@ -44,13 +46,18 @@ export default function AttentionBanner() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <Link
-            href={topItem.targetUrl}
+          <button
+            type="button"
+            onClick={() => {
+              const leadId = leadIdFromLink(topItem.targetUrl);
+              if (leadId) openLeadSlideOver(router, leadId);
+              else router.push(topItem.targetUrl);
+            }}
             className="inline-flex items-center gap-1 rounded-md bg-brand-gold-text/15 px-2.5 py-1 text-[11px] font-medium text-brand-gold-text hover:bg-brand-gold-text hover:text-white transition-colors"
           >
             <span>{topItem.actionLabel || 'Action'}</span>
             <ArrowRight className="h-3 w-3" />
-          </Link>
+          </button>
 
           <button
             onClick={() => setDismissed(true)}

@@ -34,3 +34,9 @@ export function openLeadSlideOver(router: Router, leadId: string): void {
     }, 300);
   }
 }
+
+/** The lead id in a stored `/leads/{id}` link (notifications, attention items), or null. */
+export function leadIdFromLink(link: string | null | undefined): string | null {
+  const match = link?.match(/^\/leads\/([^/?#]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}

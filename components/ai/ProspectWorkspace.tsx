@@ -14,6 +14,7 @@ import ReengagementPanel from './ReengagementPanel';
 import AssistPanel from './AssistPanel';
 import type { AssistResult, HandoffPackage } from './types';
 import { clockTime, relativeTime } from './types';
+import { bodyToText } from '@/lib/compose/snippet';
 
 /**
  * The intelligence workspace for one prospect.
@@ -244,7 +245,7 @@ export default function ProspectWorkspace({
                   </div>
                   {m.subject && <p className="type-meta text-text-primary mt-1">{m.subject}</p>}
                   {m.body && (
-                    <p className="type-meta text-text-secondary mt-1 whitespace-pre-wrap line-clamp-6">{m.body}</p>
+                    <p className="type-meta text-text-secondary mt-1 whitespace-pre-wrap line-clamp-6">{bodyToText(m.body)}</p>
                   )}
                 </li>
               ))}

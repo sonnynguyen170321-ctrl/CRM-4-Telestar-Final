@@ -41,9 +41,11 @@ import { DrawerNavButtons, useDrawerNavigation } from '@/components/shared/Drawe
 import ContactIntelligenceBadge from '@/components/intelligence/ContactIntelligenceBadge';
 import ContactIntelligenceDrawer from '@/components/intelligence/ContactIntelligenceDrawer';
 import { safeHttpUrl } from '@/lib/security/safeHref';
+import { accountWebsite } from '@/lib/leads/accountWebsite';
 import ProspectClock from '@/components/time/ProspectClock';
 import CallRecordingPlayer from '@/components/telephony/CallRecordingPlayer';
 import { inferTimezone } from '@/lib/time/inferTimezone';
+import { EmailBodyView } from '@/components/shared/EmailBodyView';
 import { IcpFitCard, type IcpFitLead } from '@/components/leads/IcpFitCard';
 
 interface MeetingItem {
@@ -120,6 +122,7 @@ interface LeadDetail {
   account?: {
     website?: string | null;
     domain?: string | null;
+    canonicalDomain?: string | null;
     industry?: string | null;
     country?: string | null;
     companyPhone?: string | null;
@@ -539,6 +542,7 @@ function LeadDetailPanelBody({
       isPinned?: boolean;
       channel?: string;
       recordingCallId?: string;
+      emailBody?: string;
     }
 
     const list: TimelineItem[] = [];
@@ -604,7 +608,8 @@ function LeadDetailPanelBody({
           title: `Outbound Email: ${m.subject || '— no subject —'}`,
           description: `To: ${m.to} · Status: ${m.status.toUpperCase()}${
             m.errorMessage ? ` · Error: ${m.errorMessage}` : ''
-          }${m.body ? `\n\n${m.body}` : ''}`,
+          }`,
+          emailBody: m.body || undefined,
           channel: 'email',
         });
       });
@@ -649,6 +654,8 @@ function LeadDetailPanelBody({
   }
 
   if (!lead) return null;
+
+  const site = accountWebsite(lead.account);
 
   // Every sequence the lead is in right now, not only the one `Lead.sequenceId` points at: a lead
   // can run several at once, and a sequence already running cannot be added again.
@@ -1116,6 +1123,12 @@ function LeadDetailPanelBody({
             </h2>
             <p className="text-xs text-text-secondary mt-0.5">
               {lead.title} at <span className="font-semibold">{lead.company}</span>
+              {site && (
+                <>
+                  {' · '}
+                  <a href={site.href} target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline">{site.label}</a>
+                </>
+              )}
             </p>
             <ProspectClock
               timezone={lead.timezone}
@@ -1628,6 +1641,14 @@ function LeadDetailPanelBody({
                       )}
                     </div>
                     <div>
+                      <span className="text-text-secondary block text-[10px] font-semibold uppercase">Website</span>
+                      {site ? (
+                        <a href={site.href} target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline font-semibold truncate max-w-full block">{site.label}</a>
+                      ) : (
+                        <span className="text-text-muted">—</span>
+                      )}
+                    </div>
+                    <div>
                       <span className="text-text-secondary block text-[10px] font-semibold uppercase">Lead Source</span>
                       <span className="text-text-primary font-semibold">{lead.source || '—'}</span>
                     </div>
@@ -1688,15 +1709,15 @@ function LeadDetailPanelBody({
                   </div>
                   <div>
                     <span className="text-text-secondary block text-[10px] font-semibold uppercase">Industry Domain</span>
-                    <span className="text-text-primary font-semibold">{lead.account?.industry || 'Technology & B2B Services'}</span>
+                    <span className="text-text-primary font-semibold">{lead.account?.industry || '—'}</span>
                   </div>
                   <div>
                     <span className="text-text-secondary block text-[10px] font-semibold uppercase">Company HQ</span>
-                    <span className="text-text-primary font-semibold">{lead.account?.country || 'Global / Remote'}</span>
+                    <span className="text-text-primary font-semibold">{lead.account?.country || '—'}</span>
                   </div>
                   <div>
                     <span className="text-text-secondary block text-[10px] font-semibold uppercase">Estimated Headcount</span>
-                    <span className="text-text-primary font-semibold">{lead.account?.staffCountRange || '11-50 employees'}</span>
+                    <span className="text-text-primary font-semibold">{lead.account?.staffCountRange || '—'}</span>
                   </div>
                 </div>
               </div>
@@ -1954,6 +1975,7 @@ function LeadDetailPanelBody({
                           <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-line">
                             {item.description}
                           </p>
+                          {item.emailBody && <EmailBodyView body={item.emailBody} className="mt-2" />}
                           {item.recordingCallId && <CallRecordingPlayer callId={item.recordingCallId} />}
                         </div>
                       </div>
