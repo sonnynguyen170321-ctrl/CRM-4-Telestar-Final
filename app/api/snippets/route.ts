@@ -5,6 +5,7 @@ import type { SessionUser } from '@/lib/auth';
 import { parseBody } from '@/lib/validation/core';
 import { handleApiError } from '@/lib/api/errors';
 import { canShare } from '@/lib/visibility';
+import { composeRateLimit } from '@/lib/compose/rateLimit';
 import { canManageSnippet, visibleSnippetsWhere } from '@/lib/snippets/access';
 import { snippetBodyForStorage, snippetInputSchema } from '@/lib/snippets/input';
 
@@ -48,6 +49,9 @@ export async function POST(req: NextRequest) {
   if (userOrRes instanceof NextResponse) return userOrRes;
   const user = userOrRes as SessionUser;
   if (!user.tenantId) return NextResponse.json({ error: 'No tenant context' }, { status: 401 });
+
+  const limited = await composeRateLimit('snippetCreate', user.id);
+  if (limited) return limited;
 
   const parsed = await parseBody(req, snippetInputSchema, 'Invalid snippet');
   if (parsed.error) return parsed.error;

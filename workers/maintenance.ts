@@ -756,6 +756,27 @@ async function repairQuotaDrift(): Promise<{ fixed: number; details: string[] }>
   return { fixed, details };
 }
 
+/** Composer uploads never attached to a message, older than a day, removed per run (bounded). */
+const STALE_UPLOAD_BATCH = 200;
+const STALE_UPLOAD_MAX_BATCHES = 10;
+
+async function repairStaleUploads(): Promise<{ fixed: number; details: string[] }> {
+  const cutoff = new Date(Date.now() - DAY_MS);
+  let deleted = 0;
+  for (let batch = 0; batch < STALE_UPLOAD_MAX_BATCHES; batch++) {
+    // Ad-hoc uploads only: no template, no message. A template's attachment or a sent file is never touched.
+    const rows = await prisma.attachment.findMany({
+      where: { templateId: null, outboundMessageId: null, uploadedById: { not: null }, createdAt: { lt: cutoff } },
+      select: { id: true },
+      take: STALE_UPLOAD_BATCH,
+    });
+    if (rows.length === 0) break;
+    deleted += (await prisma.attachment.deleteMany({ where: { id: { in: rows.map((r) => r.id) } } })).count;
+    if (rows.length < STALE_UPLOAD_BATCH) break;
+  }
+  return { fixed: deleted, details: [`unsent composer uploads older than 24h -> ${deleted} deleted`] };
+}
+
 const REPAIR_FN: Record<string, () => Promise<{ fixed: number; details: string[] }>> = {
   'orphan-tasks': repairOrphanTasks,
   'quota-drift': repairQuotaDrift,
@@ -768,6 +789,7 @@ const REPAIR_FN: Record<string, () => Promise<{ fixed: number; details: string[]
   'stale-pending-outbound': repairStalePendingOutbound,
   'audit-prune': repairAuditPrune,
   'unapplied-bounces': repairUnappliedBounces,
+  'stale-uploads': repairStaleUploads,
 };
 
 async function handleRepair(payload: MaintenanceRepairPayload) {

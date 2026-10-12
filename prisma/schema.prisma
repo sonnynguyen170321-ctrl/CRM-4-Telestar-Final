@@ -3361,6 +3361,8 @@ model Attachment {
   @@index([outboundMessageId])
   @@index([tenantId])
   @@index([uploadedById, createdAt])
+  // One inline image per content-id per message (NULLs are distinct, so ordinary attachments are free).
+  @@unique([outboundMessageId, cid], map: "Attachment_outboundMessageId_cid_key")
 }
 
 /// A reusable block of an email (a meeting ask, a case-study paragraph) inserted into the composer

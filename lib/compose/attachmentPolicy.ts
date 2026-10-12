@@ -1,3 +1,5 @@
+import { inspectOoxml, type OoxmlKind } from './ooxml';
+
 /**
  * Which files a rep may attach to a composed email, and how big they may be.
  *
@@ -11,28 +13,46 @@ export const MAX_ATTACHMENT_TOTAL_BYTES = 10 * 1024 * 1024;
 /** One file. The total cap is what matters; this keeps a single upload request bounded. */
 export const MAX_ATTACHMENT_FILE_BYTES = MAX_ATTACHMENT_TOTAL_BYTES;
 export const MAX_ATTACHMENTS_PER_MESSAGE = 10;
+/** The most one upload request may carry: the largest file plus multipart framing. Counted as it streams in. */
+export const MAX_UPLOAD_BODY_BYTES = MAX_ATTACHMENT_FILE_BYTES + 1024 * 1024;
+/** What one rep may hold in uploads not yet sent, so unsent files cannot pile up between sweeps. */
+export const MAX_UNBOUND_BYTES_PER_USER = 50 * 1024 * 1024;
 
 interface AllowedType {
   contentType: string;
-  /** Checks the file's first bytes against its extension. */
-  magic: (bytes: Buffer) => boolean;
+  /** Looks inside the file. Null when it is what its extension says; otherwise why not. */
+  check: (bytes: Buffer) => string | null;
 }
 
 const startsWith = (bytes: Buffer, signature: number[]) => signature.every((b, i) => bytes[i] === b);
-const isZip = (bytes: Buffer) => startsWith(bytes, [0x50, 0x4b, 0x03, 0x04]);
-/** csv / txt: no NUL bytes in the first 8 KB (a binary file wearing a text extension). */
-const isText = (bytes: Buffer) => !bytes.subarray(0, 8192).includes(0);
+const notThisType = (ok: boolean, extension: string) => (ok ? null : `does not look like a real .${extension} file`);
+
+/** A PDF starts with its header. Some readers tolerate junk before it; that is how a disguised file hides. */
+const isPdf = (bytes: Buffer) => notThisType(bytes.subarray(0, 5).toString('latin1') === '%PDF-', 'pdf');
+const office = (kind: OoxmlKind) => (bytes: Buffer) =>
+  startsWith(bytes, [0x50, 0x4b, 0x03, 0x04]) ? inspectOoxml(bytes, kind) : `is not a valid .${kind} file`;
+/** csv / txt: valid UTF-8 text, no NUL bytes. A binary file wearing a text extension fails one or the other. */
+const isUtf8Text = (extension: string) => (bytes: Buffer) => {
+  if (bytes.includes(0)) return notThisType(false, extension);
+  try {
+    new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    return null;
+  } catch {
+    return 'is not UTF-8 text';
+  }
+};
+const image = (signature: number[], extension: string) => (bytes: Buffer) => notThisType(startsWith(bytes, signature), extension);
 
 export const ALLOWED_ATTACHMENT_TYPES: Readonly<Record<string, AllowedType>> = {
-  pdf: { contentType: 'application/pdf', magic: (b) => b.subarray(0, 1024).includes(Buffer.from('%PDF-')) },
-  docx: { contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', magic: isZip },
-  xlsx: { contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', magic: isZip },
-  pptx: { contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', magic: isZip },
-  png: { contentType: 'image/png', magic: (b) => startsWith(b, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) },
-  jpg: { contentType: 'image/jpeg', magic: (b) => startsWith(b, [0xff, 0xd8, 0xff]) },
-  jpeg: { contentType: 'image/jpeg', magic: (b) => startsWith(b, [0xff, 0xd8, 0xff]) },
-  csv: { contentType: 'text/csv', magic: isText },
-  txt: { contentType: 'text/plain', magic: isText },
+  pdf: { contentType: 'application/pdf', check: isPdf },
+  docx: { contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', check: office('docx') },
+  xlsx: { contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', check: office('xlsx') },
+  pptx: { contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', check: office('pptx') },
+  png: { contentType: 'image/png', check: image([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 'png') },
+  jpg: { contentType: 'image/jpeg', check: image([0xff, 0xd8, 0xff], 'jpg') },
+  jpeg: { contentType: 'image/jpeg', check: image([0xff, 0xd8, 0xff], 'jpeg') },
+  csv: { contentType: 'text/csv', check: isUtf8Text('csv') },
+  txt: { contentType: 'text/plain', check: isUtf8Text('txt') },
 };
 
 export const ATTACHMENT_ACCEPT = Object.keys(ALLOWED_ATTACHMENT_TYPES).map((e) => `.${e}`).join(',');
@@ -58,7 +78,8 @@ export function checkAttachmentFile(rawName: string, bytes: Buffer): AttachmentC
   if (!allowed) return { ok: false, error: `${name}: this file type cannot be attached. Allowed: ${ATTACHMENT_EXTENSIONS_LABEL}` };
   if (bytes.length === 0) return { ok: false, error: `${name} is empty` };
   if (bytes.length > MAX_ATTACHMENT_FILE_BYTES) return { ok: false, error: `${name} is larger than 10 MB` };
-  if (!allowed.magic(bytes)) return { ok: false, error: `${name} does not look like a real .${extension} file` };
+  const problem = allowed.check(bytes);
+  if (problem) return { ok: false, error: `${name} ${problem}` };
   return { ok: true, name, contentType: allowed.contentType };
 }
 

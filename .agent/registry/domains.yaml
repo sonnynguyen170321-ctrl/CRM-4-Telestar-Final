@@ -197,6 +197,8 @@ domains:
       # The shared composer: editor schema, HTML sanitiser, merge-field checks, attachment policy,
       # CC/BCC rules; snippets (personal/shared); the composer's routes (preview, attachments).
       - lib/compose/**
+      # Counts an upload's bytes as they arrive, so the attachment route never buffers an oversized body.
+      - lib/http/readCappedBody.ts
       - lib/snippets/**
       - app/api/snippets/**
       - app/api/email/preview/**

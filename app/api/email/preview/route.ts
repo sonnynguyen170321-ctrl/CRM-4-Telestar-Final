@@ -10,6 +10,7 @@ import { findMissingMergeValues } from '@/lib/compose/merge';
 import { plainTextToHtml, sanitizeComposeHtml, unchipifyMergeTags } from '@/lib/compose/html';
 import { isHtml } from '@/lib/email/sanitize';
 import { id, longText } from '@/lib/validation/core';
+import { composeRateLimit } from '@/lib/compose/rateLimit';
 
 /**
  * "Preview as this lead": the draft (or a template) rendered with the real lead and the real
@@ -32,6 +33,8 @@ const previewSchema = z
 async function preview(user: SessionUser, input: z.infer<typeof previewSchema>) {
   const tenantId = user.tenantId;
   if (!tenantId) return NextResponse.json({ error: 'No tenant context' }, { status: 401 });
+  const limited = await composeRateLimit('preview', user.id);
+  if (limited) return limited;
 
   const lead = await prisma.lead.findFirst({ where: { id: input.leadId, tenantId } });
   if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
@@ -88,19 +91,19 @@ async function preview(user: SessionUser, input: z.infer<typeof previewSchema>) 
 export async function GET(req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;
+  // A saved template only. A draft's text does not travel in a query string (it lands in access
+  // logs and browser history); POST carries it.
   const url = new URL(req.url);
   const parsed = previewSchema.safeParse({
     leadId: url.searchParams.get('leadId') ?? undefined,
     accountId: url.searchParams.get('accountId') ?? undefined,
     templateId: url.searchParams.get('templateId') ?? undefined,
-    subject: url.searchParams.get('subject') ?? undefined,
-    body: url.searchParams.get('body') ?? undefined,
   });
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid preview' }, { status: 400 });
   return preview(userOrRes as SessionUser, parsed.data);
 }
 
-/** Same preview for a draft too long for a query string. */
+/** A preview of draft text (or a template): the body stays out of the URL. */
 export async function POST(req: NextRequest) {
   const userOrRes = await requireAuth();
   if (userOrRes instanceof NextResponse) return userOrRes;

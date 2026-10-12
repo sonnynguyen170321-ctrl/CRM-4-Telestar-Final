@@ -12,6 +12,7 @@ import {
 import {
   checkAttachmentFile, cleanAttachmentName, extractInlineImages, MAX_ATTACHMENT_TOTAL_BYTES, base64DecodedSize,
 } from '@/lib/compose/attachmentPolicy';
+import { makeMacroDoc, makeOffice, makeZip } from './helpers/zip';
 import { mailboxQuota } from '@/lib/email/mailboxQuota';
 import { buildRawMime, copyRecipientFields } from '@/lib/email/adapters/copyRecipients';
 import { blockRemoteImages, editorHtmlToStored, hasRemoteImages, restoreRemoteImages } from '@/lib/compose/html';
@@ -193,6 +194,11 @@ describe('sanitizeComposeHtml', () => {
     expect(sanitizeComposeHtml('<img src="javascript:alert(1)">')).not.toContain('javascript');
   });
 
+  it('drops a protocol-relative link but keeps a same-site path', () => {
+    expect(sanitizeComposeHtml('<a href="//evil.example/x">a</a>')).not.toContain('href');
+    expect(sanitizeComposeHtml('<a href="/pricing">a</a>')).toContain('href="/pricing"');
+  });
+
   it('drops a style that can fetch but keeps a plain one', () => {
     expect(sanitizeComposeHtml('<p style="background:url(https://t.vn/p.gif)">x</p>')).not.toContain('style');
     expect(sanitizeComposeHtml('<p style="color:red">x</p>')).toContain('style="color:red"');
@@ -201,15 +207,18 @@ describe('sanitizeComposeHtml', () => {
 
 describe('attachment policy', () => {
   const pdf = Buffer.from('%PDF-1.7\n1 0 obj');
-  const zip = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.alloc(16)]);
   const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(8)]);
 
-  it('accepts the allowlisted types by extension and signature, ignoring the browser type', () => {
+  it('accepts the allowlisted types by extension and contents, ignoring the browser type', () => {
     expect(checkAttachmentFile('Brochure.PDF', pdf)).toEqual({ ok: true, name: 'Brochure.PDF', contentType: 'application/pdf' });
-    for (const name of ['a.docx', 'a.xlsx', 'a.pptx']) expect(checkAttachmentFile(name, zip).ok, name).toBe(true);
+    expect(checkAttachmentFile('a.docx', makeOffice('docx')).ok).toBe(true);
+    expect(checkAttachmentFile('a.xlsx', makeOffice('xlsx')).ok).toBe(true);
+    expect(checkAttachmentFile('a.pptx', makeOffice('pptx', { 'ppt/slides/slide1.xml': '<s/>' })).ok).toBe(true);
+    const storedTypes = '<Types><Override ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>';
+    expect(checkAttachmentFile('stored.docx', makeZip({ '[Content_Types].xml': storedTypes, 'word/document.xml': '<x/>' }, { stored: true })).ok).toBe(true);
     expect(checkAttachmentFile('logo.png', png).ok).toBe(true);
     expect(checkAttachmentFile('notes.txt', Buffer.from('hello')).ok).toBe(true);
-    expect(checkAttachmentFile('list.csv', Buffer.from('a,b\n1,2')).ok).toBe(true);
+    expect(checkAttachmentFile('list.csv', Buffer.from('name,city\nLinh,Hà Nội')).ok).toBe(true);
   });
 
   it('refuses other extensions, a mismatching signature, empty files and binary text', () => {
@@ -220,6 +229,39 @@ describe('attachment policy', () => {
     expect(checkAttachmentFile('fake.docx', pdf).ok).toBe(false);
     expect(checkAttachmentFile('empty.pdf', Buffer.alloc(0)).ok).toBe(false);
     expect(checkAttachmentFile('bin.txt', Buffer.from([0x41, 0x00, 0x42])).ok).toBe(false);
+  });
+
+  it('requires a PDF to start with its header, not merely contain it', () => {
+    const prefixed = Buffer.concat([Buffer.from('MZ-payload\n'), pdf]);
+    const result = checkAttachmentFile('invoice.pdf', prefixed);
+    expect(result.ok).toBe(false);
+    expect(checkAttachmentFile('invoice.pdf', pdf).ok).toBe(true);
+  });
+
+  it('requires a real Office structure: a plain zip renamed .docx is refused', () => {
+    const plain = makeZip({ 'readme.txt': 'hello', 'payload.js': 'x' });
+    expect(checkAttachmentFile('report.docx', plain).ok).toBe(false);
+    // Right structure, wrong kind: a workbook named .docx.
+    expect(checkAttachmentFile('report.docx', makeOffice('xlsx')).ok).toBe(false);
+    // Looks like Office but has no [Content_Types].xml.
+    expect(checkAttachmentFile('report.docx', makeZip({ 'word/document.xml': '<x/>' })).ok).toBe(false);
+    // A truncated zip.
+    expect(checkAttachmentFile('report.docx', makeOffice('docx').subarray(0, 60)).ok).toBe(false);
+  });
+
+  it('refuses macro-enabled content (a .docm renamed .docx) and embedded programs', () => {
+    const macro = checkAttachmentFile('report.docx', makeMacroDoc());
+    expect(macro.ok).toBe(false);
+    if (!macro.ok) expect(macro.error).toMatch(/macros/);
+    expect(checkAttachmentFile('book.xlsx', makeOffice('xlsx', { 'xl/vbaProject.bin': 'x' })).ok).toBe(false);
+    const nested = checkAttachmentFile('deck.pptx', makeOffice('pptx', { 'ppt/embeddings/dropper.exe': 'MZ' }));
+    expect(nested.ok).toBe(false);
+    if (!nested.ok) expect(nested.error).toMatch(/embedded program/);
+  });
+
+  it('requires csv and txt to be valid UTF-8', () => {
+    expect(checkAttachmentFile('latin.txt', Buffer.from([0x63, 0x61, 0x66, 0xe9])).ok).toBe(false);
+    expect(checkAttachmentFile('utf8.txt', Buffer.from('café')).ok).toBe(true);
   });
 
   it('cleans a path-like or control-character name', () => {

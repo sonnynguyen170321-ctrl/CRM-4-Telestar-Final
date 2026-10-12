@@ -113,6 +113,8 @@ export async function storeInlineImages(
   for (const image of images) {
     if (have.has(image.cid)) continue;
     const extension = image.contentType === 'image/jpeg' ? 'jpg' : image.contentType.split('/')[1];
+    // The unique (outboundMessageId, cid) index makes a concurrent duplicate harmless: the loser's
+    // insert fails and the image is already there.
     await prisma.attachment.create({
       data: {
         tenantId,
@@ -124,6 +126,8 @@ export async function storeInlineImages(
         content: image.bytes.toString('base64'),
         sizeBytes: image.bytes.length,
       },
+    }).catch((err: { code?: string }) => {
+      if (err?.code !== 'P2002') throw err;
     });
   }
 }

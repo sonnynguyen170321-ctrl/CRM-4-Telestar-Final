@@ -201,6 +201,8 @@ export default function MailComposerModal({ lead, onClose, task, onSent, initial
       if (!res.ok) throw new Error(data.error || 'Failed to send email.');
 
       showToast(`Email queued to ${lead.email}`, 'success');
+      const dropped = (data.droppedCopies ?? []) as Array<{ address: string; reason: string }>;
+      if (dropped.length > 0) showToast(`Not copied: ${dropped.map((d) => `${d.address} (${d.reason})`).join(', ')}`, 'warning');
       onSent?.();
       onClose();
     } catch (err) {

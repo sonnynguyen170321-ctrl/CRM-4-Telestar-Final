@@ -8,7 +8,7 @@ import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows
 import { newRequestId } from '@/lib/email/idempotency';
 import { mailboxRefusal, recipientRefusal } from '@/lib/email/sendGate';
 import { composeAttachmentIds, copyRecipientList } from '@/lib/validation/schemas';
-import { finalizeComposed, prepareComposed } from '@/lib/email/prepareComposed';
+import { abandonOutbound, finalizeComposed, prepareComposed } from '@/lib/email/prepareComposed';
 
 const replySchema = z.object({
   body: z.string().trim().min(1, 'Reply body is required').max(100_000),
@@ -123,6 +123,7 @@ export async function POST(
     //    which made every retry a brand-new row and therefore a second delivery.
     const replySubject = subject.toLowerCase().startsWith('re:') ? subject : `Re: ${subject}`;
 
+    const startedAt = Date.now();
     const outbound = await createOutboundMessage({
       source: {
         kind: 'reply',
@@ -151,21 +152,30 @@ export async function POST(
       return NextResponse.json({ error: 'Duplicate request' }, { status: 409 });
     }
 
-    const attachFailure = await finalizeComposed(user.tenantId, user.id, outbound.id, prepared.value);
+    // A failure here makes the reply terminal: one the rep was told failed must not be swept up and
+    // sent later without its attachments.
+    const attachFailure = await finalizeComposed(user.tenantId, user.id, outbound, startedAt, prepared.value);
     if (attachFailure) return attachFailure;
 
     // 4. Enqueue email send workflow
-    await enqueueEmailSendWorkflow(
-      {
-        outboundMessageId: outbound.id,
-        accountId: account.id,
-        to: lead.email,
-        subject: replySubject,
-        body,
-        leadId: lead.id,
-      },
-      user.tenantId!
-    );
+    try {
+      await enqueueEmailSendWorkflow(
+        {
+          outboundMessageId: outbound.id,
+          accountId: account.id,
+          to: lead.email,
+          subject: replySubject,
+          body,
+          leadId: lead.id,
+        },
+        user.tenantId!
+      );
+    } catch (enqueueError) {
+      if (outbound.createdAt.getTime() >= startedAt) {
+        await abandonOutbound(user.tenantId, outbound.id, 'Not sent: it could not be queued').catch(() => undefined);
+      }
+      throw enqueueError;
+    }
 
     return NextResponse.json({
       success: true,
@@ -173,6 +183,8 @@ export async function POST(
       // shows how it ends (sent, deferred, failed, bounced).
       message: 'Reply queued',
       status: outbound.status,
+      // Copies left off (suppressed, or bounced earlier); the composer says so.
+      droppedCopies: prepared.value.droppedCopies,
       outboundMessage: {
         id: outbound.id,
         type: 'outbound',

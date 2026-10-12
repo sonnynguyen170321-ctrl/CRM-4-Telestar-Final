@@ -277,6 +277,25 @@ describe('handleEmailSend', () => {
       mockSuppressionFindFirst.mockReset();
     });
 
+    it('applies the bounce-evidence lock to each copy, naming no lead', async () => {
+      mockExecuteRaw.mockResolvedValueOnce(1);
+      mockServiceSend.mockResolvedValueOnce('provider-msg-id-cc3');
+      mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage({ cc: ['dead@t.test', 'ok@t.test'], bcc: ['dead2@t.test'] }));
+      mockSuppressionFindFirst.mockResolvedValue(null);
+      mockBlockIfBounced.mockImplementation(async (args: { email: string }) =>
+        args.email.startsWith('dead') ? { source: 'send', at: new Date(), reason: 'hard_bounce' } : null);
+      const result = await handleEmailSend(buildPayload());
+      expect(result).toMatchObject({ success: true });
+      const sent = mockServiceSend.mock.calls[0][0] as { cc?: string[]; bcc?: string[] };
+      expect(sent.cc).toEqual(['ok@t.test']);
+      expect(sent).not.toHaveProperty('bcc');
+      // A bounce on a copy must not pause the main recipient's cadences: no lead is passed.
+      const copyCalls = mockBlockIfBounced.mock.calls.filter((c) => (c[0] as { email: string }).email !== 'test@example.com');
+      expect(copyCalls.length).toBe(3);
+      for (const call of copyCalls) expect(call[0]).toMatchObject({ leadId: null });
+      mockBlockIfBounced.mockReset();
+    });
+
     it('attaches the files the rep added to this message, and the pasted images under their cid', async () => {
       prepare();
       mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());

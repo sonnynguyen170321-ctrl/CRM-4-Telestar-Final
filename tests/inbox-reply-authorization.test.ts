@@ -37,6 +37,8 @@ vi.mock('@/lib/prisma', () => ({
     inboundMessage: { findMany: (...a: unknown[]) => mockInboundFindMany(...a) },
     emailAccount: { findFirst: (...a: unknown[]) => mockAccountFindFirst(...a) },
     suppressionEntry: { findFirst: vi.fn().mockResolvedValue(null) },
+    // The files already on a retried message (none here).
+    attachment: { findMany: vi.fn().mockResolvedValue([]) },
   },
 }));
 vi.mock('@/lib/email/idempotency', () => ({ newRequestId: () => 'req-1' }));

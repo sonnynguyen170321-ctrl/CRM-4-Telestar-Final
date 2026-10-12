@@ -21,7 +21,7 @@ import { isHtml } from '@/lib/email/sanitize';
 import ComposeEditor from '@/components/compose/ComposeEditor';
 import SubjectField from '@/components/compose/SubjectField';
 import { useSnippets } from '@/components/compose/useComposeData';
-import { hasUnsupportedHtml } from '@/lib/compose/html';
+import { blockRemoteImages, hasRemoteImages, hasUnsupportedHtml } from '@/lib/compose/html';
 
 interface Template {
   id: string;
@@ -97,6 +97,8 @@ export default function TemplatesPage() {
   const [attachments, setAttachments] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const { snippets, createSnippet } = useSnippets();
+  // Web images in the preview stay unloaded until asked for (a shared template could carry a pixel).
+  const [previewImages, setPreviewImages] = useState(false);
 
   const loadTemplates = useCallback(async () => {
     const res = await fetch('/api/templates');
@@ -787,11 +789,17 @@ export default function TemplatesPage() {
                               ))}
                             </select>
                           </div>
+                          {!previewImages && hasRemoteImages(composeEmailContent(getPreviewText(), isHtml(body), previewSignature).html) && (
+                            <p className="flex items-center justify-between gap-2 rounded bg-card-border/30 px-2 py-1 text-xs text-text-secondary">
+                              Images from the web are not loaded.
+                              <button type="button" onClick={() => setPreviewImages(true)} className="font-semibold text-brand-orange-text hover:underline">Load images</button>
+                            </p>
+                          )}
                           <div
                             className="email-canvas rounded-lg p-3 select-text"
                             dangerouslySetInnerHTML={{
                               __html: body.trim()
-                                ? DOMPurify.sanitize(composeEmailContent(getPreviewText(), isHtml(body), previewSignature).html)
+                                ? DOMPurify.sanitize(previewImages ? composeEmailContent(getPreviewText(), isHtml(body), previewSignature).html : blockRemoteImages(composeEmailContent(getPreviewText(), isHtml(body), previewSignature).html))
                                 : '<span class="text-text-muted italic">(Empty Template)</span>',
                             }}
                           />

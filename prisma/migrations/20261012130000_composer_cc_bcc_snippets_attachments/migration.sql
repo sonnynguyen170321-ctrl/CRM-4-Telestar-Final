@@ -19,6 +19,9 @@ CREATE INDEX "Attachment_outboundMessageId_idx" ON "Attachment"("outboundMessage
 -- CreateIndex
 CREATE INDEX "Attachment_uploadedById_createdAt_idx" ON "Attachment"("uploadedById", "createdAt");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "Attachment_outboundMessageId_cid_key" ON "Attachment"("outboundMessageId", "cid");
+
 -- CreateTable
 CREATE TABLE "Snippet" (
     "id" TEXT NOT NULL,

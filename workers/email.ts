@@ -107,7 +107,13 @@ async function sendableCopies(
   const allowed = async (addresses: string[] | null | undefined) => {
     const kept: string[] = [];
     for (const email of addresses ?? []) {
-      if (!(await findSuppression({ tenantId, email, campaignId }))) kept.push(email);
+      // The same two locks as the main recipient: the suppression list, then bounce evidence (no
+      // lead is named - a bounce on a copy must not pause the main recipient's cadences).
+      const blocked =
+        (await findSuppression({ tenantId, email, campaignId })) ||
+        (await blockIfBounced({ tenantId, email, leadId: null, actorUserId: null }));
+      if (blocked) console.warn('[email] copy dropped at send time', { tenantId, reason: 'suppressed_or_bounced' });
+      else kept.push(email);
     }
     return kept;
   };

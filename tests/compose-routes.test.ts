@@ -36,6 +36,8 @@ import { DELETE as deleteAttachment } from '@/app/api/email/attachments/[id]/rou
 import { GET as snippetsGet, POST as snippetsPost } from '@/app/api/snippets/route';
 import { PATCH as snippetPatch, DELETE as snippetDelete } from '@/app/api/snippets/[id]/route';
 import type { SessionUser } from '@/lib/auth';
+import { __setAttemptLimitRedis } from '@/lib/security/attemptLimit';
+import { makeMacroDoc, makeOffice, makeZip } from './helpers/zip';
 
 interface Tenant {
   tenantId: string;
@@ -256,12 +258,42 @@ describe('CC and BCC on a one-off send', () => {
     expect(mockEnqueue).not.toHaveBeenCalled();
   });
 
-  it('refuses a suppressed copy by name and queues nothing', async () => {
+  it('leaves a suppressed copy off, tells the rep which and why, and still queues the email', async () => {
     await inA(() => prisma.suppressionEntry.create({ data: { tenantId: a.tenantId, email: 'optout@t.test', reason: 'unsubscribed' } }));
-    const res = await doSend({ cc: ['optout@t.test'] });
-    expect(res.status).toBe(403);
-    expect((await res.json()).error).toContain('optout@t.test');
-    expect(mockEnqueue).not.toHaveBeenCalled();
+    const res = await doSend({ cc: ['optout@t.test', 'fine@t.test'], bcc: ['optout@t.test'] });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.droppedCopies).toEqual([
+      { address: 'optout@t.test', reason: 'is on the do-not-contact list' },
+    ]);
+    const row = await rowFor(json.outboundMessageId);
+    expect(row.cc).toEqual(['fine@t.test']);
+    expect(row.bcc).toEqual([]);
+    expect(mockEnqueue).toHaveBeenCalledTimes(1);
+  });
+
+  it('puts the main recipient\'s bounce-evidence lock on each copy, and suppresses the address', async () => {
+    await inA(() => prisma.outboundMessage.create({
+      data: {
+        tenantId: a.tenantId, leadId: a.leadId, accountId: a.accountId, to: 'dead@t.test', subject: 's', body: 'b',
+        status: 'bounced', bouncedAt: new Date(), bounceType: 'hard', idempotencyKey: `bounce-${randomUUID()}`,
+      },
+    }));
+    const res = await doSend({ bcc: ['dead@t.test'] });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.droppedCopies).toEqual([{ address: 'dead@t.test', reason: 'bounced earlier' }]);
+    expect((await rowFor(json.outboundMessageId)).bcc).toEqual([]);
+    expect(await inA(() => prisma.suppressionEntry.count({ where: { tenantId: a.tenantId, email: 'dead@t.test' } }))).toBe(1);
+  });
+
+  it('refuses a retry of the same request that arrives with different copies', async () => {
+    const clientRequestId = `req-${randomUUID()}`;
+    expect((await doSend({ clientRequestId, cc: ['one@t.test'] })).status).toBe(200);
+    expect((await doSend({ clientRequestId, cc: ['one@t.test'] })).status).toBe(200);
+    const changed = await doSend({ clientRequestId, cc: ['two@t.test'] });
+    expect(changed.status).toBe(409);
+    expect((await changed.json()).code).toBe('changed');
   });
 
   it('a send with no copies writes the empty lists', async () => {
@@ -422,6 +454,198 @@ describe('inbox reply with copies and attachments', () => {
     expect(row.body).toBe('<p>Thanks</p>');
     const bound = await inA(() => prisma.attachment.findUniqueOrThrow({ where: { id: att.id } }));
     expect(bound.outboundMessageId).toBe(row.id);
+  });
+});
+
+// ─── Security review fixes (#289) ─────────────────────────────────────────────
+
+describe('upload size is counted as the body arrives', () => {
+  const streamed = (chunks: number, chunkSize: number, headers: Record<string, string> = {}) => {
+    let sent = 0;
+    const stream = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (sent >= chunks) { controller.close(); return; }
+        sent += 1;
+        controller.enqueue(new Uint8Array(chunkSize).fill(97));
+      },
+    });
+    return new NextRequest(new Request('https://crm.test/api/email/attachments', {
+      method: 'POST',
+      headers: { 'content-type': 'multipart/form-data; boundary=x', ...headers },
+      body: stream,
+      // @ts-expect-error Node's fetch requires this for a streamed request body
+      duplex: 'half',
+    }));
+  };
+
+  it('cuts off a chunked upload over the cap (no content-length) with 413, without reading it all', async () => {
+    as(a.sdr);
+    // 20 chunks of 1 MB = 20 MB, no declared length. The cap is 11 MB.
+    const res = await inA(() => uploadAttachment(streamed(20, 1024 * 1024)));
+    expect(res.status).toBe(413);
+  });
+
+  it('does not trust an understated content-length', async () => {
+    as(a.sdr);
+    const res = await inA(() => uploadAttachment(streamed(20, 1024 * 1024, { 'content-length': '100' })));
+    expect(res.status).toBe(413);
+  });
+
+  it('still accepts a normal upload', async () => {
+    as(a.sdr);
+    const res = await inA(() => uploadAttachment(upload('ok.pdf', PDF)));
+    expect(res.status).toBe(201);
+  });
+
+  it('refuses a rep who already holds 50 MB of unsent uploads', async () => {
+    const full = await inA(() => prisma.attachment.create({
+      data: { tenantId: a.tenantId, uploadedById: a.otherSdr.id, name: 'big.pdf', contentType: 'application/pdf', content: 'x', sizeBytes: 50 * 1024 * 1024 - 10 },
+    }));
+    as(a.otherSdr);
+    const res = await inA(() => uploadAttachment(upload('more.pdf', PDF)));
+    expect(res.status).toBe(413);
+    await inA(() => prisma.attachment.delete({ where: { id: full.id } }));
+    expect((await inA(() => uploadAttachment(upload('more.pdf', PDF)))).status).toBe(201);
+  });
+
+  it('refuses a disguised file: prefixed PDF, plain zip named .docx, macro document', async () => {
+    as(a.sdr);
+    expect((await inA(() => uploadAttachment(upload('x.pdf', Buffer.concat([Buffer.from('MZ\n'), PDF]))))).status).toBe(400);
+    expect((await inA(() => uploadAttachment(upload('x.docx', makeZip({ 'a.txt': 'hi' }))))).status).toBe(400);
+    expect((await inA(() => uploadAttachment(upload('x.docx', makeMacroDoc())))).status).toBe(400);
+    expect((await inA(() => uploadAttachment(upload('x.docx', makeOffice('docx'))))).status).toBe(201);
+  });
+});
+
+describe('a send reported as failed never goes out later', () => {
+  const sendWith = (extra: Record<string, unknown>) => {
+    as(a.sdr);
+    return inA(() => send(json('/api/email/send', 'POST', {
+      accountId: a.accountId, to: a.leadEmail, subject: 'Docs', body: 'See attached', leadId: a.leadId, clientRequestId: `req-${randomUUID()}`, ...extra,
+    })));
+  };
+
+  it('makes the message terminal when an attachment cannot be bound, so the sweep has nothing to send', async () => {
+    as(a.sdr);
+    const att = await (await inA(() => uploadAttachment(upload('conflict.pdf', PDF)))).json();
+    expect((await sendWith({ attachmentIds: [att.id] })).status).toBe(200);
+    mockEnqueue.mockClear();
+
+    // The same upload used for a second, different message: a bind conflict.
+    const second = await sendWith({ attachmentIds: [att.id], subject: 'Second' });
+    expect(second.status).toBe(409);
+    expect(mockEnqueue).not.toHaveBeenCalled();
+
+    const failed = await inA(() => prisma.outboundMessage.findMany({
+      where: { tenantId: a.tenantId, subject: 'Second' },
+    }));
+    expect(failed).toHaveLength(1);
+    // Terminal: not one of the statuses a worker or the stale-pending sweep may claim.
+    expect(failed[0].status).toBe('permanently_failed');
+    expect(['pending', 'failed']).not.toContain(failed[0].status);
+    expect(failed[0].errorMessage).toMatch(/Not sent/);
+  });
+
+  it('does the same for an inbox reply', async () => {
+    as(a.sdr);
+    const att = await (await inA(() => uploadAttachment(upload('reply-conflict.pdf', PDF)))).json();
+    expect((await sendWith({ attachmentIds: [att.id] })).status).toBe(200);
+    mockEnqueue.mockClear();
+    const res = await inA(() =>
+      reply(json('/api/inbox/threads/t/reply', 'POST', {
+        leadId: a.leadId, subject: 'Intro', body: '<p>Second reply</p>', clientRequestId: `req-${randomUUID()}`, attachmentIds: [att.id],
+      }), { params: Promise.resolve({ id: `${a.leadId}-intro` }) }),
+    );
+    expect(res.status).toBe(409);
+    expect(mockEnqueue).not.toHaveBeenCalled();
+    const rows = await inA(() => prisma.outboundMessage.findMany({ where: { tenantId: a.tenantId, body: '<p>Second reply</p>' } }));
+    expect(rows.map((r) => r.status)).toEqual(['permanently_failed']);
+  });
+
+  it('terminates the message when it cannot be queued, and leaves an earlier identical send alone on retry', async () => {
+    const clientRequestId = `req-${randomUUID()}`;
+    const ok = await sendWith({ clientRequestId, subject: 'Queue test' });
+    expect(ok.status).toBe(200);
+    const { outboundMessageId } = await ok.json();
+
+    // A retry whose queueing fails must not cancel the first, legitimate send.
+    mockEnqueue.mockRejectedValueOnce(new Error('redis down'));
+    const retry = await sendWith({ clientRequestId, subject: 'Queue test' });
+    expect(retry.status).toBe(500);
+    expect((await inA(() => prisma.outboundMessage.findUniqueOrThrow({ where: { id: outboundMessageId } }))).status).toBe('pending');
+
+    // A fresh send whose queueing fails is terminal: the rep was told it failed.
+    mockEnqueue.mockRejectedValueOnce(new Error('redis down'));
+    const fresh = await sendWith({ subject: 'Queue test 2' });
+    expect(fresh.status).toBe(500);
+    const row = await inA(() => prisma.outboundMessage.findFirstOrThrow({ where: { tenantId: a.tenantId, subject: 'Queue test 2' } }));
+    expect(row.status).toBe('permanently_failed');
+  });
+});
+
+describe('a private template cannot ride along', () => {
+  it('answers 404 and queues nothing when the template is not visible to the sender', async () => {
+    const template = await inA(() => prisma.template.create({ data: { tenantId: a.tenantId, name: 'Private', channel: 'email', body: 'x', createdById: a.otherSdr.id } }));
+    await inA(() => prisma.attachment.create({ data: { tenantId: a.tenantId, templateId: template.id, name: 'secret.pdf', contentType: 'application/pdf', content: PDF.toString('base64'), sizeBytes: PDF.length } }));
+    as(a.sdr);
+    for (const extra of [{}, { leadId: undefined }]) {
+      const res = await inA(() => send(json('/api/email/send', 'POST', {
+        accountId: a.accountId, to: a.leadEmail, subject: 'Hi', body: 'Hello', leadId: a.leadId, templateId: template.id, clientRequestId: `req-${randomUUID()}`, ...extra,
+      })));
+      expect(res.status).toBe(404);
+    }
+    expect(mockEnqueue).not.toHaveBeenCalled();
+    expect(await inA(() => prisma.outboundMessage.count({ where: { tenantId: a.tenantId, templateId: template.id } }))).toBe(0);
+  });
+
+  it('still sends with a shared template', async () => {
+    const shared = await inA(() => prisma.template.create({ data: { tenantId: a.tenantId, name: 'Shared 2', channel: 'email', body: 'x', createdById: a.otherSdr.id, isShared: true } }));
+    as(a.sdr);
+    const res = await inA(() => send(json('/api/email/send', 'POST', {
+      accountId: a.accountId, to: a.leadEmail, subject: 'Hi', body: 'Hello', leadId: a.leadId, templateId: shared.id, clientRequestId: `req-${randomUUID()}`,
+    })));
+    expect(res.status).toBe(200);
+  });
+});
+
+describe('composer routes are rate limited per user', () => {
+  afterAll(() => __setAttemptLimitRedis(null));
+  const exhausted = () => __setAttemptLimitRedis({
+    incr: async () => 9999, expire: async () => 1, ttl: async () => 42, del: async () => 1,
+  });
+
+  it('answers 429 with Retry-After for uploads, previews and snippet creation', async () => {
+    exhausted();
+    as(a.sdr);
+    const up = await inA(() => uploadAttachment(upload('x.pdf', PDF)));
+    expect(up.status).toBe(429);
+    expect(up.headers.get('retry-after')).toBe('42');
+    expect((await inA(() => previewPost(json('/api/email/preview', 'POST', { leadId: a.leadId, body: 'x' })))).status).toBe(429);
+    expect((await inA(() => snippetsPost(json('/api/snippets', 'POST', { name: 'n', bodyHtml: '<p>x</p>' })))).status).toBe(429);
+    __setAttemptLimitRedis(null);
+  });
+});
+
+describe('preview does not take a draft in the URL', () => {
+  it('ignores body and subject in a GET query string (a GET needs a saved template)', async () => {
+    as(a.sdr);
+    const res = await inA(() => previewGet(json(`/api/email/preview?leadId=${a.leadId}&body=Hello%20secret&subject=s`, 'GET')));
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('inline images are unique per message', () => {
+  it('rejects a second image with the same content-id on one message', async () => {
+    as(a.sdr);
+    const msg = await inA(() => prisma.outboundMessage.create({
+      data: { tenantId: a.tenantId, leadId: a.leadId, accountId: a.accountId, to: 'x@t.test', subject: 's', body: 'b', idempotencyKey: `u-${randomUUID()}` },
+    }));
+    const row = { tenantId: a.tenantId, outboundMessageId: msg.id, cid: 'cmp-1@telestar', name: 'i.png', contentType: 'image/png', content: 'AA', sizeBytes: 2 };
+    await inA(() => prisma.attachment.create({ data: row }));
+    await expect(inA(() => prisma.attachment.create({ data: row }))).rejects.toMatchObject({ code: 'P2002' });
+    // Ordinary attachments (no cid) are not constrained.
+    await inA(() => prisma.attachment.create({ data: { ...row, cid: null } }));
+    await inA(() => prisma.attachment.create({ data: { ...row, cid: null } }));
   });
 });
 

@@ -146,7 +146,8 @@ const FORBIDDEN_TAGS = [
 ];
 const FORBIDDEN_ATTRS = ['srcset', 'formaction', 'action', 'background', 'ping', 'poster'];
 
-const SAFE_HREF = /^(?:https?:|mailto:|tel:|#|\/)/i;
+// A single leading slash is a path on the same site; "//host" is protocol-relative, an off-site link in disguise.
+const SAFE_HREF = /^(?:https?:|mailto:|tel:|#|\/(?!\/))/i;
 const SAFE_IMG_SRC = new RegExp(
   `^(?:https:|cid:[\\w.@-]{1,200}$|data:(?:${INLINE_IMAGE_TYPES.join('|')});base64,)`,
   'i',

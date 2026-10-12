@@ -42,6 +42,7 @@ const DEFAULT_TYPES: MaintenanceRepairPayload['types'] = [
   'quota-drift',
   'audit-prune',
   'unapplied-bounces',
+  'stale-uploads',
 ];
 
 const KNOWN_TYPES = new Set<string>(DEFAULT_TYPES);

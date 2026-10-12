@@ -3,7 +3,7 @@ import { mailboxRefusal, recipientRefusal } from '@/lib/email/sendGate';
 import { prisma } from '@/lib/prisma';
 import { requireAuth, canAccessLead } from '@/lib/auth';
 import { findSendableAccount } from '@/lib/email/sendableAccount';
-import { finalizeComposed, prepareComposed } from '@/lib/email/prepareComposed';
+import { abandonOutbound, finalizeComposed, prepareComposed } from '@/lib/email/prepareComposed';
 import { canViewOwned } from '@/lib/visibility';
 import type { SessionUser } from '@/lib/auth';
 import { renderTemplate } from '@/lib/templates/render';
@@ -24,6 +24,15 @@ export async function POST(req: NextRequest) {
   const tenantId = user.tenantId;
   if (!tenantId) {
     return NextResponse.json({ error: 'No tenant context' }, { status: 401 });
+  }
+
+  // A template the caller cannot see is not found - and is never passed on: the worker attaches a
+  // template's files by id, so an unchecked id would carry a colleague's private attachments out.
+  let template: Awaited<ReturnType<typeof prisma.template.findUnique>> = null;
+  if (body.templateId) {
+    const found = await prisma.template.findUnique({ where: { id: body.templateId } });
+    template = found && found.tenantId === tenantId && (await canViewOwned(user, found)) ? found : null;
+    if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 });
   }
 
   let leadCampaignId: string | null = null;
@@ -78,10 +87,7 @@ export async function POST(req: NextRequest) {
     const lead = await prisma.lead.findUnique({ where: { id: body.leadId } });
     if (lead) {
       if (body.templateId) {
-        // Only a template the sender can see (lib/visibility.ts); otherwise this would read a
-        // colleague's private copy out through the sent message.
-        const found = await prisma.template.findUnique({ where: { id: body.templateId } });
-        const template = found && (await canViewOwned(user, found)) ? found : null;
+        // Already checked above: only a template the sender can see (lib/visibility.ts).
         if (template && !subject.trim() && !text.trim()) {
           subject = renderTemplate(template.subject ?? '', lead, sender);
           text = renderTemplate(template.body, lead, sender);
@@ -118,6 +124,8 @@ export async function POST(req: NextRequest) {
   if (!prepared.ok) return prepared.response;
   text = prepared.value.body;
 
+  const startedAt = Date.now();
+  let created: Awaited<ReturnType<typeof createOutboundMessage>> | null = null;
   try {
     const outboundMessage = await createOutboundMessage({
       // Prefer the task: it is durable and shared with the sequence path, so completing
@@ -136,9 +144,11 @@ export async function POST(req: NextRequest) {
       body: text,
       tenantId,
     });
+    created = outboundMessage;
 
-    // The files go on the message before it is queued, so the worker finds them.
-    const attachFailure = await finalizeComposed(tenantId, user.id, outboundMessage.id, prepared.value);
+    // The files go on the message before it is queued, so the worker finds them. A failure here
+    // makes the message terminal, so a send reported as failed cannot be swept up and sent later.
+    const attachFailure = await finalizeComposed(tenantId, user.id, outboundMessage, startedAt, prepared.value);
     if (attachFailure) return attachFailure;
 
     await enqueueEmailSendWorkflow(
@@ -154,9 +164,13 @@ export async function POST(req: NextRequest) {
       tenantId
     );
 
-    return NextResponse.json({ success: true, outboundMessageId: outboundMessage.id });
+    return NextResponse.json({ success: true, outboundMessageId: outboundMessage.id, droppedCopies: prepared.value.droppedCopies });
   } catch (err) {
     console.error('[email/send] enqueue failed:', err);
+    // Told it failed, so it must not go out later: terminal, unless this was a retry of an earlier send.
+    if (created && created.createdAt && created.createdAt.getTime() >= startedAt) {
+      await abandonOutbound(tenantId, created.id, 'Not sent: it could not be queued').catch(() => undefined);
+    }
     return NextResponse.json({ error: 'Failed to queue email' }, { status: 500 });
   }
 }

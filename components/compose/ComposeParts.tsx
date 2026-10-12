@@ -14,6 +14,8 @@ import type { MissingValue } from './types';
  * a surprise.
  */
 export function SignatureBlock({ html, mailboxEmail, onNavigate }: { html: string | null | undefined; mailboxEmail?: string; onNavigate?: () => void }) {
+  // Web images in a signature are not fetched until asked for, like everywhere a draft is shown.
+  const [showImages, setShowImages] = useState(false);
   if (!html || !html.trim()) {
     return (
       <p className="rounded-lg border border-dashed border-card-border px-3 py-2 text-xs text-text-muted">
@@ -24,11 +26,16 @@ export function SignatureBlock({ html, mailboxEmail, onNavigate }: { html: strin
   }
   return (
     <div className="space-y-1">
-      <p className="text-xs font-semibold text-text-muted">Signature (added automatically)</p>
+      <p className="flex items-center justify-between text-xs font-semibold text-text-muted">
+        Signature (added automatically)
+        {!showImages && hasRemoteImages(html) && (
+          <button type="button" onClick={() => setShowImages(true)} className="font-semibold text-brand-orange-text hover:underline">Load images</button>
+        )}
+      </p>
       <div
         aria-label="Signature preview"
         className="compose-prose max-h-32 select-text overflow-y-auto rounded-lg border border-card-border px-3 py-2 opacity-90"
-        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }}
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(showImages ? html : blockRemoteImages(html)) }}
       />
     </div>
   );
@@ -121,7 +128,7 @@ export function PreviewPane({ preview, loading, error, signatureHtml, to }: { pr
             <div><dt className="inline font-semibold">Subject: </dt><dd className="inline text-black">{preview.subject}</dd></div>
           </dl>
           <div className="compose-prose max-h-72 select-text overflow-y-auto" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(showImages ? preview.bodyHtml : blockRemoteImages(preview.bodyHtml)) }} />
-          {signatureHtml ? <div className="compose-prose mt-3 select-text" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(signatureHtml) }} /> : null}
+          {signatureHtml ? <div className="compose-prose mt-3 select-text" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(showImages ? signatureHtml : blockRemoteImages(signatureHtml)) }} /> : null}
         </div>
       ) : (
         <p className="text-xs text-text-muted">Loading the preview...</p>

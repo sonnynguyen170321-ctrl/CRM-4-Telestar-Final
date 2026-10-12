@@ -319,6 +319,8 @@ export default function InboxPage() {
         // Queued, not sent: a worker sends it. The message below shows its real state, and a
         // failure is toasted when it happens.
         showToast('Reply queued', 'success');
+        const dropped = (data.droppedCopies ?? []) as Array<{ address: string; reason: string }>;
+        if (dropped.length > 0) showToast(`Not copied: ${dropped.map((d) => `${d.address} (${d.reason})`).join(', ')}`, 'warning');
         replyRequestIdRef.current = crypto.randomUUID();
         void watchDelivery(data.outboundMessage.id);
         
