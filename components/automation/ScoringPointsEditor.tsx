@@ -9,6 +9,8 @@ import type {
   PointRuleGroup,
   PointRules,
 } from '@telestar/core-scoring/rules/schema-v2';
+import { ChipInput } from '@/components/icp/ChipInput';
+import { COUNTRY_SUGGESTIONS, INDUSTRY_SUGGESTIONS } from '@/lib/icp/suggestions';
 import { starterPointRules } from '@/lib/leadgen/pointsQualification';
 import type { IcpPreviewResult } from '@/lib/leads/icpPreview';
 
@@ -40,7 +42,10 @@ const VERDICT_TONE = {
 const fieldClass =
   'min-h-10 w-full rounded-lg border border-card-border bg-bg-main px-3 py-2 text-sm text-text-primary outline-none focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 disabled:cursor-not-allowed disabled:opacity-60';
 
-const csv = (value: string) => Array.from(new Set(value.split(',').map((part) => part.trim()).filter(Boolean)));
+const SUGGESTIONS: Partial<Record<PointRuleGroup, readonly string[]>> = {
+  country: COUNTRY_SUGGESTIONS,
+  industry: INDUSTRY_SUGGESTIONS,
+};
 
 /** A row id not yet used in this rule set — derived, so rendering stays pure. */
 function nextRuleId(rules: PointRule[], group: PointRuleGroup): string {
@@ -191,12 +196,14 @@ export function ScoringPointsEditor({
                             />
                           </div>
                         ) : (
-                          <input
-                            aria-label={`${group.label} values`}
-                            className={fieldClass}
+                          <ChipInput
+                            label={`${group.label} values`}
+                            hideLabel
                             placeholder={group.placeholder}
-                            defaultValue={rule.values.join(', ')}
-                            onBlur={(e) => updateRule(rule.id, { values: csv(e.target.value) })}
+                            value={rule.values}
+                            suggestions={SUGGESTIONS[group.key]}
+                            disabled={!editable}
+                            onChange={(values) => updateRule(rule.id, { values })}
                           />
                         )}
                         <input

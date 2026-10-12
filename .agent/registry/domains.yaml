@@ -265,6 +265,8 @@ domains:
     risk: R2
     paths:
       - lib/leadgen/**
+      # ICP list-field chip parsing and suggestions (components/icp/ChipInput.tsx).
+      - lib/icp/**
       - lib/contact-intelligence/**
       - lib/search/**
       - app/api/leadgen/**
@@ -282,6 +284,8 @@ domains:
     tests:
       - tests/leadgen*.test.ts
       - tests/icp-adherence.test.ts
+      - tests/icp-chips.test.ts
+      - tests/icp-editor-errors.test.ts
       - tests/opportunity-handoff.test.ts
       - tests/contact-intelligence.test.ts
 

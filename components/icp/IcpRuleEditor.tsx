@@ -2,11 +2,13 @@
 
 import type { IcpVersionRulesV2 } from '@telestar/core-scoring/rules/schema-v2';
 
+import { ChipInput } from '@/components/icp/ChipInput';
 import {
   PreviewPanel,
   ScoringPointsEditor,
   useLivePreview,
 } from '@/components/automation/ScoringPointsEditor';
+import { COUNTRY_SUGGESTIONS, INDUSTRY_SUGGESTIONS } from '@/lib/icp/suggestions';
 import { sumScoringWeights } from '@/lib/leadgen/icpScoringProblem';
 
 /**
@@ -21,9 +23,6 @@ import { sumScoringWeights } from '@/lib/leadgen/icpScoringProblem';
 
 export const inputClass =
   'min-h-11 w-full rounded-lg border border-card-border bg-bg-main px-3 py-2 text-sm text-text-primary outline-none transition-colors focus:border-brand-red focus:ring-2 focus:ring-brand-red/20 disabled:cursor-not-allowed disabled:opacity-50';
-
-export const csv = (value: string) =>
-  Array.from(new Set(value.split(',').map((part) => part.trim()).filter(Boolean)));
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return <label className="space-y-2 text-xs font-semibold text-text-secondary">{label}{children}</label>;
@@ -86,18 +85,14 @@ function RulesForm({
   onChange: (rules: IcpVersionRulesV2) => void;
   problem: string | null;
 }) {
-  const setList = (group: 'geography' | 'industry' | 'persona', key: string, value: string) =>
-    onChange({ ...rules, [group]: { ...rules[group], [key]: csv(value) } });
+  const setList = (group: 'geography' | 'industry' | 'persona', key: string, value: string[]) =>
+    onChange({ ...rules, [group]: { ...rules[group], [key]: value } });
 
   return (
     <div>
       <fieldset disabled={!editable} className="mt-6 grid grid-cols-2 gap-5">
-        <Field label="Target countries">
-          <input className={inputClass} value={rules.geography.targetCountries.join(', ')} onChange={(e) => setList('geography', 'targetCountries', e.target.value)} placeholder="Vietnam, Singapore" />
-        </Field>
-        <Field label="Excluded countries">
-          <input className={inputClass} value={rules.geography.excludedCountries.join(', ')} onChange={(e) => setList('geography', 'excludedCountries', e.target.value)} placeholder="Known mismatch means No fit" />
-        </Field>
+        <ChipInput label="Target countries" value={rules.geography.targetCountries} onChange={(next) => setList('geography', 'targetCountries', next)} placeholder="Vietnam, Singapore" suggestions={COUNTRY_SUGGESTIONS} />
+        <ChipInput label="Excluded countries" value={rules.geography.excludedCountries} onChange={(next) => setList('geography', 'excludedCountries', next)} placeholder="Known mismatch means No fit" suggestions={COUNTRY_SUGGESTIONS} />
         <Field label="Industry rule">
           <select className={inputClass} value={rules.industry.mode} onChange={(e) => onChange({ ...rules, industry: { ...rules.industry, mode: e.target.value as IcpVersionRulesV2['industry']['mode'] } })}>
             <option value="all">Any industry</option>
@@ -105,18 +100,10 @@ function RulesForm({
             <option value="denylist">Exclude listed industries only</option>
           </select>
         </Field>
-        <Field label="Target industries">
-          <input className={inputClass} value={rules.industry.targetIndustries.join(', ')} onChange={(e) => setList('industry', 'targetIndustries', e.target.value)} placeholder="Software, Logistics" />
-        </Field>
-        <Field label="Excluded industries">
-          <input className={inputClass} value={rules.industry.excludedIndustries.join(', ')} onChange={(e) => setList('industry', 'excludedIndustries', e.target.value)} placeholder="Gambling, Tobacco" />
-        </Field>
-        <Field label="Accepted buyer titles">
-          <input className={inputClass} value={rules.persona.titleAllowlist.join(', ')} onChange={(e) => setList('persona', 'titleAllowlist', e.target.value)} placeholder="CEO, VP Sales, Head of Operations" />
-        </Field>
-        <Field label="Excluded buyer titles">
-          <input className={inputClass} value={rules.persona.titleDenylist.join(', ')} onChange={(e) => setList('persona', 'titleDenylist', e.target.value)} placeholder="Intern, Assistant" />
-        </Field>
+        <ChipInput label="Target industries" value={rules.industry.targetIndustries} onChange={(next) => setList('industry', 'targetIndustries', next)} placeholder="Software, Logistics" suggestions={INDUSTRY_SUGGESTIONS} />
+        <ChipInput label="Excluded industries" value={rules.industry.excludedIndustries} onChange={(next) => setList('industry', 'excludedIndustries', next)} placeholder="Gambling, Tobacco" suggestions={INDUSTRY_SUGGESTIONS} />
+        <ChipInput label="Accepted buyer titles" value={rules.persona.titleAllowlist} onChange={(next) => setList('persona', 'titleAllowlist', next)} placeholder="CEO, VP Sales, Head of Operations" />
+        <ChipInput label="Excluded buyer titles" value={rules.persona.titleDenylist} onChange={(next) => setList('persona', 'titleDenylist', next)} placeholder="Intern, Assistant" />
         <Field label="Minimum seniority">
           <select className={inputClass} value={rules.persona.seniorityFloor ?? ''} onChange={(e) => {
             const persona = { ...rules.persona };

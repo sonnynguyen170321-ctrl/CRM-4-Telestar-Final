@@ -186,6 +186,8 @@ export function icpAuthoringErrorResponse(error: unknown) {
         ? 404
         : error.code === "draft_conflict" ||
             error.code === "published_immutable" ||
+            error.code === "not_a_draft" ||
+            error.code === "version_archived" ||
             error.code === "simplification_required" ||
             error.code === "review_pending" ||
             error.code === "not_pending" ||
