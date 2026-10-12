@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import { fromHeaderValue } from '@/lib/email/senderName';
+import { buildRawMime, copyRecipientFields } from './copyRecipients';
 import type { EmailAdapter, InboxMessage, SendEmailOptions, SendResult } from '../EmailService';
 import { SYNC_READ_LIMIT, type InboxBatch } from '../inboxBatch';
 
@@ -63,6 +64,7 @@ export class GmailAdapter implements EmailAdapter {
     const mail = new MailComposer({
       from: fromHeaderValue(options.from, options.fromName),
       to: options.to,
+      ...copyRecipientFields(options),
       subject: options.subject,
       html: options.html,
       text: options.text,
@@ -73,7 +75,7 @@ export class GmailAdapter implements EmailAdapter {
       references: options.threading?.references,
     });
 
-    const rawMessageBuffer = await mail.compile().build();
+    const rawMessageBuffer = await buildRawMime(mail, options);
     const raw = rawMessageBuffer
       .toString('base64')
       .replace(/\+/g, '-')

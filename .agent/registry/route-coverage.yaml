@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 217   mutating: 134   mutating without a test: 19
+# routes: 222   mutating: 139   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -494,6 +494,7 @@ routes:
     tests:
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
+      - tests/compose-routes.test.ts
       - tests/email-account-token-storage.test.ts
       - tests/email-signature.test.ts
       - tests/mailbox-sender-name.test.ts
@@ -502,9 +503,18 @@ routes:
     tests:
       - e2e/roles/tenant-isolation.spec.ts
       - e2e/user-flow-31step.spec.ts
+      - tests/compose-routes.test.ts
       - tests/email-account-token-storage.test.ts
       - tests/email-signature.test.ts
       - tests/mailbox-sender-name.test.ts
+  - path: app/api/email/attachments/[id]/route.ts
+    methods: [DELETE]
+    tests:
+      - tests/compose-routes.test.ts
+  - path: app/api/email/attachments/route.ts
+    methods: [POST]
+    tests:
+      - tests/compose-routes.test.ts
   - path: app/api/email/oauth/google/callback/route.ts
     methods: [GET]
     tests:
@@ -521,6 +531,10 @@ routes:
     methods: [GET]
     tests:
       - tests/email-oauth.test.ts
+  - path: app/api/email/preview/route.ts
+    methods: [GET, POST]
+    tests:
+      - tests/compose-routes.test.ts
   - path: app/api/email/providers/route.ts
     methods: [GET]
     tests:
@@ -528,6 +542,8 @@ routes:
   - path: app/api/email/send/route.ts
     methods: [POST]
     tests:
+      - tests/compose-routes.test.ts
+      - tests/email-composer-fixes.test.ts
       - tests/email-send-paused-mailbox.test.ts
   - path: app/api/health/route.ts
     methods: [GET]
@@ -626,6 +642,8 @@ routes:
     methods: [GET, PATCH]
     tests:
       - e2e/roles/inbox-mailbox-scope.spec.ts
+      - tests/compose-routes.test.ts
+      - tests/email-composer-fixes.test.ts
       - tests/inbox-mailbox-scope.test.ts
       - tests/inbox-reply-authorization.test.ts
       - tests/inbox-window.test.ts
@@ -633,6 +651,8 @@ routes:
     methods: [POST]
     tests:
       - e2e/roles/inbox-mailbox-scope.spec.ts
+      - tests/compose-routes.test.ts
+      - tests/email-composer-fixes.test.ts
       - tests/inbox-reply-authorization.test.ts
   - path: app/api/inbox/views/route.ts
     methods: [GET]
@@ -1225,6 +1245,14 @@ routes:
     methods: [GET, PUT]
     tests:
       - tests/user-timezone-default.test.ts
+  - path: app/api/snippets/[id]/route.ts
+    methods: [DELETE, PATCH]
+    tests:
+      - tests/compose-routes.test.ts
+  - path: app/api/snippets/route.ts
+    methods: [GET, POST]
+    tests:
+      - tests/compose-routes.test.ts
   - path: app/api/t/c/[token]/route.ts
     methods: [GET]
     tests:

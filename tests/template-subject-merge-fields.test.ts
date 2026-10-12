@@ -35,8 +35,12 @@ describe('the template editor', () => {
   const page = readFileSync(join(process.cwd(), 'app', 'templates', 'page.tsx'), 'utf-8');
 
   it('offers the merge fields beside the subject', () => {
-    expect(page).toContain('handleInsertSubjectField');
-    expect(page).toContain('ref={subjectRef}');
+    // The shared subject field (components/compose/SubjectField.tsx) owns the variable list, which
+    // inserts through insertMergeTag at the caret.
+    expect(page).toContain('<SubjectField');
+    const field = readFileSync(join(process.cwd(), 'components', 'compose', 'SubjectField.tsx'), 'utf-8');
+    expect(field).toContain('insertMergeTag(');
+    expect(field).toContain('ref={inputRef}');
   });
 
   // The preview used to render the body alone, so the author never saw the signature or the

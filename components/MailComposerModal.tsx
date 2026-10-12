@@ -1,15 +1,23 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import Link from 'next/link';
-import { Mail, Send, X, AlertCircle, Loader2 } from 'lucide-react';
-import DOMPurify from 'isomorphic-dompurify';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Mail, Send, X, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
+import { addMergeFallback } from '@/lib/compose/merge';
+import { isHtmlBlank } from '@/lib/compose/html';
 import { isHtml } from '@/lib/email/sanitize';
+import ComposeEditor from '@/components/compose/ComposeEditor';
+import MailboxSelect from '@/components/compose/MailboxSelect';
+import RecipientField from '@/components/compose/RecipientField';
+import SubjectField from '@/components/compose/SubjectField';
+import AttachmentBar from '@/components/compose/AttachmentBar';
+import TemplatePicker from '@/components/compose/TemplatePicker';
+import { MissingValuesPanel, PreviewPane, SignatureBlock } from '@/components/compose/ComposeParts';
+import { useLeadPreview, useMailboxes, useMissingValues, useSnippets } from '@/components/compose/useComposeData';
+import type { ComposeAttachment, MissingValue } from '@/components/compose/types';
 
 interface Task { id: string; type: string; title: string; description: string; dueDate: string; status: string; leadId: string; }
 interface Lead { id: string; firstName: string; lastName: string; company: string; title: string; email: string; phone?: string; sequenceId?: string; sequenceStep?: number; }
-interface EmailAccount { id: string; email: string; provider: string; sendPausedAt?: string | null; sendPauseReason?: string | null; healthLevel?: string | null }
 interface Template { id: string; name: string; channel: string; subject?: string | null; body: string }
 
 interface MailComposerModalProps {
@@ -24,25 +32,16 @@ interface MailComposerModalProps {
   initialBody?: string;
 }
 
+const DEFAULT_SUBJECT = 'Following up';
+
 /**
- * The preview of a template body. Nothing remote is fetched while previewing: a shared template
- * could otherwise carry a tracking pixel that fires for whoever opens it. Images, stylesheets and
- * inline styles (which can load `url(...)`) are removed from the preview only; the markup that is
- * sent is untouched.
+ * Compose one email to a lead (from the lead drawer or an email task).
+ *
+ * The same editor, variable picker, snippets and attachments as the inbox reply and the template
+ * editor (components/compose). What is sent is the raw draft with its merge fields: the server
+ * fills them in from the real lead and the owner of the chosen mailbox, which is also what
+ * "Preview as this lead" shows. Ctrl/Cmd+Enter sends; Escape asks before throwing a draft away.
  */
-function previewHtml(html: string): string {
-  return DOMPurify.sanitize(html, {
-    FORBID_TAGS: ['img', 'picture', 'source', 'video', 'audio', 'iframe', 'object', 'embed', 'link', 'style', 'svg'],
-    FORBID_ATTR: ['style', 'srcset', 'background', 'src'],
-  });
-}
-
-/** The text of an HTML body, read by the parser (no regex stripping of markup). */
-function htmlToPlain(html: string): string {
-  const doc = new DOMParser().parseFromString(DOMPurify.sanitize(html), 'text/html');
-  return (doc.body.innerText || doc.body.textContent || '').trim();
-}
-
 export default function MailComposerModal({ lead, onClose, task, onSent, initialSubject, initialBody }: MailComposerModalProps) {
   const { showToast } = useToast();
   // One id per open composer. A retried request reuses it, so the server resolves both
@@ -51,92 +50,132 @@ export default function MailComposerModal({ lead, onClose, task, onSent, initial
   const requestIdRef = useRef<string>(crypto.randomUUID());
   const [subject, setSubject] = useState(initialSubject ?? '');
   const [body, setBody] = useState(initialBody ?? '');
-  const [account, setAccount] = useState<EmailAccount | null>(null);
-  const [accounts, setAccounts] = useState<EmailAccount[]>([]);
-  const [loadingAccount, setLoadingAccount] = useState(true);
+  const [accountId, setAccountId] = useState('');
+  const [cc, setCc] = useState<string[]>([]);
+  const [bcc, setBcc] = useState<string[]>([]);
+  const [showCopies, setShowCopies] = useState(false);
+  const [attachments, setAttachments] = useState<ComposeAttachment[]>([]);
+  const [templateAttachments, setTemplateAttachments] = useState<Array<{ id: string; name: string }>>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [previewOn, setPreviewOn] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [templates, setTemplates] = useState<Template[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [askDiscard, setAskDiscard] = useState(false);
 
-  const bodyIsHtml = isHtml(body);
+  const { mailboxes, loading: mailboxesLoading } = useMailboxes();
+  const { snippets, createSnippet } = useSnippets();
+  const account = mailboxes.find((m) => m.id === accountId) ?? null;
 
-  // Close on Escape.
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    if (!accountId && mailboxes.length > 0) setAccountId(mailboxes[0].id);
+  }, [mailboxes, accountId]);
+
+  const clientMissing = useMissingValues(lead, subject, body);
+  const { preview, serverMissing, loading: previewLoading, error: previewError } = useLeadPreview({
+    enabled: previewOn, leadId: lead.id, accountId, subject, body,
+  });
+  const missing: MissingValue[] = useMemo(() => {
+    const byField = new Map<string, MissingValue>();
+    for (const m of [...clientMissing, ...(previewOn ? serverMissing : [])]) if (!byField.has(m.field)) byField.set(m.field, m);
+    return [...byField.values()];
+  }, [clientMissing, serverMissing, previewOn]);
+
+  // A draft worth asking about: the rep has written or attached something of their own.
+  const hasExtras = attachments.length > 0 || cc.length > 0 || bcc.length > 0;
+  const isDirty = hasExtras || (isHtmlBlank(body) ? false : body !== (initialBody ?? '') || subject !== (initialSubject ?? ''));
+
+  const discardUploads = useCallback(() => {
+    for (const a of attachments) void fetch(`/api/email/attachments/${a.id}`, { method: 'DELETE' }).catch(() => undefined);
+  }, [attachments]);
+
+  const requestClose = useCallback(() => {
+    if (sending) return;
+    if (isDirty) { setAskDiscard(true); return; }
+    onClose();
+  }, [isDirty, onClose, sending]);
+
+  const discard = () => { discardUploads(); onClose(); };
+
+  // Escape: an open menu or popover claims it first (it stops the event before it gets here; the
+  // editor's own key handling marks it as handled, so default-prevented is not a signal);
+  // otherwise ask before discarding a draft, and a second Escape on the question goes back to writing.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (askDiscard) setAskDiscard(false); else requestClose();
+    };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
-  // The template goes in as written, merge fields and all. {{sdrName}} and the rest are filled in
-  // on the server (app/api/email/send), from the lead and from the mailbox owner. Filling them in
-  // here used to put "SDR" and a made-up title into every email.
-  const applyTemplate = useCallback((templateId: string, availableTemplates: Template[]) => {
-    const t = availableTemplates.find(x => x.id === templateId);
-    if (!t) return;
-    setSubject(t.subject ?? 'Following up');
-    setBody(t.body);
-  }, []);
+  }, [askDiscard, requestClose]);
 
   useEffect(() => {
-    let isMounted = true;
-    setLoadingAccount(true);
+    let live = true;
     Promise.all([
       fetch('/api/templates').then((r) => (r.ok ? r.json() : [])),
-      fetch('/api/email/accounts').then((r) => (r.ok ? r.json() : [])),
-      lead.sequenceId ? fetch(`/api/sequences/${lead.sequenceId}`).then(r => r.ok ? r.json() : null) : Promise.resolve(null),
+      lead.sequenceId ? fetch(`/api/sequences/${lead.sequenceId}`).then((r) => (r.ok ? r.json() : null)) : Promise.resolve(null),
     ])
-      .then(([tpls, accs, sequenceData]: [Template[], EmailAccount[], any]) => {
-        if (!isMounted) return;
-        const validAccs = Array.isArray(accs) ? accs : [];
-        setAccounts(validAccs);
-        setAccount(validAccs.length > 0 ? validAccs[0] : null);
-        const emailTemplates = Array.isArray(tpls) ? tpls.filter(t => t.channel === 'email') : [];
+      .then(([tpls, sequenceData]: [Template[], { steps?: Array<{ order: number; templateId?: string | null }> } | null]) => {
+        if (!live) return;
+        const emailTemplates = Array.isArray(tpls) ? tpls.filter((t) => t.channel === 'email') : [];
         setTemplates(emailTemplates);
-
-        let initialTemplateId = '';
-
-        if (sequenceData && sequenceData.steps && lead.sequenceStep) {
-          const stepConfig = sequenceData.steps.find((s: any) => s.order === lead.sequenceStep);
-          if (stepConfig && stepConfig.templateId) {
-             initialTemplateId = stepConfig.templateId;
-          }
-        }
-
-        if (initialTemplateId && !initialBody) {
-          setSelectedTemplateId(initialTemplateId);
-          applyTemplate(initialTemplateId, emailTemplates);
+        const stepConfig = sequenceData?.steps?.find((s) => s.order === lead.sequenceStep);
+        const t = emailTemplates.find((x) => x.id === (stepConfig?.templateId ?? ''));
+        if (t && !initialBody) {
+          setSelectedTemplateId(t.id);
+          setSubject(t.subject ?? DEFAULT_SUBJECT);
+          setBody(t.body);
         } else {
-          setSubject((prev) => prev || 'Following up');
+          setSubject((prev) => prev || DEFAULT_SUBJECT);
         }
       })
-      .catch(() => {
-        if (isMounted) setSubject((prev) => prev || 'Following up');
-      })
-      .finally(() => {
-        if (isMounted) setLoadingAccount(false);
-      });
-
-    return () => {
-      isMounted = false;
-    };
+      .catch(() => { if (live) setSubject((prev) => prev || DEFAULT_SUBJECT); })
+    return () => { live = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead.id, lead.sequenceId, lead.sequenceStep]);
 
-  const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const tid = e.target.value;
-    setSelectedTemplateId(tid);
-    if (tid) applyTemplate(tid, templates);
+  // The files a template always sends, so the rep sees everything that will go out.
+  useEffect(() => {
+    if (!selectedTemplateId) { setTemplateAttachments([]); return; }
+    let live = true;
+    fetch(`/api/templates/${selectedTemplateId}/attachments`)
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: Array<{ id: string; name: string }>) => { if (live) setTemplateAttachments(Array.isArray(list) ? list : []); })
+      .catch(() => { if (live) setTemplateAttachments([]); });
+    return () => { live = false; };
+  }, [selectedTemplateId]);
+
+  // The template goes in as written, merge fields and all: they are filled in on the server from
+  // the lead and the mailbox owner. Filling them in here used to put "SDR" into every email.
+  const applyTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    const t = templates.find((x) => x.id === templateId);
+    if (!t) return;
+    setSubject(t.subject ?? DEFAULT_SUBJECT);
+    setBody(t.body);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const addFallback = (field: string, text: string) => {
+    setSubject((prev) => addMergeFallback(prev, field, text));
+    setBody((prev) => addMergeFallback(prev, field, text));
+  };
+
+  const saveSnippet = async (html: string) => {
+    const name = window.prompt('Name this snippet')?.trim();
+    if (!name) return;
+    const result = await createSnippet(name, html);
+    showToast(result.ok ? `Snippet "${name}" saved` : result.error, result.ok ? 'success' : 'error');
+  };
+
+  const canSend = Boolean(account) && !account?.sendPausedAt && !sending && !mailboxesLoading && !isHtmlBlank(body) && subject.trim() !== '';
+
+  const submit = async () => {
     if (!account) {
       setError('Please select or connect an active email account before sending.');
       showToast('No active email account connected', 'error');
       return;
     }
-    if (sending) return;
+    if (!canSend) return;
 
     setSending(true);
     setError(null);
@@ -144,25 +183,26 @@ export default function MailComposerModal({ lead, onClose, task, onSent, initial
       const res = await fetch('/api/email/send', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ 
-          accountId: account.id, 
-          to: lead.email, 
-          subject, 
-          body, 
-          leadId: lead.id, 
-          templateId: selectedTemplateId || undefined, 
-          taskId: task?.id, 
-          clientRequestId: requestIdRef.current 
+        body: JSON.stringify({
+          accountId: account.id,
+          to: lead.email,
+          subject,
+          body,
+          leadId: lead.id,
+          templateId: selectedTemplateId || undefined,
+          taskId: task?.id,
+          clientRequestId: requestIdRef.current,
+          ...(cc.length ? { cc } : {}),
+          ...(bcc.length ? { bcc } : {}),
+          ...(attachments.length ? { attachmentIds: attachments.map((a) => a.id) } : {}),
         }),
       });
-
       const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to send email.');
-      }
+      if (!res.ok) throw new Error(data.error || 'Failed to send email.');
 
       showToast(`Email queued to ${lead.email}`, 'success');
+      const dropped = (data.droppedCopies ?? []) as Array<{ address: string; reason: string }>;
+      if (dropped.length > 0) showToast(`Not copied: ${dropped.map((d) => `${d.address} (${d.reason})`).join(', ')}`, 'warning');
       onSent?.();
       onClose();
     } catch (err) {
@@ -176,144 +216,125 @@ export default function MailComposerModal({ lead, onClose, task, onSent, initial
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Compose email">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={requestClose} />
 
       <form
-        onSubmit={handleSubmit}
-        className="bg-card-bg border border-card-border rounded-2xl shadow-2xl w-full max-w-lg relative z-10 overflow-hidden animate-in zoom-in-95 duration-150 flex flex-col max-h-[90vh]"
+        onSubmit={(event) => { event.preventDefault(); void submit(); }}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void submit(); }
+        }}
+        className="bg-card-bg border border-card-border rounded-2xl shadow-2xl w-full max-w-3xl relative z-10 animate-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]"
       >
-        <div className="flex items-center justify-between p-4 border-b border-card-border bg-bg-main/50">
+        <div className="flex items-center justify-between p-4 border-b border-card-border bg-bg-main/50 rounded-t-2xl">
           <h2 className="font-display font-bold text-sm text-text-primary flex items-center gap-2">
-            <Mail className="w-4 h-4 text-blue-500" />
+            <Mail className="w-4 h-4 text-blue-500" aria-hidden="true" />
             <span>Compose Email</span>
           </h2>
-          <button type="button" onClick={onClose} aria-label="Close composer"
+          <button type="button" onClick={requestClose} aria-label="Close composer"
             className="text-text-muted hover:text-text-primary rounded p-1 hover:bg-card-border/30 focus-ring">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="p-5 space-y-4 overflow-y-auto text-xs">
-          {/* Sender Account Picker / Status */}
-          {accounts.length > 1 && (
-            <div className="space-y-1">
-              <label htmlFor="mail-account" className="text-[10px] font-bold text-text-muted uppercase block">
-                Sending From Mailbox
-              </label>
-              <select
-                id="mail-account"
-                value={account?.id || ''}
-                onChange={(e) => {
-                  const acc = accounts.find((a) => a.id === e.target.value);
-                  setAccount(acc || null);
-                }}
-                className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium"
-              >
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.email} ({a.provider}){a.sendPausedAt ? ' - paused' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          {account?.sendPausedAt ? (
-            // Say it before the rep writes the email, not after the worker refuses it. Shown for
-            // whichever mailbox is selected: with more than one mailbox it used to appear only for
-            // a single one, so picking a paused mailbox just turned Send off without a word.
-            <div role="status" className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 text-[11px] text-text-secondary leading-normal flex gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
-              <span>
-                Sending is paused for <strong>{account.email}</strong>
-                {account.sendPauseReason ? <> — {account.sendPauseReason}</> : null}. A manager can resume it under{' '}
-                <Link href="/email-health" onClick={onClose} className="text-brand-orange-text font-semibold hover:underline">Email Health</Link>.
-              </span>
-            </div>
-          ) : account ? (
-            <div className="bg-blue-500/5 border border-blue-500/10 rounded-xl p-3 text-[11px] text-text-secondary leading-normal flex gap-2">
-              <AlertCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" aria-hidden="true" />
-              <span>
-                Sending from <strong>{account.email}</strong>. The send is logged on the lead automatically.
-                {account.healthLevel === 'critical' ? <> This mailbox has critical health; a manager may have stopped it from sending.</> : null}
-              </span>
-            </div>
-          ) : (
-            <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 text-[11px] text-text-secondary leading-normal flex gap-2">
-              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
-              <span>
-                No email account connected.{' '}
-                <Link href="/settings" onClick={onClose} className="text-brand-orange-text font-semibold hover:underline">Connect one in Settings</Link>
-                {' '}to send from the CRM, or{' '}
-                <a href={`mailto:${lead.email}?subject=${encodeURIComponent(subject)}`} className="text-brand-orange-text font-semibold hover:underline">open your mail app</a>.
-              </span>
-            </div>
+        <div className="p-5 space-y-3 overflow-y-auto text-xs">
+          <MailboxSelect id="mail-account" mailboxes={mailboxes} selectedId={accountId} onSelect={setAccountId} onNavigate={onClose} />
+          {mailboxes.length === 0 && !mailboxesLoading && (
+            <p className="text-xs text-text-muted">
+              Or <a href={`mailto:${lead.email}?subject=${encodeURIComponent(subject)}`} className="text-brand-orange-text font-semibold hover:underline">open your mail app</a>.
+            </p>
           )}
 
-          <div className="space-y-1">
-            <label htmlFor="mail-to" className="text-[10px] font-bold text-text-muted uppercase block">Recipient</label>
-            <input id="mail-to" type="text" value={`${lead.firstName} ${lead.lastName} <${lead.email}>`} disabled
-              className="w-full bg-card-border/20 border border-transparent rounded-lg px-2.5 py-1.5 text-text-muted cursor-not-allowed font-medium" />
+          <div className="flex items-center gap-2">
+            <label htmlFor="mail-to" className="w-16 shrink-0 text-xs font-semibold text-text-muted">To</label>
+            <input id="mail-to" type="text" readOnly value={`${lead.firstName} ${lead.lastName} <${lead.email}>`}
+              className="flex-1 bg-card-border/20 border border-transparent rounded-lg px-2.5 py-1.5 text-text-muted font-medium" />
+            {!showCopies && (
+              <button type="button" onClick={() => setShowCopies(true)} className="text-xs font-semibold text-brand-orange-text hover:underline focus-ring rounded">
+                Cc / Bcc
+              </button>
+            )}
           </div>
+          {(showCopies || cc.length > 0 || bcc.length > 0) && (
+            <>
+              <RecipientField id="mail-cc" label="Cc" value={cc} onChange={setCc} exclude={[lead.email.toLowerCase()]} />
+              <RecipientField id="mail-bcc" label="Bcc" value={bcc} onChange={setBcc} exclude={[lead.email.toLowerCase(), ...cc]} />
+            </>
+          )}
 
-          <div className="space-y-1">
-            <label htmlFor="mail-template" className="text-[10px] font-bold text-text-muted uppercase block">Template</label>
-            <select id="mail-template" value={selectedTemplateId} onChange={handleTemplateChange}
-              className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium">
-              <option value="">— Blank Template —</option>
-              {templates.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="space-y-1">
-            <label htmlFor="mail-subject" className="text-[10px] font-bold text-text-muted uppercase block">Subject Line</label>
-            <input id="mail-subject" type="text" value={subject} onChange={(e) => setSubject(e.target.value)} required
-              className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary focus:outline-none focus:border-brand-red font-medium" />
-          </div>
+          <TemplatePicker templates={templates} selectedId={selectedTemplateId} onSelect={applyTemplate} />
+          <SubjectField id="mail-subject" value={subject} onChange={setSubject} required missingFields={missing.filter((m) => m.where !== 'body').map((m) => m.field)} />
 
           <div className="space-y-1.5">
-            <label htmlFor="mail-body" className="text-[10px] font-bold text-text-muted uppercase block">Body</label>
-            {bodyIsHtml ? (
-              // An HTML template is shown as the email will look, read-only, not as raw tags. The
-              // markup itself stays in `body` and is what is sent. Merge fields stay as written
-              // here; they are filled in on the server. The rich editor replaces this view.
-              <div>
-                <div
-                  id="mail-body"
-                  role="document"
-                  aria-label="Email body preview"
-                  className="w-full bg-white text-black border border-card-border rounded-xl p-3 h-48 overflow-y-auto text-xs leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: previewHtml(body) }}
-                />
-                <p className="text-[10px] text-text-muted mt-1">
-                  HTML template: shown as it will look and sent as written. Names and other merge fields are filled in when it is sent.{' '}
-                  <button type="button" onClick={() => setBody(htmlToPlain(body))} className="text-brand-orange-text font-semibold hover:underline">
-                    Edit as plain text instead
-                  </button>
-                </p>
-              </div>
-            ) : (
-              <textarea id="mail-body" value={body} onChange={(e) => setBody(e.target.value)} required
-                className="w-full bg-bg-main border border-card-border rounded-xl p-3 text-text-primary focus:outline-none focus:border-brand-red h-48 placeholder-text-muted resize-none leading-relaxed font-mono text-xs" />
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-text-muted">Message</span>
+              <button
+                type="button"
+                aria-pressed={previewOn}
+                onClick={() => setPreviewOn((on) => !on)}
+                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold focus-ring ${previewOn ? 'border-brand-red/30 bg-brand-red/10 text-brand-red' : 'border-card-border text-text-secondary hover:text-text-primary'}`}
+              >
+                {previewOn ? <EyeOff className="h-3.5 w-3.5" aria-hidden="true" /> : <Eye className="h-3.5 w-3.5" aria-hidden="true" />}
+                Preview as {lead.firstName || 'this lead'}
+              </button>
+            </div>
+            {/* Kept mounted while previewing so the draft, caret and undo history survive. */}
+            <div className={previewOn ? 'hidden' : ''}>
+              <ComposeEditor
+                value={body}
+                onChange={setBody}
+                ariaLabel="Email body"
+                placeholder="Write your email. Type {{ for variables or / for snippets."
+                snippets={snippets}
+                onCreateSnippet={(html) => void saveSnippet(html)}
+                missingFields={missing.filter((m) => m.where !== 'subject').map((m) => m.field)}
+              />
+            </div>
+            {previewOn && (
+              <PreviewPane preview={preview} loading={previewLoading} error={previewError} signatureHtml={account?.signaturePreview} to={lead.email} />
+            )}
+            {!previewOn && !isHtml(body) && body.trim() !== '' && (
+              <p className="text-xs text-text-muted">Plain text: sent without formatting. Switch off &ldquo;Plain text&rdquo; above to format it.</p>
             )}
           </div>
 
-          {error && (
-            <p role="alert" className="text-[11px] text-brand-red font-semibold">{error}</p>
-          )}
+          <MissingValuesPanel lead={lead} missing={missing} onAddFallback={addFallback} />
+          {!previewOn && account && <SignatureBlock html={account.signaturePreview} mailboxEmail={account.email} onNavigate={onClose} />}
+          <AttachmentBar attachments={attachments} onChange={setAttachments} templateAttachments={templateAttachments} disabled={sending} />
+
+          {error && <p role="alert" className="text-xs text-brand-red font-semibold">{error}</p>}
         </div>
 
-        <div className="p-4 border-t border-card-border bg-bg-main/30 flex justify-end gap-2">
-          <button type="button" onClick={onClose}
-            className="px-3.5 py-2 border border-card-border bg-bg-main hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors focus-ring">
-            Cancel
-          </button>
-          <button type="submit" disabled={!account || Boolean(account.sendPausedAt) || sending || loadingAccount}
-            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 active:scale-95 focus-ring">
-            {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Send className="w-3.5 h-3.5" aria-hidden="true" />}
-            <span>{sending ? 'Sending…' : 'Send Email'}</span>
-          </button>
+        <div className="p-4 border-t border-card-border bg-bg-main/30 rounded-b-2xl">
+          {askDiscard ? (
+            <div role="alertdialog" aria-label="Discard this draft?" className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-semibold text-text-primary">Discard this draft? What you wrote and attached will be lost.</p>
+              <div className="flex gap-2">
+                <button type="button" autoFocus onClick={() => setAskDiscard(false)}
+                  className="px-3.5 py-2 border border-card-border bg-bg-main hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary focus-ring">
+                  Keep writing
+                </button>
+                <button type="button" onClick={discard}
+                  className="px-3.5 py-2 bg-brand-red hover:bg-brand-red-hover text-white rounded-lg text-xs font-semibold focus-ring">
+                  Discard
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-text-muted">Ctrl+Enter to send</p>
+              <div className="flex gap-2">
+                <button type="button" onClick={requestClose}
+                  className="px-3.5 py-2 border border-card-border bg-bg-main hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors focus-ring">
+                  Cancel
+                </button>
+                <button type="submit" disabled={!account || Boolean(account.sendPausedAt) || !canSend}
+                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 active:scale-95 focus-ring">
+                  {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Send className="w-3.5 h-3.5" aria-hidden="true" />}
+                  <span>{sending ? 'Sending…' : missing.length > 0 ? 'Send anyway' : 'Send Email'}</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </form>
     </div>

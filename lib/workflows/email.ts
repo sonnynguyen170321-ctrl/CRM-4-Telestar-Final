@@ -26,6 +26,9 @@ export async function createOutboundMessage(params: {
   accountId: string;
   templateId?: string;
   to: string;
+  /** Carbon / blind copies, already validated and de-duplicated (lib/compose/recipients.ts). */
+  cc?: string[];
+  bcc?: string[];
   subject: string;
   body: string;
   tenantId: string;
@@ -55,6 +58,9 @@ export async function createOutboundMessage(params: {
       accountId: params.accountId,
       templateId: params.templateId,
       to: params.to,
+      // Only when set, so a send with no copies writes exactly the row it always did.
+      ...(params.cc?.length ? { cc: params.cc } : {}),
+      ...(params.bcc?.length ? { bcc: params.bcc } : {}),
       subject: params.subject,
       body: params.body,
       // Written on create only, with the rest of the row. The empty update branch is what makes

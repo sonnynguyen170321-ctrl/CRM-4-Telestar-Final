@@ -97,6 +97,29 @@ function nextQuotaResetAt(now: Date = new Date()): Date {
  * point, so without the exclusion it counts towards its own ceiling — a mailbox at cap 1
  * would defer its only message forever, and cap 40 would really be 39.
  */
+/** The CC and BCC addresses that may still be sent to; see the call site. */
+async function sendableCopies(
+  tenantId: string,
+  cc: string[] | null | undefined,
+  bcc: string[] | null | undefined,
+  campaignId: string | null,
+): Promise<{ cc: string[]; bcc: string[] }> {
+  const allowed = async (addresses: string[] | null | undefined) => {
+    const kept: string[] = [];
+    for (const email of addresses ?? []) {
+      // The same two locks as the main recipient: the suppression list, then bounce evidence (no
+      // lead is named - a bounce on a copy must not pause the main recipient's cadences).
+      const blocked =
+        (await findSuppression({ tenantId, email, campaignId })) ||
+        (await blockIfBounced({ tenantId, email, leadId: null, actorUserId: null }));
+      if (blocked) console.warn('[email] copy dropped at send time', { tenantId, reason: 'suppressed_or_bounced' });
+      else kept.push(email);
+    }
+    return kept;
+  };
+  return { cc: await allowed(cc), bcc: await allowed(bcc) };
+}
+
 async function sentInLastHour(accountId: string, excludeId: string): Promise<number> {
   const since = new Date(Date.now() - 60 * 60 * 1000);
   return prisma.outboundMessage.count({
@@ -638,16 +661,27 @@ async function handleEmailSend(payload: EmailSendPayload) {
   // Whether the open pixel went out — the open rate's denominator (lib/sequences/performance.ts).
   let openTracked = false;
   try {
-    // Fetch attachments if templateId is present
-    const attachments = existing.templateId
-      ? await prisma.attachment.findMany({ where: { templateId: existing.templateId } })
-      : [];
+    // The template's attachments, and the files (and pasted images) the rep attached to this one
+    // message in the composer (lib/email/composeAttachments.ts). Inline images carry their cid.
+    const attachments = await prisma.attachment.findMany({
+      where: {
+        tenantId: existing.tenantId,
+        OR: [...(existing.templateId ? [{ templateId: existing.templateId }] : []), { outboundMessageId }],
+      },
+      orderBy: { createdAt: 'asc' },
+    });
 
     const mappedAttachments: NonNullable<SendEmailOptions['attachments']> = attachments.map((att) => ({
       filename: att.name,
       content: Buffer.from(att.content, 'base64'),
       contentType: att.contentType,
+      ...(att.cid ? { cid: att.cid } : {}),
     }));
+
+    // Carbon and blind copies, re-read from the row so a redrive goes to the same people. A copy
+    // suppressed since the rep wrote the email is dropped, not sent and not a reason to fail the
+    // message to the main recipient: suppression is the last gate before every address.
+    const copies = await sendableCopies(existing.tenantId, existing.cc, existing.bcc, existing.lead?.campaignId ?? null);
 
     // The message with the sending mailbox's signature under it, as HTML and as text. Signature
     // images travel as inline attachments under the `cid:` the stored HTML references
@@ -739,6 +773,8 @@ async function handleEmailSend(payload: EmailSendPayload) {
       html: htmlPayload,
       headers,
       attachments: mappedAttachments,
+      ...(copies.cc.length ? { cc: copies.cc } : {}),
+      ...(copies.bcc.length ? { bcc: copies.bcc } : {}),
       ...(threading ? { threading } : {}),
     });
     // An adapter reports either its bare message id or a full receipt.

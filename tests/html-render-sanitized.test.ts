@@ -15,7 +15,7 @@ import path from 'node:path';
  * never from a user-supplied fragment.
  */
 const ROOT = process.cwd();
-const RENDERS_USER_HTML = ['app/templates/page.tsx', 'app/inbox/page.tsx'];
+const RENDERS_USER_HTML = ['app/templates/page.tsx', 'app/inbox/page.tsx', 'components/compose/ComposeParts.tsx'];
 
 describe('user-authored HTML is sanitized before render', () => {
   for (const file of RENDERS_USER_HTML) {

@@ -48,7 +48,12 @@ export function buildMergeContext(lead: RenderLead, sdr?: RenderSdr): Record<str
   };
 }
 
-const MERGE_FIELD_RE = /\{\{\s*([a-zA-Z][a-zA-Z0-9]*)\s*(?:\|([^}]*))?\}\}/g;
+/** Source of the merge-tag pattern, for callers that scan text without rendering it. */
+export const MERGE_FIELD_SOURCE = String.raw`\{\{\s*([a-zA-Z][a-zA-Z0-9]*)\s*(?:\|([^}]*))?\}\}`;
+const MERGE_FIELD_RE = new RegExp(MERGE_FIELD_SOURCE, 'g');
+
+/** The fields a template may name (the keys of `buildMergeContext`). */
+export const MERGE_FIELD_NAMES = ['firstName', 'lastName', 'company', 'title', 'email', 'phone', 'sdrName', 'sdrTitle'] as const;
 
 function escapeHtml(value: string): string {
   return value

@@ -19,6 +19,7 @@ const mockExecuteRaw = vi.fn();
 const mockServiceSend = vi.fn();
 const mockEnqueueReschedule = vi.fn();
 const mockEnrollmentUpdateMany = vi.fn();
+const mockAttachmentFindMany = vi.fn();
 
 // The send path's bounce-evidence lock (lib/email/suppress.ts) has its own tests
 // (tests/bounce-evidence-guard.test.ts); here no address has bounced before.
@@ -58,6 +59,9 @@ vi.mock('@/lib/prisma', () => ({
     },
     sequenceEnrollment: {
       updateMany: (...args: unknown[]) => mockEnrollmentUpdateMany(...args),
+    },
+    attachment: {
+      findMany: (...args: unknown[]) => mockAttachmentFindMany(...args),
     },
     $executeRaw: (...args: unknown[]) => mockExecuteRaw(...args),
   },
@@ -158,6 +162,8 @@ describe('handleEmailSend', () => {
     // The deliverability preflight reads the account before quota is reserved,
     // so every test needs a sendable account unless it is testing the gate.
     mockAccountFindUnique.mockResolvedValue(mockEmailAccount());
+    // No attachments unless a test adds them.
+    mockAttachmentFindMany.mockResolvedValue([]);
     // Winning the claim is the default; races override this with count 0.
     mockOutboundUpdateMany.mockResolvedValue({ count: 1 });
     // No recent send-failure notification, so the dedupe window never suppresses one.
@@ -228,6 +234,95 @@ describe('handleEmailSend', () => {
         cid: 'sig-0123456789abcdef',
       },
     ]);
+  });
+
+  describe('copies and composer attachments (PR 2)', () => {
+    const prepare = () => {
+      mockSuppressionFindFirst.mockResolvedValue(null);
+      mockExecuteRaw.mockResolvedValueOnce(1);
+      mockServiceSend.mockResolvedValueOnce('provider-msg-id-cc');
+    };
+
+    it('passes CC and BCC from the stored row to the provider, so a redrive goes to the same people', async () => {
+      prepare();
+      mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage({ cc: ['boss@t.test'], bcc: ['audit@t.test'] }));
+      await handleEmailSend(buildPayload());
+      const sent = mockServiceSend.mock.calls[0][0] as { to: string; cc?: string[]; bcc?: string[] };
+      expect(sent).toMatchObject({ to: 'test@example.com', cc: ['boss@t.test'], bcc: ['audit@t.test'] });
+    });
+
+    it('sends no copy fields at all for an ordinary message', async () => {
+      prepare();
+      mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+      await handleEmailSend(buildPayload());
+      const sent = mockServiceSend.mock.calls[0][0] as Record<string, unknown>;
+      expect(sent).not.toHaveProperty('cc');
+      expect(sent).not.toHaveProperty('bcc');
+    });
+
+    it('drops a copy that was suppressed after composing, and still sends to the main recipient', async () => {
+      mockExecuteRaw.mockResolvedValueOnce(1);
+      mockServiceSend.mockResolvedValueOnce('provider-msg-id-cc2');
+      mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage({ cc: ['optout@t.test', 'ok@t.test'], bcc: ['optout2@t.test'] }));
+      // main recipient: not suppressed; optout@: suppressed; ok@: fine; optout2@: suppressed
+      mockSuppressionFindFirst.mockImplementation(async (args: { where: { OR?: Array<{ email?: string }> } }) => {
+        const emails = JSON.stringify(args);
+        return /optout/.test(emails) ? { id: 's1', reason: 'unsubscribed' } : null;
+      });
+      const result = await handleEmailSend(buildPayload());
+      expect(result).toMatchObject({ success: true });
+      const sent = mockServiceSend.mock.calls[0][0] as { cc?: string[]; bcc?: string[] };
+      expect(sent.cc).toEqual(['ok@t.test']);
+      expect(sent).not.toHaveProperty('bcc');
+      mockSuppressionFindFirst.mockReset();
+    });
+
+    it('applies the bounce-evidence lock to each copy, naming no lead', async () => {
+      mockExecuteRaw.mockResolvedValueOnce(1);
+      mockServiceSend.mockResolvedValueOnce('provider-msg-id-cc3');
+      mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage({ cc: ['dead@t.test', 'ok@t.test'], bcc: ['dead2@t.test'] }));
+      mockSuppressionFindFirst.mockResolvedValue(null);
+      mockBlockIfBounced.mockImplementation(async (args: { email: string }) =>
+        args.email.startsWith('dead') ? { source: 'send', at: new Date(), reason: 'hard_bounce' } : null);
+      const result = await handleEmailSend(buildPayload());
+      expect(result).toMatchObject({ success: true });
+      const sent = mockServiceSend.mock.calls[0][0] as { cc?: string[]; bcc?: string[] };
+      expect(sent.cc).toEqual(['ok@t.test']);
+      expect(sent).not.toHaveProperty('bcc');
+      // A bounce on a copy must not pause the main recipient's cadences: no lead is passed.
+      const copyCalls = mockBlockIfBounced.mock.calls.filter((c) => (c[0] as { email: string }).email !== 'test@example.com');
+      expect(copyCalls.length).toBe(3);
+      for (const call of copyCalls) expect(call[0]).toMatchObject({ leadId: null });
+      mockBlockIfBounced.mockReset();
+    });
+
+    it('attaches the files the rep added to this message, and the pasted images under their cid', async () => {
+      prepare();
+      mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+      mockAttachmentFindMany.mockResolvedValueOnce([
+        { name: 'brochure.pdf', contentType: 'application/pdf', content: Buffer.from('%PDF-1.7').toString('base64'), cid: null },
+        { name: 'image-abc.png', contentType: 'image/png', content: Buffer.from('png').toString('base64'), cid: 'cmp-abc@telestar' },
+      ]);
+      await handleEmailSend(buildPayload({ body: '<p>See <img src="cid:cmp-abc@telestar"></p>' }));
+      const sent = mockServiceSend.mock.calls[0][0] as { attachments: Array<Record<string, unknown>> };
+      expect(sent.attachments).toEqual([
+        { filename: 'brochure.pdf', content: Buffer.from('%PDF-1.7'), contentType: 'application/pdf' },
+        { filename: 'image-abc.png', content: Buffer.from('png'), contentType: 'image/png', cid: 'cmp-abc@telestar' },
+      ]);
+      // Looked up by this message, inside its tenant - never by a client-supplied id.
+      expect(mockAttachmentFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { tenantId: TENANT_ID, OR: [{ outboundMessageId: 'msg-1' }] } }),
+      );
+    });
+
+    it('also looks up the attachments of the template when the message has one', async () => {
+      prepare();
+      mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage({ templateId: 'tpl-1' }));
+      await handleEmailSend(buildPayload());
+      expect(mockAttachmentFindMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { tenantId: TENANT_ID, OR: [{ templateId: 'tpl-1' }, { outboundMessageId: 'msg-1' }] } }),
+      );
+    });
   });
 
   // A message typed as plain text used to get the signature flattened to a few lines of text.

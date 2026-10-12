@@ -81,6 +81,8 @@ UPDATE "ImportRow" SET data = '{}', errors = NULL;
 -- thread, and the subject line with the prospect's name in it.
 UPDATE "InboundMessage"  SET subject = '[sanitized]', "bodyHtml" = NULL;
 UPDATE "OutboundMessage" SET subject = '[sanitized]';
+-- Carbon and blind copies are other people's addresses.
+UPDATE "OutboundMessage" SET cc = '{}', bcc = '{}';
 
 -- Copy rendered for one contact — merge fields already substituted, so this is personal data.
 -- The reusable Template and AbTestVariant it was rendered from are exempt and kept.
@@ -88,6 +90,9 @@ UPDATE "SequenceStepCopy" SET subject = '[sanitized]', body = '[sanitized]';
 
 -- Base64 file blobs hanging off templates: contracts, brochures, anything an operator attached.
 UPDATE "Attachment" SET content = '[sanitized]';
+
+-- A snippet is text a rep typed to reuse; it can carry a name, a number or a price quoted to someone.
+UPDATE "Snippet" SET "bodyHtml" = '<p>[sanitized]</p>';
 
 -- Display names the earlier pass missed, and the sender identity block, which carries the user's
 -- real name, title and direct phone number.

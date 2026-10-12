@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { mailboxRefusal, recipientRefusal } from '@/lib/email/sendGate';
 import { prisma } from '@/lib/prisma';
-import { requireAuth, canAccessLead, getVisibleUserIds } from '@/lib/auth';
+import { requireAuth, canAccessLead } from '@/lib/auth';
+import { findSendableAccount } from '@/lib/email/sendableAccount';
+import { abandonOutbound, finalizeComposed, prepareComposed } from '@/lib/email/prepareComposed';
 import { canViewOwned } from '@/lib/visibility';
 import type { SessionUser } from '@/lib/auth';
 import { renderTemplate } from '@/lib/templates/render';
@@ -24,6 +26,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No tenant context' }, { status: 401 });
   }
 
+  // A template the caller cannot see is not found - and is never passed on: the worker attaches a
+  // template's files by id, so an unchecked id would carry a colleague's private attachments out.
+  let template: Awaited<ReturnType<typeof prisma.template.findUnique>> = null;
+  if (body.templateId) {
+    const found = await prisma.template.findUnique({ where: { id: body.templateId } });
+    template = found && found.tenantId === tenantId && (await canViewOwned(user, found)) ? found : null;
+    if (!template) return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+  }
+
   let leadCampaignId: string | null = null;
 
   if (body.leadId) {
@@ -44,19 +55,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: recipientBlocked.error, code: recipientBlocked.code }, { status: recipientBlocked.status });
   }
 
-  // Your own mailbox. A director or floor manager may also send from a mailbox of someone under
-  // them — not, as before, from any mailbox in the company. A From line speaks for whoever
-  // connected the mailbox, so this is not widened to team leads.
-  const isManager = user.role === 'director' || user.role === 'floor_manager';
-  const reach = isManager ? await getVisibleUserIds(user) : [user.id];
-  const account = await prisma.emailAccount.findFirst({
-    where: {
-      id: body.accountId,
-      tenantId,
-      isActive: true,
-      ...(reach === null ? {} : { userId: { in: reach.includes(user.id) ? reach : [...reach, user.id] } }),
-    },
-  });
+  // Your own mailbox, or one of someone under you for a director / floor manager
+  // (lib/email/sendableAccount.ts - the same rule the preview applies).
+  const account = await findSendableAccount(user, tenantId, body.accountId);
   if (!account) {
     return NextResponse.json({ error: 'Email account not found' }, { status: 404 });
   }
@@ -86,10 +87,7 @@ export async function POST(req: NextRequest) {
     const lead = await prisma.lead.findUnique({ where: { id: body.leadId } });
     if (lead) {
       if (body.templateId) {
-        // Only a template the sender can see (lib/visibility.ts); otherwise this would read a
-        // colleague's private copy out through the sent message.
-        const found = await prisma.template.findUnique({ where: { id: body.templateId } });
-        const template = found && (await canViewOwned(user, found)) ? found : null;
+        // Already checked above: only a template the sender can see (lib/visibility.ts).
         if (template && !subject.trim() && !text.trim()) {
           subject = renderTemplate(template.subject ?? '', lead, sender);
           text = renderTemplate(template.body, lead, sender);
@@ -111,6 +109,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Body cannot be empty' }, { status: 400 });
   }
 
+  // CC/BCC suppression, the caller's own attachments within the cap, a sanitised HTML body with
+  // pasted images turned into inline attachments (lib/email/prepareComposed.ts).
+  const prepared = await prepareComposed({
+    tenantId,
+    userId: user.id,
+    campaignId: leadCampaignId,
+    to: body.to,
+    cc: body.cc,
+    bcc: body.bcc,
+    body: text,
+    attachmentIds: body.attachmentIds,
+  });
+  if (!prepared.ok) return prepared.response;
+  text = prepared.value.body;
+
+  const startedAt = Date.now();
+  let created: Awaited<ReturnType<typeof createOutboundMessage>> | null = null;
   try {
     const outboundMessage = await createOutboundMessage({
       // Prefer the task: it is durable and shared with the sequence path, so completing
@@ -123,10 +138,18 @@ export async function POST(req: NextRequest) {
       accountId: body.accountId,
       templateId: body.templateId,
       to: body.to,
+      cc: prepared.value.cc,
+      bcc: prepared.value.bcc,
       subject,
       body: text,
       tenantId,
     });
+    created = outboundMessage;
+
+    // The files go on the message before it is queued, so the worker finds them. A failure here
+    // makes the message terminal, so a send reported as failed cannot be swept up and sent later.
+    const attachFailure = await finalizeComposed(tenantId, user.id, outboundMessage, startedAt, prepared.value);
+    if (attachFailure) return attachFailure;
 
     await enqueueEmailSendWorkflow(
       {
@@ -141,9 +164,13 @@ export async function POST(req: NextRequest) {
       tenantId
     );
 
-    return NextResponse.json({ success: true, outboundMessageId: outboundMessage.id });
+    return NextResponse.json({ success: true, outboundMessageId: outboundMessage.id, droppedCopies: prepared.value.droppedCopies });
   } catch (err) {
     console.error('[email/send] enqueue failed:', err);
+    // Told it failed, so it must not go out later: terminal, unless this was a retry of an earlier send.
+    if (created && created.createdAt && created.createdAt.getTime() >= startedAt) {
+      await abandonOutbound(tenantId, created.id, 'Not sent: it could not be queued').catch(() => undefined);
+    }
     return NextResponse.json({ error: 'Failed to queue email' }, { status: 500 });
   }
 }

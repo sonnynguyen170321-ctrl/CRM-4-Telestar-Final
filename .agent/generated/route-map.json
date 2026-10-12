@@ -130,10 +130,13 @@
     "/api/email-log",
     "/api/email/accounts",
     "/api/email/accounts/[id]",
+    "/api/email/attachments",
+    "/api/email/attachments/[id]",
     "/api/email/oauth/google",
     "/api/email/oauth/google/callback",
     "/api/email/oauth/microsoft",
     "/api/email/oauth/microsoft/callback",
+    "/api/email/preview",
     "/api/email/providers",
     "/api/email/send",
     "/api/health",
@@ -223,6 +226,8 @@
     "/api/sequences/team-analytics",
     "/api/settings",
     "/api/settings/password",
+    "/api/snippets",
+    "/api/snippets/[id]",
     "/api/t/c/[token]",
     "/api/t/o/[token]",
     "/api/tasks",
@@ -268,5 +273,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 40,
-  "apiRouteCount": 217
+  "apiRouteCount": 222
 }

@@ -241,6 +241,7 @@ export interface MaintenanceRepairPayload {
     | 'quota-drift'
     | 'audit-prune'
     | 'unapplied-bounces'
+    | 'stale-uploads'
   )[];
 }
 
