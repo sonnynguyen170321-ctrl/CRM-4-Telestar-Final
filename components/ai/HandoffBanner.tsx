@@ -3,6 +3,7 @@ import { ArrowRight, MessageSquareQuote, Sparkles } from 'lucide-react';
 import StatusBadge from '@/components/operating/StatusBadge';
 import type { HandoffPackage } from './types';
 import { relativeTime } from './types';
+import { bodyToText } from '@/lib/compose/snippet';
 
 /**
  * The moment the operating model changes hands.
@@ -46,7 +47,7 @@ export default function HandoffBanner({
         <blockquote className="mt-3 flex gap-3">
           <MessageSquareQuote className="w-4 h-4 text-brand-red shrink-0 mt-1" aria-hidden="true" />
           <p className="type-body text-text-primary prose-measure whitespace-pre-wrap italic">
-            {reply.body}
+            {bodyToText(reply.body)}
           </p>
         </blockquote>
 

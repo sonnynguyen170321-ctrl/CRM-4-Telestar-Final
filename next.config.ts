@@ -37,6 +37,10 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts'],
   },
+  // The Lead Filter screen was retired; its bookmarks land on the pool it filtered.
+  async redirects() {
+    return [{ source: '/lead-filter', destination: '/leadgen-manager?tab=pool', permanent: false }];
+  },
   async headers() {
     return [{ source: '/:path*', headers: SECURITY_HEADERS }];
   },

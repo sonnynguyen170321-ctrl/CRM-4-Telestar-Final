@@ -410,10 +410,6 @@ routes:
     methods: [GET]
     guards:
       - getVisibleUserIds
-  - path: app/api/lead-filter/route.ts
-    methods: [GET]
-    guards:
-      - getVisibleCampaignIds (via lib/leadFilter/readModel.ts)
   - path: app/api/leadgen-pool/[id]/route.ts
     methods: [DELETE, PATCH]
     guards: []

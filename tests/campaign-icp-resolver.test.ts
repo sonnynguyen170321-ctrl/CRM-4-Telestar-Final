@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { Prisma } from '@prisma/client';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { emptyIcpRulesV2 } from '@telestar/core-scoring/rules/emptyIcpRulesV2';
 
 import { prisma } from '@/lib/prisma';
@@ -25,15 +25,11 @@ import {
   resolveIcpVersionId,
   resolvePoolPreRankVersionId,
 } from '@/lib/leadgen/scorePoolItem';
-import { listLeadFilter } from '@/lib/leadFilter/readModel';
 import { listCampaignsWithoutIcp } from '@/lib/leadgen/campaignIcpAudit';
 import { previewIcpRules } from '@/lib/leads/icpPreview';
 import { rescoreLeadsIcp, scoreLeadIcp } from '@/lib/leads/icpScoring';
 import { scoreNewLead } from '@/lib/leads/scoreNewLead';
 import { createTestTenant } from './helpers/testTenant';
-
-// The lead filter asks `lib/auth` which campaigns the actor sees; a director sees all (null).
-vi.mock('@/lib/auth', () => ({ getVisibleCampaignIds: async () => null }));
 
 const RULES = (() => {
   const rules = emptyIcpRulesV2('campaign-icp', 'Campaign ICP');
@@ -554,41 +550,6 @@ describe('review follow-ups', () => {
         },
       }),
     );
-
-  it('lead filter: after a publish + rescore the verdicts are current, not stale needs_review (H1)', async () => {
-    const { w } = await worldWithDefault();
-    const lib = await profile(w, 'Filter ICP');
-    const v1 = await version(w, lib.id, 1);
-    const c = await campaign(w, 'Filter campaign', { icpProfileId: lib.id });
-    const item = await poolItem(w);
-    await w.run(() => prisma.campaignProspect.create({ data: { tenantId: w.tenantId, campaignId: c.id, poolItemId: item.id, status: 'ready' } }));
-    await w.run(() => rescorePool({ tenantId: w.tenantId, selection: { kind: 'campaign', campaignId: c.id } }));
-
-    await w.run(() => prisma.icpVersion.update({ where: { id: v1.id }, data: { status: 'archived' } }));
-    const v2 = await version(w, lib.id, 2);
-    await w.run(() => rescorePool({ tenantId: w.tenantId, selection: { kind: 'campaign', campaignId: c.id } }));
-
-    const actor = { id: w.userId, tenantId: w.tenantId, role: 'director' } as never;
-    const out = await w.run(() => listLeadFilter(actor, w.tenantId, { campaignId: c.id }));
-    const prospect = await w.run(() => prisma.campaignProspect.findFirstOrThrow({ where: { campaignId: c.id }, include: { latestAssessment: true } }));
-
-    expect(prospect.assessedIcpVersionId).toBe(v2.id);
-    expect(out.selectedCampaign?.icpVersion?.id).toBe(v2.id);
-    expect(out.items[0].verdictReason).not.toBe('stale_assessment');
-    expect(out.items[0].verdict).toBe(prospect.latestAssessment!.qualification);
-    expect(out.counts.not_scored).toBe(0);
-  });
-
-  it('lead filter: a campaign with no ICP lists no current version and its prospects as not scored (H1)', async () => {
-    const { w } = await worldWithDefault();
-    const c = await campaign(w, 'Bare filter');
-    const item = await poolItem(w);
-    await w.run(() => prisma.campaignProspect.create({ data: { tenantId: w.tenantId, campaignId: c.id, poolItemId: item.id, status: 'ready' } }));
-    const actor = { id: w.userId, tenantId: w.tenantId, role: 'director' } as never;
-    const out = await w.run(() => listLeadFilter(actor, w.tenantId, { campaignId: c.id }));
-    expect(out.selectedCampaign?.icpVersion).toBeNull();
-    expect(out.counts.not_scored).toBe(1);
-  });
 
   it('ICP preview samples the leads of campaigns linked by profile (H1)', async () => {
     const { w } = await worldWithDefault();

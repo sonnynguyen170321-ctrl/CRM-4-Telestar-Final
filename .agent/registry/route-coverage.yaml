@@ -657,10 +657,6 @@ routes:
   - path: app/api/inbox/views/route.ts
     methods: [GET]
     tests: []
-  - path: app/api/lead-filter/route.ts
-    methods: [GET]
-    tests:
-      - tests/lead-filter-phase-5.test.ts
   - path: app/api/leadgen-pool/[id]/route.ts
     methods: [DELETE, PATCH]
     tests:

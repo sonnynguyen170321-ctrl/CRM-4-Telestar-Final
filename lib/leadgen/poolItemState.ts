@@ -20,8 +20,8 @@ export interface PoolRoutingFields {
 /**
  * Verdicts that retire a record — it will never be converted, and should stop being flagged.
  *
- * Exported so the Lead Filter read model filters on the same list. Two copies is how that read
- * model kept showing records this file had already learned to hide.
+ * Exported so every read model filters on the same list. Two copies is how a read model kept
+ * showing records this file had already learned to hide.
  */
 export const RETIRED_QUALIFICATIONS = new Set<LeadQualificationStatus>([
   'duplicate',

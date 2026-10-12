@@ -163,7 +163,7 @@ describe("phase 2 navigation and route wiring", () => {
     const manager = source("app/leadgen-manager/page.tsx");
     expect(sidebar).toContain("label: 'Prospecting'");
     expect(sidebar).toContain("href: '/research'");
-    expect(sidebar).toContain("href: '/lead-filter'");
+    expect(sidebar).not.toContain("/lead-filter");
     expect(sidebar).toContain("...(isManager");
     expect(sidebar).toContain("canUseResearchRole(userRole, 'read')");
     expect(sidebar).toContain("href: '/automation?tab=scoring'");

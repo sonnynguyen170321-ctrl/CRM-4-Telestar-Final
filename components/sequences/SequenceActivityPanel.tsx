@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { OpenLeadButton } from '@/components/leads/OpenLeadButton';
 import { Loader2, PencilLine, Send } from 'lucide-react';
 
 type ActivityItem = {
@@ -71,9 +71,9 @@ export function SequenceActivityPanel({ sequenceId }: { sequenceId: string }) {
                   {item.lead && (
                     <>
                       {' — '}
-                      <Link href={`/leads/${item.lead.id}`} className="text-brand-red hover:underline">
+                      <OpenLeadButton leadId={item.lead.id} className="text-brand-red hover:underline">
                         {item.lead.name}
-                      </Link>
+                      </OpenLeadButton>
                     </>
                   )}
                 </div>

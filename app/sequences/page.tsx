@@ -34,7 +34,7 @@ import { canReplyInThread, previousEmailOrder } from '@/lib/sequences/threadingR
 import { stepOwnership } from '@/lib/sequences/stepOwnership';
 import { useToast } from '@/context/ToastContext';
 import { useAppContext } from '@/context/AppContext';
-import Link from 'next/link';
+import { OpenLeadButton } from '@/components/leads/OpenLeadButton';
 
 interface SequenceStep {
   id: string;
@@ -1185,9 +1185,9 @@ export default function SequencesPage() {
                               />
                             </td>
                             <td className="px-4 py-3">
-                              <Link href={`/leads/${enr.lead.id}`} className="font-semibold text-text-primary hover:text-brand-red transition-colors">
+                              <OpenLeadButton leadId={enr.lead.id} className="font-semibold text-text-primary hover:text-brand-red transition-colors">
                                 {enr.lead.firstName} {enr.lead.lastName}
-                              </Link>
+                              </OpenLeadButton>
                             </td>
                             <td className="px-4 py-3 text-text-secondary">{enr.lead.company}</td>
                             <td className="px-4 py-3">

@@ -28,6 +28,7 @@ import { SignatureBlock } from '@/components/compose/ComposeParts';
 import { useMailboxes, useSnippets } from '@/components/compose/useComposeData';
 import type { ComposeAttachment } from '@/components/compose/types';
 import { isHtmlBlank, plainTextToHtml } from '@/lib/compose/html';
+import { bodySnippet, bodyToText } from '@/lib/compose/snippet';
 
 interface Message {
   id: string;
@@ -674,7 +675,7 @@ export default function InboxPage() {
                         {thread.subject}
                       </p>
                       <p className="text-text-muted truncate text-xs pr-2">
-                        {latestMsg?.body || '(Empty email body)'}
+                        {bodySnippet(latestMsg?.body, 200) || '(Empty email body)'}
                       </p>
                       {thread.lead && (
                         <div className="flex items-center gap-1.5 flex-wrap mt-1">
@@ -912,7 +913,7 @@ export default function InboxPage() {
                           />
                         ) : (
                           <div className="text-xs text-text-primary whitespace-pre-wrap leading-relaxed font-sans border-t border-card-border/40 pt-3 text-left select-text">
-                            {msg.body || '(Empty email body)'}
+                            {bodyToText(msg.body) || '(Empty email body)'}
                           </div>
                         )}
                       </div>
