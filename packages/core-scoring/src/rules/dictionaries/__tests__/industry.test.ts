@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { INDUSTRY_TAXONOMY, canonicalizeIndustry, industryKeysForTerm, type IndustryKey } from "../industry";
+import { INDUSTRY_TAXONOMY, canonicalizeIndustry, industryKeysForTerm, industryWithParents, type IndustryKey } from "../industry";
 
 const LINKEDIN_LABELS = readFileSync(
   fileURLToPath(new URL("./__fixtures__/linkedin-industries-v2.txt", import.meta.url)),
@@ -21,7 +21,7 @@ describe("canonicalizeIndustry: substring defects of industry-v1", () => {
   it("no longer fires a short alias inside another word", () => {
     expectKeys([
       ["Display advertising", "ADVERTISING"], // v1: ISP ("d-isp-lay")
-      ["Alternative Dispute Resolution", null], // v1: ISP
+      ["Alternative Dispute Resolution", "LEGAL"], // v1: ISP ("dISPute")
       ["Waste Treatment and Disposal", "UTILITY"], // v1: ISP
       ["Urban Transit Services", "TRANSPORTATION"], // v1: IT_SERVICES ("trans-it services")
       ["Hospitality", "HOSPITALITY"], // v1: HEALTHCARE ("hospital-ity")
@@ -33,8 +33,8 @@ describe("canonicalizeIndustry: substring defects of industry-v1", () => {
 
   it("drops bare nouns that name more than one industry", () => {
     expectKeys([
-      ["Security and Investigations", null], // guards, not CYBERSECURITY
-      ["Security Guards and Patrol Services", null],
+      ["Security and Investigations", "SECURITY_SERVICES"], // guards, not CYBERSECURITY
+      ["Security Guards and Patrol Services", "SECURITY_SERVICES"],
       ["Intellectual property law", null], // not REAL_ESTATE
       ["Media Production", "MEDIA"], // v1: MANUFACTURING ("production")
       ["Animation and Post-production", "MEDIA"],
@@ -152,13 +152,103 @@ describe("canonicalizeIndustry: new coverage (LinkedIn V2, plurals, Vietnamese)"
 
   it("still leaves industries with no key unmapped rather than guessing", () => {
     expectKeys([
-      ["Staffing and Recruiting", null],
-      ["Legal Services", null],
-      ["Accounting", null],
-      ["Non-profit Organizations", null],
       ["Gambling Facilities and Casinos", null],
+      ["Think Tanks", null],
       ["", null],
     ]);
+  });
+});
+
+describe("canonicalizeIndustry: industry-v3 keys", () => {
+  it("maps professional services, legal, staffing and BPO", () => {
+    expectKeys([
+      ["Business Consulting and Services", "PROFESSIONAL_SERVICES"],
+      ["Management Consulting", "PROFESSIONAL_SERVICES"],
+      ["Accounting", "PROFESSIONAL_SERVICES"],
+      ["Engineering Services", "PROFESSIONAL_SERVICES"],
+      ["Kế toán - Kiểm toán", "PROFESSIONAL_SERVICES"],
+      ["Legal Services", "LEGAL"],
+      ["Law Practice", "LEGAL"],
+      ["Công ty luật", "LEGAL"],
+      ["Staffing and Recruiting", "STAFFING_HR"],
+      ["Executive Search Services", "STAFFING_HR"],
+      ["Temporary Help Services", "STAFFING_HR"],
+      ["Human Resources Services", "STAFFING_HR"],
+      ["Tuyển dụng", "STAFFING_HR"],
+      ["Telephone Call Centers", "BPO_OUTSOURCING"],
+      ["Outsourcing and Offshoring Consulting", "BPO_OUTSOURCING"],
+      ["Translation and Localization", "BPO_OUTSOURCING"],
+      ["Dịch vụ thuê ngoài", "BPO_OUTSOURCING"],
+    ]);
+  });
+
+  it("maps wholesale by what it is, not by the goods", () => {
+    expectKeys([
+      ["Wholesale", "WHOLESALE_DISTRIBUTION"],
+      ["Wholesale Machinery", "WHOLESALE_DISTRIBUTION"], // industry-v2: MANUFACTURING
+      ["Wholesale Food and Beverage", "WHOLESALE_DISTRIBUTION"], // industry-v2: FNB
+      ["Wholesale Import and Export", "WHOLESALE_DISTRIBUTION"],
+      ["Bán buôn", "WHOLESALE_DISTRIBUTION"],
+      ["Retail", "RETAIL"],
+      ["Food & Beverages", "FNB"],
+    ]);
+  });
+
+  it("maps nonprofit, security services, automotive and aerospace/defense", () => {
+    expectKeys([
+      ["Non-profit Organizations", "NONPROFIT"],
+      ["Nonprofit Organization Management", "NONPROFIT"],
+      ["Philanthropic Fundraising Services", "NONPROFIT"],
+      ["Industry Associations", "NONPROFIT"],
+      ["Tổ chức phi lợi nhuận", "NONPROFIT"],
+      ["Security Systems Services", "SECURITY_SERVICES"],
+      ["Dịch vụ bảo vệ", "SECURITY_SERVICES"],
+      ["Motor Vehicle Manufacturing", "AUTOMOTIVE"],
+      ["Automotive", "AUTOMOTIVE"],
+      ["Vehicle Repair and Maintenance", "AUTOMOTIVE"],
+      ["Phụ tùng ô tô", "AUTOMOTIVE"],
+      ["Aviation and Aerospace Component Manufacturing", "AEROSPACE_DEFENSE"],
+      ["Defense and Space Manufacturing", "AEROSPACE_DEFENSE"],
+      ["Hàng không vũ trụ", "AEROSPACE_DEFENSE"],
+    ]);
+  });
+
+  it("does not steal labels that belong to an older key (false-positive guard)", () => {
+    expectKeys([
+      ["Data Security Software Products", "CYBERSECURITY"],
+      ["Computer and Network Security", "CYBERSECURITY"],
+      ["Managed security services", "CYBERSECURITY"],
+      ["Cyber defense platform", "CYBERSECURITY"],
+      ["Human Resources Software", "SOFTWARE"],
+      ["Accounting software", "SOFTWARE"],
+      ["Contact center software", "SOFTWARE"],
+      ["IT Outsourcing", "IT_SERVICES"],
+      ["Airlines and Aviation", "TRANSPORTATION"],
+      ["Retail Motor Vehicles", "RETAIL"],
+      ["Law Enforcement", "GOVERNMENT"],
+      ["Professional Training and Coaching", "EDUCATION"],
+      ["Nonprofit hospital", "HEALTHCARE"], // the sector wins over the legal form
+      ["Bankruptcy law", null],
+      ["Intellectual property law", null],
+      ["Auditorium rental", null], // "audit" is a whole word, not a prefix of "auditorium"
+      ["Defensive driving school", "EDUCATION"],
+    ]);
+  });
+
+  it("reads the bare LinkedIn label Internet as SOFTWARE without shadowing its compounds", () => {
+    expectKeys([
+      ["Internet", "SOFTWARE"],
+      ["Internet Publishing", "MEDIA"],
+      ["Internet Marketing", "MARKETING"],
+      ["Internet Marketplace Platforms", "ECOMMERCE"],
+      ["Internet Service Provider", "ISP"],
+    ]);
+  });
+
+  it("lets a MANUFACTURING ICP admit automotive and aerospace through their parent key", () => {
+    expect(industryWithParents("AUTOMOTIVE")).toEqual(["AUTOMOTIVE", "MANUFACTURING"]);
+    expect(industryWithParents("AEROSPACE_DEFENSE")).toEqual(["AEROSPACE_DEFENSE", "MANUFACTURING"]);
+    expect(industryKeysForTerm("Automotive")).toEqual(["AUTOMOTIVE"]);
   });
 });
 
@@ -174,10 +264,10 @@ describe("taxonomy invariants", () => {
     expect(shadowed).toEqual([]);
   });
 
-  it("maps at least 70% of LinkedIn V2 labels (industry-v1 mapped 50%)", () => {
+  it("maps at least 70% of LinkedIn V2 labels (industry-v1 mapped 50%, industry-v2 74%)", () => {
     const mapped = LINKEDIN_LABELS.filter((label) => canonicalizeIndustry(label) !== null).length;
     expect(LINKEDIN_LABELS.length).toBeGreaterThan(400);
-    expect(mapped / LINKEDIN_LABELS.length).toBeGreaterThanOrEqual(0.7);
+    expect(mapped / LINKEDIN_LABELS.length).toBeGreaterThanOrEqual(0.85); // industry-v3: 85.6%
   });
 });
 

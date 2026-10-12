@@ -9,8 +9,13 @@ import { z } from "zod";
 // MRO target — all because the query's words appeared in their snippet. Fit cannot be judged until the
 // candidate has been named: an association that mentions "aircraft maintenance" is still not a prospect.
 
-/** Bump when the vocabulary or the grounding rules change, so cached classifications are re-run. */
-export const CLASSIFIER_VERSION = 1;
+/**
+ * Bump when the vocabulary or the grounding rules change, so cached classifications are re-run.
+ * v2 (2026-10-13): nine new industry keys in the closed list (professional services, legal, staffing/HR,
+ * BPO, wholesale, nonprofit, security services, automotive, aerospace/defense). Every cached domain
+ * classification is re-run on its next verification, which costs one classifier call per domain.
+ */
+export const CLASSIFIER_VERSION = 2;
 
 export const COMPANY_KINDS = [
   "operator",

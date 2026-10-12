@@ -66,6 +66,21 @@ describe("defaultKindPolicy", () => {
     expect(defaultKindPolicy(rulesFor(["FMCG", "Retail"])).reseller_wholesaler).toBe("review");
   });
 
+  it("accepts wholesalers for an ICP that names wholesale, and treats automotive as a producer sector", () => {
+    expect(defaultKindPolicy(rulesFor(["Wholesale"])).reseller_wholesaler).toBe("accept");
+    expect(defaultKindPolicy(rulesFor(["Automotive"])).reseller_wholesaler).toBe("reject");
+    expect(defaultKindPolicy(rulesFor(["Aerospace"])).reseller_wholesaler).toBe("reject");
+    expect(defaultKindPolicy(rulesFor(["Automotive", "Wholesale"])).reseller_wholesaler).toBe("accept");
+  });
+
+  it("accepts agencies for the new services sectors and nonprofits for a nonprofit ICP", () => {
+    for (const target of ["Legal", "Staffing", "Accounting", "Security guards", "BPO"]) {
+      expect(defaultKindPolicy(rulesFor([target])).services_agency, target).toBe("accept");
+    }
+    expect(defaultKindPolicy(rulesFor(["Nonprofit"])).association_nonprofit).toBe("accept");
+    expect(defaultKindPolicy(rulesFor(["Legal"])).association_nonprofit).toBe("reject");
+  });
+
   it.each(SECTORLESS)("%s: rejected when the ICP names industries without that sector, reviewed when it names none", (kind) => {
     expect(defaultKindPolicy(STORMWALL)[kind]).toBe("reject");
     expect(defaultKindPolicy(FINGERMIND)[kind]).toBe("reject");

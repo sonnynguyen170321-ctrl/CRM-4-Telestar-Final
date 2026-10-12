@@ -33,7 +33,8 @@ import {
 
 // v2 (2026-10-06): the engine's country and title matching changed underneath (see ICP_VERDICT_VERSION).
 // v3 (2026-10-10): seniority and industry dictionaries changed underneath (see ICP_VERDICT_VERSION).
-export const POINTS_VERDICT_VERSION = 'points-v3';
+// v4 (2026-10-13): industry dictionary changed underneath (see ICP_VERDICT_VERSION).
+export const POINTS_VERDICT_VERSION = 'points-v4';
 
 export type PointMatch = { ruleId: string; group: PointRuleGroup; points: number; matched: string };
 
