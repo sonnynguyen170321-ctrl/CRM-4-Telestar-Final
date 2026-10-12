@@ -93,17 +93,20 @@ function exclusionReason(assessed: IcpRulesV2Assessment, verdict: IcpVerdict): s
 
 // Sector families: an industry in the same family as a target is not an unambiguous miss (a fintech for a
 // banking ICP, a hosting company for a telecom ICP). Overlaps are deliberate (CLOUD_HOSTING).
-const SECTOR_FAMILIES: ReadonlyArray<ReadonlySet<IndustryKey>> = [
+export const SECTOR_FAMILIES: ReadonlyArray<ReadonlySet<IndustryKey>> = [
   new Set<IndustryKey>(['BANKING', 'FINTECH', 'FINANCE', 'INSURANCE', 'CRYPTO']),
   new Set<IndustryKey>(['TELECOM', 'ISP', 'CLOUD_HOSTING']),
   new Set<IndustryKey>(['SOFTWARE', 'SAAS', 'IT_SERVICES', 'CYBERSECURITY', 'CLOUD_HOSTING']),
-  new Set<IndustryKey>(['RETAIL', 'ECOMMERCE', 'FMCG', 'FNB', 'HOSPITALITY']),
+  new Set<IndustryKey>(['RETAIL', 'ECOMMERCE', 'FMCG', 'FNB', 'HOSPITALITY', 'WHOLESALE_DISTRIBUTION']),
   new Set<IndustryKey>(['MEDIA', 'ENTERTAINMENT', 'GAMING', 'ADVERTISING', 'MARKETING']),
-  new Set<IndustryKey>(['LOGISTICS', 'TRANSPORTATION']),
+  new Set<IndustryKey>(['LOGISTICS', 'TRANSPORTATION', 'WHOLESALE_DISTRIBUTION']),
+  new Set<IndustryKey>(['MANUFACTURING', 'AUTOMOTIVE', 'AEROSPACE_DEFENSE', 'WHOLESALE_DISTRIBUTION']),
+  new Set<IndustryKey>(['PROFESSIONAL_SERVICES', 'LEGAL', 'STAFFING_HR', 'BPO_OUTSOURCING', 'SECURITY_SERVICES', 'IT_SERVICES']),
+  new Set<IndustryKey>(['GOVERNMENT', 'NONPROFIT']),
   new Set<IndustryKey>(['ENERGY', 'UTILITY']),
 ];
 
-const sameFamily = (a: IndustryKey, b: IndustryKey): boolean =>
+export const sameFamily = (a: IndustryKey, b: IndustryKey): boolean =>
   a === b || SECTOR_FAMILIES.some((family) => family.has(a) && family.has(b));
 
 /**

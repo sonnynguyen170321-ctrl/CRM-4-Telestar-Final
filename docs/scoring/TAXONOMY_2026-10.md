@@ -10,6 +10,104 @@ dictionaries, the judgement calls, and the measured effect. The dictionaries the
 `packages/core-scoring/src/rules/dictionaries/` (`seniority.ts`, `industry.ts`, `servedVertical.ts`,
 `termMatch.ts`). If this page and the code disagree, the code wins.
 
+## Follow-up 2026-10-13: nine new industry keys (industry-v3)
+
+The "Proposed next" table at the end of this page was done. Version changes:
+
+| Constant | Before | After |
+|---|---|---|
+| `ICP_VERDICT_VERSION` | `weighted-v3` | `weighted-v4` |
+| `POINTS_VERDICT_VERSION` | `points-v3` | `points-v4` |
+| `INDUSTRY_DICTIONARY_VERSION` | `industry-v2` | `industry-v3` |
+| research `CLASSIFIER_VERSION` (`packages/core-research/src/companyClassification.ts`) | `1` | `2` |
+
+### Post-deploy steps (owner)
+
+1. **Leads → Rescore all** (or `npx tsx scripts/backfill-lead-icp.ts --all`, then `--all --apply`). Existing
+   assessments carry `weighted-v3`/`points-v3`, and the version is in the fingerprint, so only a rescore moves them.
+2. **Research: "Check again"** on each run you want re-read. Domain classifications are cached per
+   `CLASSIFIER_VERSION`, so the bump makes every cached domain stale: the next verification re-runs the
+   classifier for it. **AI cost:** one classifier batch call per stale domain (roughly the per-run
+   classification spend you saw on the last run, again, for every run you re-check). Nothing is
+   reclassified until a run is verified or "Check again" is pressed, so the spend is opt-in per run.
+3. Preview before writing anything: the backfill script without `--apply` prints the verdict moves.
+
+### New keys
+
+| Key | Parent | Covers (aliases, English plus Vietnamese) |
+|---|---|---|
+| `PROFESSIONAL_SERVICES` | none | professional / business / management / operations consulting, accounting, audit, engineering and design services, surveying; kế toán, kiểm toán, tư vấn doanh nghiệp |
+| `LEGAL` | none | legal services, law firm / practice, lawyers, arbitration, ADR; công ty luật, luật sư |
+| `STAFFING_HR` | none | staffing, recruiting, executive search, temporary help, HR services, payroll, EOR; tuyển dụng, nhân sự |
+| `BPO_OUTSOURCING` | none | BPO, outsourcing / offshoring, call and contact centres, translation, localization; tổng đài, dịch thuật, thuê ngoài |
+| `WHOLESALE_DISTRIBUTION` | none | wholesale (all LinkedIn "Wholesale *"), distributors, import and export; bán buôn, nhà phân phối |
+| `NONPROFIT` | none | non-profit, NGO, charity, civic and social, industry / professional associations, fundraising, religious institutions; tổ chức phi lợi nhuận, từ thiện |
+| `SECURITY_SERVICES` | none | physical security: guards, patrol, investigations, security systems services; dịch vụ bảo vệ |
+| `AUTOMOTIVE` | `MANUFACTURING` | automotive, motor vehicle (parts) manufacturing, auto parts, dealers, vehicle repair; ô tô, phụ tùng ô tô |
+| `AEROSPACE_DEFENSE` | `MANUFACTURING` | aerospace, aircraft manufacturing, defense and space, avionics; hàng không vũ trụ, quốc phòng |
+
+Judgement calls:
+
+- **Names.** The earlier table said `AEROSPACE`; the key is `AEROSPACE_DEFENSE`, because the classifier
+  reads the key name and "defense" is half the labels it must place.
+- **AUTOMOTIVE and AEROSPACE_DEFENSE keep `MANUFACTURING` as a parent.** Targets accept the company's key or any
+  parent, so every ICP that targets "Manufacturing" still admits them (no live ICP loses a company). The reverse
+  does not hold: an ICP that targets "Automotive" does not admit generic manufacturers.
+  `automotive`, `auto parts` and `aerospace` moved out of the MANUFACTURING aliases (the taxonomy test
+  requires every alias to resolve to its own key).
+- **Wholesale wins over the goods.** "Wholesale Machinery", "Wholesale Food and Beverage" and three other
+  labels used to read as MANUFACTURING / FNB / ENERGY / AGRICULTURE by the goods; they are now
+  `WHOLESALE_DISTRIBUTION`, which is what the company does (same rule as vendor-before-sector). Consequence:
+  an ICP that targets FNB no longer matches a beverage wholesaler through the industry rule. This matches how
+  research already treats them (company kind `reseller_wholesaler`).
+- **NONPROFIT is the last sector entry**, so the sector wins over the legal form: "Nonprofit hospital" stays
+  HEALTHCARE. "Tổ chức phi chính phủ" is not an alias because "chính phủ" already (and deliberately) reads
+  as GOVERNMENT.
+- **Older keys keep their labels.** Data security software stays CYBERSECURITY, "Human Resources Software"
+  and "Accounting software" stay SOFTWARE (vendor before sector), "IT Outsourcing" stays IT_SERVICES,
+  "Retail Motor Vehicles" stays RETAIL, "Airlines and Aviation" stays TRANSPORTATION. The ICP shorthand
+  "Security" still means CYBERSECURITY only; to target guards, write "Security services" or "Security guards".
+- **"Internet" -> SOFTWARE** (decision). The bare LinkedIn V1 label (110 production leads) names web
+  platforms, portals and consumer internet companies; they are software businesses for targeting purposes
+  and the dictionary already read "Technology, Information and Internet" and "internet company" as SOFTWARE.
+  A new `INTERNET` key was rejected: it would split the tech family for no targeting benefit. The alias is the
+  last entry in the taxonomy so "Internet Publishing" (MEDIA), "Internet Marketing" (MARKETING),
+  "Internet Marketplace Platforms" (ECOMMERCE) and "Internet Service Provider" (ISP) are untouched.
+
+### Research changes
+
+- The classifier's closed list (`classifyPrompt.ts`, `CompanyClassificationSchema`) derives from
+  `INDUSTRY_KEYS`, so the model may now answer with any of the nine keys; no list was hand-edited.
+- `SECTOR_FAMILIES` (`lib/research/verifyScoring.ts`; now exported with `sameFamily` for tests):
+  wholesale joins the retail, logistics and manufacturing families; MANUFACTURING, AUTOMOTIVE,
+  AEROSPACE_DEFENSE form a family; PROFESSIONAL_SERVICES, LEGAL, STAFFING_HR, BPO_OUTSOURCING,
+  SECURITY_SERVICES and IT_SERVICES form a business-services family; GOVERNMENT and NONPROFIT pair. A candidate
+  in the same family as a target becomes a review instead of an industry reject.
+- Target policy (`targetPolicy.ts`): the five services sectors above count as "services side" (an ICP aimed
+  at them accepts `services_agency`); a nonprofit ICP accepts `association_nonprofit`; an ICP that names
+  wholesale accepts `reseller_wholesaler`; AUTOMOTIVE and AEROSPACE_DEFENSE are producer sectors (they reject
+  wholesalers like MANUFACTURING does).
+- The ICP editor takes industries as free text (`components/icp/IcpRuleEditor.tsx`), so there is no options
+  list to extend; typed terms resolve through `canonicalizeIndustry`, which has the new aliases.
+
+### Coverage on the LinkedIn fixture (450 labels, `scripts/taxonomy-coverage.ts --kind industry`)
+
+| | Unmapped before industry-v3 | After |
+|---|---|---|
+| Labels | **116 (25.8%)** | **65 (14.4%)** |
+
+51 newly mapped (50 to the new keys, 1 "Internet" to SOFTWARE); 10 moved between keys (5 wholesale labels from
+goods keys, 5 from MANUFACTURING to AUTOMOTIVE / AEROSPACE_DEFENSE). Of the 116, 65 are still unmapped on
+purpose or for lack of a key: personal and household services, repair, arts and recreation, gambling,
+public programs and social services, holding companies, research and think tanks, equipment rental,
+facilities and janitorial, plus "Information Services" and "Computer Networking Products" (no single key
+fits).
+
+Expected effect on the live "Telestar v2" ICP (targets Tech / Software / SaaS): the 110 "Internet" leads
+now match the target, the same step as the cybersecurity leads in the 2026-10-10 table (industry 20 -> 95,
+one verdict step, Review/No fit upward). This is derived from the same scoring path, not re-measured from a
+production export; the rescore preview shows the real moves.
+
 ## After deploying: rescore
 
 Verdicts move for existing leads (same evidence, new dictionaries), so the verdict versions were
@@ -160,7 +258,7 @@ Persona synonyms (`personaScore.ts`): CGO ↔ chief growth officer, CBO ↔ chie
 
 ### Industry (`industry.ts`)
 
-- No new `INDUSTRY_KEYS` (see proposals below). LinkedIn V2 labels, NAICS/GICS sector names and
+- No new `INDUSTRY_KEYS` in this pass (nine were added in the 2026-10-13 follow-up above). LinkedIn V2 labels, NAICS/GICS sector names and
   Vietnamese aliases were mapped onto the existing 33 keys.
 - Bare nouns that name more than one industry were removed: "security" (guards and patrols — LinkedIn
   "Security and Investigations"), "property" (intellectual property), "production" (film/media),
@@ -247,7 +345,7 @@ same labels under both versions: information technology & services (354 leads), 
   shorthand was added (`INDUSTRY_SHORTHANDS`): "Tech", "Technology", "High-tech" name SOFTWARE, SAAS,
   IT_SERVICES, CLOUD_HOSTING and CYBERSECURITY; "IT" names IT_SERVICES, CLOUD_HOSTING and
   CYBERSECURITY. That is where the 63 cybersecurity leads come from.
-- "internet" (110 leads) has no key and stays unmatched under both versions.
+- "internet" (110 leads) had no key under industry-v2 and stayed unmatched; the 2026-10-13 follow-up maps it to SOFTWARE.
 - **Verdict effect** (default weights industry 15 / persona 30, thresholds 75 / 45, computed with the
   real verdict code): each of the 74 leads moves **one step**, never Fit ↔ No fit. With an allowlisted
   title the industry moving 20 → 95 takes the fit score 73 → 98 (Review → Fit; biotechnology goes
@@ -284,7 +382,7 @@ verdict. That ICP probably needs "IT services" / "service" taken off its exclusi
   Personal Care Products" reads as HEALTHCARE rather than RETAIL.
 - **Gambling stays unmapped** rather than GAMING: an ICP that targets video games must not start
   matching casinos.
-- **Wholesale has no key.** "Wholesale Machinery" / "Wholesale Chemical…" now map by the goods
+- **Wholesale had no key in this pass** (added 2026-10-13 as `WHOLESALE_DISTRIBUTION`, which now wins over the goods). "Wholesale Machinery" / "Wholesale Chemical…" now map by the goods
   (MANUFACTURING), as "Wholesale Food and Beverage" → FNB already did in v1.
 
 ## Known limitations
@@ -295,7 +393,7 @@ verdict. That ICP probably needs "IT services" / "service" taken off its exclusi
 - Department stays UNKNOWN for generic tier matches ("VP of Sales" → VP / UNKNOWN). Inferring it would
   change department-allowlist behaviour and is a separate change.
 
-## Proposed next: new industry keys (not done here)
+## Proposed next: new industry keys (DONE 2026-10-13, see the follow-up section above)
 
 Adding a key changes more than this dictionary: the research classifier's closed list
 (`packages/core-research/src/classifyPrompt.ts`, `companyClassification.ts`), the research sector

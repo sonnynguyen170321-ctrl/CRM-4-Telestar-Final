@@ -47,7 +47,7 @@ const valid = (over: Record<string, unknown> = {}) => ({
 
 describe('CompanyClassificationSchema', () => {
   it('has a version', () => {
-    expect(CLASSIFIER_VERSION).toBe(1);
+    expect(CLASSIFIER_VERSION).toBe(2);
   });
 
   it('accepts a complete classification', () => {

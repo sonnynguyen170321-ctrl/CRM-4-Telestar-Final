@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { INDUSTRY_KEYS } from '@telestar/core-scoring/rules/dictionaries/industry';
+
 import { buildClassificationBundle } from '../classificationEvidence';
 import { buildClassificationPrompt, parseClassificationResponse } from '../classifyPrompt';
 
@@ -32,6 +34,14 @@ describe('buildClassificationPrompt', () => {
     expect(prompt).toContain('software_vendor');
     expect(prompt).toContain('BANKING');
     expect(prompt).toContain('LARGE_ENTERPRISE');
+  });
+
+  it('offers the industry-v3 keys so the model can name a law firm or a staffing agency', () => {
+    const prompt = buildClassificationPrompt([bundleOf('Acme', 'x')]);
+    for (const key of INDUSTRY_KEYS) expect(prompt, key).toContain(key);
+    for (const key of ['PROFESSIONAL_SERVICES', 'LEGAL', 'STAFFING_HR', 'BPO_OUTSOURCING', 'WHOLESALE_DISTRIBUTION', 'NONPROFIT', 'SECURITY_SERVICES', 'AUTOMOTIVE', 'AEROSPACE_DEFENSE']) {
+      expect(prompt, key).toContain(key);
+    }
   });
 });
 

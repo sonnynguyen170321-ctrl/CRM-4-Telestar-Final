@@ -14,9 +14,18 @@ export type KindDecision = "accept" | "review" | "reject" | "competitor";
 export type KindPolicy = Record<CompanyKind, KindDecision>;
 
 const SOFTWARE_SIDE: ReadonlySet<IndustryKey> = new Set(["SOFTWARE", "SAAS", "IT_SERVICES", "CYBERSECURITY", "CLOUD_HOSTING"]);
-const SERVICES_SIDE: ReadonlySet<IndustryKey> = new Set(["IT_SERVICES", "MARKETING", "ADVERTISING"]);
-const PRODUCER_SECTORS: ReadonlySet<IndustryKey> = new Set(["FMCG", "MANUFACTURING", "AGRICULTURE"]);
-const DISTRIBUTION_SECTORS: ReadonlySet<IndustryKey> = new Set(["RETAIL", "ECOMMERCE", "LOGISTICS"]);
+const SERVICES_SIDE: ReadonlySet<IndustryKey> = new Set([
+  "IT_SERVICES",
+  "MARKETING",
+  "ADVERTISING",
+  "PROFESSIONAL_SERVICES",
+  "LEGAL",
+  "STAFFING_HR",
+  "BPO_OUTSOURCING",
+  "SECURITY_SERVICES",
+]);
+const PRODUCER_SECTORS: ReadonlySet<IndustryKey> = new Set(["FMCG", "MANUFACTURING", "AGRICULTURE", "AUTOMOTIVE", "AEROSPACE_DEFENSE"]);
+const DISTRIBUTION_SECTORS: ReadonlySet<IndustryKey> = new Set(["RETAIL", "ECOMMERCE", "LOGISTICS", "WHOLESALE_DISTRIBUTION"]);
 // A marketplace is an e-commerce operator, so an e-commerce ICP wants it.
 const MARKETPLACE_SECTORS: ReadonlySet<IndustryKey> = new Set(["ECOMMERCE", "RETAIL"]);
 
@@ -25,6 +34,7 @@ const SECTOR_OF_KIND: Partial<Record<CompanyKind, IndustryKey>> = {
   government: "GOVERNMENT",
   education: "EDUCATION",
   media_news: "MEDIA",
+  association_nonprofit: "NONPROFIT",
 };
 
 function targetKeys(rules: IcpVersionRulesV2): Set<IndustryKey> {
@@ -40,6 +50,8 @@ const targets = (keys: ReadonlySet<IndustryKey>, wanted: ReadonlySet<IndustryKey
   [...keys].some((key) => wanted.has(key));
 
 function wholesalerDecision(keys: ReadonlySet<IndustryKey>): KindDecision {
+  // An ICP that names wholesale itself wants wholesalers.
+  if (keys.has("WHOLESALE_DISTRIBUTION")) return "accept";
   // A wholesaler is not the producer an FMCG or manufacturing ICP is after, unless the ICP also
   // sells into distribution.
   return targets(keys, PRODUCER_SECTORS) && !targets(keys, DISTRIBUTION_SECTORS) ? "reject" : "review";

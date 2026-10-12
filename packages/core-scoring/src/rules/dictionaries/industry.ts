@@ -45,6 +45,15 @@ export const INDUSTRY_KEYS = [
   "CRYPTO",
   "CONSTRUCTION",
   "AGRICULTURE",
+  "PROFESSIONAL_SERVICES",
+  "LEGAL",
+  "STAFFING_HR",
+  "BPO_OUTSOURCING",
+  "WHOLESALE_DISTRIBUTION",
+  "NONPROFIT",
+  "SECURITY_SERVICES",
+  "AUTOMOTIVE",
+  "AEROSPACE_DEFENSE",
   "OTHER",
 ] as const;
 
@@ -63,7 +72,7 @@ type IndustryEntry = {
 // "what the company does" (vendor) is ordered before "who it serves" (sector).
 export const INDUSTRY_TAXONOMY: readonly IndustryEntry[] = [
   { canonical: "SAAS", parents: ["SOFTWARE"], aliases: ["saas", "software as a service", "b2b saas", "vertical saas"] },
-  { canonical: "CYBERSECURITY", parents: ["IT_SERVICES"], aliases: ["cybersecurity", "cyber security", "information security", "network security", "computer and network security", "computer & network security", "data security", "it security", "cloud security", "endpoint security", "application security", "managed security", "mssp", "infosec", "penetration testing", "an ninh mạng", "an toàn thông tin", "bảo mật thông tin"] },
+  { canonical: "CYBERSECURITY", parents: ["IT_SERVICES"], aliases: ["cybersecurity", "cyber security", "information security", "network security", "computer and network security", "computer & network security", "data security", "it security", "cloud security", "cyber defense", "endpoint security", "application security", "managed security", "mssp", "infosec", "penetration testing", "an ninh mạng", "an toàn thông tin", "bảo mật thông tin"] },
   { canonical: "SOFTWARE", aliases: ["software", "software development", "app development", "application development", "computer software", "technology, information and internet", "internet company", "social networking platform", "business intelligence platform", "data infrastructure and analytics", "phần mềm"] },
   { canonical: "IT_SERVICES", aliases: ["it services", "it service", "information technology", "it consulting", "it outsourcing", "it solutions", "it system", "system integrator", "systems integrator", "system integration", "managed it", "managed services", "managed service provider", "msp", "technology consulting", "dịch vụ công nghệ thông tin", "công nghệ thông tin", "tích hợp hệ thống"] },
   { canonical: "CLOUD_HOSTING", parents: ["IT_SERVICES"], aliases: ["cloud", "hosting", "web hosting", "data center", "datacenter", "data centre", "colocation", "cloud storage", "cloud infrastructure", "it infrastructure", "iaas", "paas", "điện toán đám mây"] },
@@ -74,12 +83,20 @@ export const INDUSTRY_TAXONOMY: readonly IndustryEntry[] = [
   { canonical: "INSURANCE", parents: ["FINANCE"], aliases: ["insurance", "insurtech", "reinsurance", "insurer", "actuarial", "claims adjusting", "bảo hiểm"] },
   { canonical: "CRYPTO", aliases: ["crypto", "cryptocurrency", "web3", "defi", "nft", "blockchain", "digital assets", "decentralized finance", "bitcoin", "tiền mã hóa", "tiền điện tử"] },
   { canonical: "FINANCE", aliases: ["finance", "financial services", "financial service", "asset management", "investment management", "investment advice", "wealth management", "capital markets", "venture capital", "private equity", "hedge fund", "securities", "stock brokerage", "securities brokerage", "online brokerage", "stock exchange", "commodity exchange", "pension fund", "funds and trusts", "trusts and estates", "loan", "lending", "mortgage", "microfinance", "consumer finance", "tài chính", "chứng khoán", "quỹ đầu tư"] },
+  { canonical: "WHOLESALE_DISTRIBUTION", aliases: ["wholesale", "wholesaler", "wholesalers", "distributor", "distributors", "import and export", "import-export", "bán buôn", "nhà phân phối"] },
+  { canonical: "BPO_OUTSOURCING", aliases: ["bpo", "business process outsourcing", "outsourcing", "offshoring", "call center", "call centre", "contact center", "contact centre", "translation", "localization", "transcription", "kpo", "shared services", "tổng đài", "dịch thuật", "thuê ngoài"] },
+  { canonical: "STAFFING_HR", aliases: ["staffing", "recruiting", "recruitment", "recruiter", "executive search", "headhunting", "temporary help", "temp agency", "human resources", "hr services", "hr consulting", "payroll", "employer of record", "talent acquisition", "manpower", "tuyển dụng", "nhân sự", "cung ứng nhân lực"] },
+  { canonical: "LEGAL", aliases: ["legal", "legal services", "law firm", "law practice", "lawyer", "attorney", "alternative dispute resolution", "arbitration", "notary", "luật sư", "công ty luật", "văn phòng luật", "dịch vụ pháp lý"] },
+  { canonical: "PROFESSIONAL_SERVICES", aliases: ["professional services", "business consulting", "management consulting", "operations consulting", "strategic management", "accounting", "audit", "engineering services", "design services", "graphic design", "interior design", "surveying and mapping", "kế toán", "kiểm toán", "tư vấn doanh nghiệp", "tư vấn quản lý"] },
+  { canonical: "SECURITY_SERVICES", aliases: ["security services", "security guard", "security guards", "guards and patrol", "security and investigations", "security systems services", "private security", "investigations", "dịch vụ bảo vệ", "công ty bảo vệ", "vệ sĩ"] },
   { canonical: "HEALTHCARE", aliases: ["healthcare", "health care", "health", "health & wellness", "health, wellness and fitness", "wellness", "fitness", "medical", "pharma", "pharmaceutical", "hospital", "clinic", "clinical", "biotech", "biotechnology", "life sciences", "medtech", "healthtech", "health tech", "digital health", "telehealth", "telemedicine", "dental", "dentist", "physician", "nursing home", "mental health", "home health", "elderly care", "veterinary", "chiropractor", "optometrist", "therapist", "ambulance", "outpatient", "alternative medicine", "y tế", "bệnh viện", "phòng khám", "dược phẩm", "nha khoa", "chăm sóc sức khỏe"] },
   { canonical: "ECOMMERCE", parents: ["RETAIL"], aliases: ["ecommerce", "e-commerce", "online retail", "online store", "online shop", "online marketplace", "internet marketplace", "online and mail order retail", "d2c", "direct-to-consumer", "direct to consumer", "dropshipping", "thương mại điện tử", "sàn thương mại điện tử", "bán hàng trực tuyến"] },
   { canonical: "RETAIL", aliases: ["retail", "retailer", "supermarket", "hypermarket", "grocery", "groceries", "department store", "convenience store", "bán lẻ", "siêu thị", "chuỗi cửa hàng"] },
   { canonical: "FNB", aliases: ["f&b", "food & beverage", "food and beverage", "restaurant", "cafe", "café", "coffee shop", "qsr", "quick service restaurant", "catering", "caterer", "bars, taverns", "nightclub", "brewery", "breweries", "distillery", "distilleries", "winery", "wineries", "food service", "foodservice", "food processing", "nhà hàng", "thực phẩm", "đồ uống", "nước giải khát", "chế biến thực phẩm"] },
   { canonical: "FMCG", aliases: ["fmcg", "consumer goods", "cpg", "consumer packaged goods", "consumer products", "household products", "personal care product", "cosmetics", "tobacco", "hàng tiêu dùng", "hàng tiêu dùng nhanh", "mỹ phẩm"] },
-  { canonical: "MANUFACTURING", aliases: ["manufacturing", "manufacturer", "factory", "industrial machinery", "machinery", "fabricated metal", "plastics", "electronics & high-tech", "industrial automation", "semiconductor", "electronics manufacturing", "contract manufacturing", "oem", "shipbuilding", "textile", "garment", "chemical", "packaging", "printing", "steel", "automotive", "auto parts", "aerospace", "sản xuất", "nhà máy", "cơ khí", "dệt may", "may mặc", "linh kiện điện tử"] },
+  { canonical: "AUTOMOTIVE", parents: ["MANUFACTURING"], aliases: ["automotive", "auto parts", "automobile", "motor vehicle", "motor vehicles", "motor vehicle manufacturing", "car dealership", "auto dealer", "vehicle repair and maintenance", "auto repair", "sản xuất ô tô", "phụ tùng ô tô", "đại lý ô tô", "xe hơi"] },
+  { canonical: "AEROSPACE_DEFENSE", parents: ["MANUFACTURING"], aliases: ["aerospace", "aircraft manufacturing", "avionics", "defense", "defence", "space research", "space technology", "satellite manufacturing", "hàng không vũ trụ", "quốc phòng"] },
+  { canonical: "MANUFACTURING", aliases: ["manufacturing", "manufacturer", "factory", "industrial machinery", "machinery", "fabricated metal", "plastics", "electronics & high-tech", "industrial automation", "semiconductor", "electronics manufacturing", "contract manufacturing", "oem", "shipbuilding", "textile", "garment", "chemical", "packaging", "printing", "steel", "sản xuất", "nhà máy", "cơ khí", "dệt may", "may mặc", "linh kiện điện tử"] },
   { canonical: "LOGISTICS", aliases: ["logistics", "logistic", "warehousing", "warehouse", "supply chain", "freight", "freight forwarding", "3pl", "fulfillment", "fulfilment", "courier", "express delivery", "parcel", "last mile", "last-mile", "cold chain", "customs brokerage", "postal service", "shipping", "kho vận", "giao nhận", "chuỗi cung ứng", "chuyển phát nhanh", "kho bãi"] },
   { canonical: "TRANSPORTATION", aliases: ["transportation", "transport", "mobility", "fleet", "airline", "aviation", "rail", "railway", "trucking", "maritime", "taxi", "limousine", "ride-hailing", "ridesharing", "urban transit", "public transit", "bus service", "vận tải", "hàng không"] },
   { canonical: "HOSPITALITY", aliases: ["hospitality", "hotel", "hotels and motels", "motel", "resort", "travel", "tourism", "accommodation", "lodging", "hostel", "homestay", "bed-and-breakfast", "bed and breakfast", "travel agency", "tour operator", "khách sạn", "du lịch", "lữ hành", "khu nghỉ dưỡng"] },
@@ -95,12 +112,18 @@ export const INDUSTRY_TAXONOMY: readonly IndustryEntry[] = [
   { canonical: "REAL_ESTATE", aliases: ["real estate", "realty", "realtor", "properties", "property management", "property development", "property developer", "property investment", "proptech", "reit", "coworking", "co-working", "bất động sản"] },
   { canonical: "CONSTRUCTION", aliases: ["construction", "engineering & construction", "civil engineering", "contractor", "architecture and planning", "xây dựng", "nhà thầu", "xây lắp"] },
   { canonical: "AGRICULTURE", aliases: ["agriculture", "agritech", "agtech", "farming", "farm", "ranching", "forestry", "fishery", "fisheries", "aquaculture", "horticulture", "livestock", "plantation", "agribusiness", "nông nghiệp", "nông sản", "thủy sản", "chăn nuôi"] },
+  { canonical: "NONPROFIT", aliases: ["nonprofit", "non-profit", "non profit", "not-for-profit", "ngo", "charity", "charities", "civic and social", "social organizations", "professional organizations", "industry associations", "trade association", "philanthropic", "philanthropy", "fundraising", "fund-raising", "political organizations", "religious institutions", "tổ chức phi lợi nhuận", "từ thiện"] },
+  // Last on purpose: the bare LinkedIn V1 label "Internet" would otherwise shadow "Internet Publishing",
+  // "Internet Marketing" and "Internet Marketplace". See docs/scoring/TAXONOMY_2026-10.md.
+  { canonical: "SOFTWARE", aliases: ["internet"] },
 ];
 
 // v2 (2026-10-10): whole-word matching (v1's substring match sent "Hospitality" to HEALTHCARE,
 // "Urban Transit Services" to IT_SERVICES, "Alternative Dispute Resolution" to ISP), LinkedIn V2
 // coverage, Vietnamese aliases, ambiguous bare nouns removed.
-export const INDUSTRY_DICTIONARY_VERSION = "industry-v2";
+// v3 (2026-10-13): nine new keys (professional services, legal, staffing/HR, BPO, wholesale, nonprofit,
+// security services, automotive, aerospace/defense) and the bare LinkedIn label "Internet" -> SOFTWARE.
+export const INDUSTRY_DICTIONARY_VERSION = "industry-v3";
 
 // Aliases folded once, at load.
 const COMPILED = INDUSTRY_TAXONOMY.flatMap((entry) =>

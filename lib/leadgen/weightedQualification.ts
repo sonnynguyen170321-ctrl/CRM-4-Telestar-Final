@@ -42,7 +42,9 @@ import type { IcpVersionRulesV2 } from '@telestar/core-scoring/rules/schema-v2';
 // v3 (2026-10-10): the dictionaries underneath changed — worldwide titles (president, chairman, board,
 // GM, Vietnamese/European/Asian forms, former/intern/assistant-to guards) and whole-word industry
 // matching (docs/scoring/TAXONOMY_2026-10.md). Same evidence can now score differently.
-export const ICP_VERDICT_VERSION = 'weighted-v3';
+// v4 (2026-10-13): nine new industry keys and "Internet" -> SOFTWARE in the industry dictionary
+// (industry-v3); an industry that was unmapped can now match a target or an exclusion.
+export const ICP_VERDICT_VERSION = 'weighted-v4';
 
 export type WeightedVerdictReason =
   | 'disqualified'
