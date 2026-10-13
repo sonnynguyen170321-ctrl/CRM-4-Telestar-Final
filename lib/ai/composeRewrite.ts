@@ -93,13 +93,43 @@ ${fenceDraft(input.masked)}
 Return the JSON now.`;
 }
 
+/**
+ * How long the rep waits, at most, from the call to an answer: one deadline over every provider
+ * attempt. The gateway's own timeout is per attempt and it fails over between models, so on its own
+ * a slow first model and a slow second one would stack.
+ *
+ * What the deadline does and does not do: the route answers 504 when it passes and discards any
+ * later result. It does not cancel an attempt already in flight, because the gateway takes no
+ * external abort signal; that attempt still ends at its own `REWRITE_ATTEMPT_TIMEOUT_MS` and is
+ * recorded and billed in the AiCall ledger like any other.
+ */
+export const REWRITE_DEADLINE_MS = 30_000;
+export const REWRITE_ATTEMPT_TIMEOUT_MS = 20_000;
+
+export type DeadlineOutcome<T> = { timedOut: false; value: T } | { timedOut: true };
+
+/** `work`, or `{ timedOut: true }` once `ms` has passed, whichever comes first. A rejection passes through. */
+export async function withDeadline<T>(work: Promise<T>, ms: number): Promise<DeadlineOutcome<T>> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<DeadlineOutcome<T>>((resolve) => {
+    timer = setTimeout(() => resolve({ timedOut: true }), ms);
+  });
+  try {
+    return await Promise.race([work.then((value): DeadlineOutcome<T> => ({ timedOut: false, value })), deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** The longest answer accepted, against the masked draft: room for a translation, not for an essay. */
 export const MAX_REWRITE_OUTPUT_CHARS = 24_000;
 
 /** The rewritten body, or null when the answer has none. */
 export function parseRewriteOutput(raw: string): string | null {
   try {
-    const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+    // Fences off without a `\s*```$` regex, which backtracks on a long run of spaces.
+    let cleaned = raw.trim().replace(/^```(?:json)?/i, '').trim();
+    if (cleaned.endsWith('```')) cleaned = cleaned.slice(0, -3).trim();
     const parsed: unknown = JSON.parse(cleaned);
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
     const body = (parsed as Record<string, unknown>).body;

@@ -2,8 +2,14 @@
  * Email body sanitization and dangerous HTML stripping.
  */
 
+/**
+ * A `<` followed by a letter, and a `>` somewhere after it. The same answer `/<[a-z][\s\S]*>/i`
+ * gave, without its backtracking: that regex rescanned to the end from every `<x` when no `>`
+ * followed, which made 60 KB of `<a` cost seconds.
+ */
 export function isHtml(text: string): boolean {
-  return /<[a-z][\s\S]*>/i.test(text);
+  const open = text.search(/<[a-z]/i);
+  return open !== -1 && text.lastIndexOf('>') > open + 1;
 }
 
 export function stripHtml(html: string): string {

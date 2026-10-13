@@ -3,9 +3,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, type SessionUser } from '@/lib/auth';
 import { consumeAttempt } from '@/lib/security/attemptLimit';
 import { generateStructured } from '@/lib/ai/generation';
-import { buildRewritePrompt, parseRewriteOutput, REWRITE_SYSTEM_PROMPT, rewriteRequestSchema } from '@/lib/ai/composeRewrite';
-import { htmlToPlainText, plainTextToHtml, sanitizeComposeHtml, unchipifyMergeTags } from '@/lib/compose/html';
-import { MAX_REWRITE_TEXT_CHARS, protectTokens, sameTemplateTokens, validateRewrite } from '@/lib/compose/rewrite';
+import {
+  buildRewritePrompt,
+  parseRewriteOutput,
+  REWRITE_ATTEMPT_TIMEOUT_MS,
+  REWRITE_DEADLINE_MS,
+  REWRITE_SYSTEM_PROMPT,
+  rewriteRequestSchema,
+  withDeadline,
+} from '@/lib/ai/composeRewrite';
+import { htmlToPlainText, plainTextToHtml, unchipifyMergeTags } from '@/lib/compose/html';
+import { MAX_REWRITE_TEXT_CHARS, protectTokens, rewriteInputProblem, sameTemplateTokens, validateRewrite } from '@/lib/compose/rewrite';
 import { isHtml } from '@/lib/email/sanitize';
 
 export const dynamic = 'force-dynamic';
@@ -32,8 +40,6 @@ const LIMIT_WINDOW_SECONDS = 10 * 60;
 const TENANT_LIMIT_BUCKET = 'ai_compose_rewrite_tenant';
 const TENANT_LIMIT_PER_HOUR = 1000;
 const TENANT_LIMIT_WINDOW_SECONDS = 60 * 60;
-/** A rep is waiting with the composer open. */
-const REWRITE_TIMEOUT_MS = 30_000;
 const MAX_OUTPUT_TOKENS = 4000;
 
 async function limit(userId: string, tenantId: string): Promise<NextResponse | null> {
@@ -67,9 +73,16 @@ export async function POST(req: NextRequest) {
   if (!user.tenantId) return NextResponse.json({ error: 'No tenant context' }, { status: 403 });
   if (user.apiKey) return NextResponse.json({ error: 'Forbidden: AI rewrite is available in the composer only' }, { status: 403 });
 
+  // Counted before anything in the body is parsed: a flood of large drafts is refused at the
+  // counter, not after the scans that measure it.
+  const limited = await limit(user.id, user.tenantId);
+  if (limited) return limited;
+
   const parsed = rewriteRequestSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid request' }, { status: 400 });
   const { action, instruction } = parsed.data;
+  const problem = rewriteInputProblem(parsed.data.body);
+  if (problem) return refused(413, 'too_complex', problem);
   const body = unchipifyMergeTags(parsed.data.body);
   const draftIsHtml = isHtml(body);
 
@@ -78,11 +91,8 @@ export async function POST(req: NextRequest) {
     return refused(413, 'too_long', 'This draft is too long to rewrite in one go. Shorten it, or rewrite it in parts.');
   }
 
-  const limited = await limit(user.id, user.tenantId);
-  if (limited) return limited;
-
   try {
-    const result = await generateStructured<string>(
+    const outcome = await withDeadline(generateStructured<string>(
       {
         tenantId: user.tenantId,
         userId: user.id,
@@ -90,25 +100,31 @@ export async function POST(req: NextRequest) {
         systemPrompt: REWRITE_SYSTEM_PROMPT,
         userPrompt: buildRewritePrompt({ action, masked: protectedDraft.masked, isHtml: draftIsHtml, instruction }),
         maxOutputTokens: MAX_OUTPUT_TOKENS,
-        timeoutMs: REWRITE_TIMEOUT_MS,
+        timeoutMs: REWRITE_ATTEMPT_TIMEOUT_MS,
       },
       parseRewriteOutput,
-    );
+    ), REWRITE_DEADLINE_MS);
+    if (outcome.timedOut) {
+      return refused(504, 'timeout', 'The AI took too long to answer. Nothing was changed; try again.');
+    }
+    const result = outcome.value;
     if (!result.available || !result.data) {
       return refused(503, 'unavailable', 'AI rewrite is unavailable right now. Nothing was changed.');
     }
 
-    const checked = validateRewrite(body, protectedDraft, toDraftForm(result.data, draftIsHtml));
+    // For HTML, validateRewrite returns the sanitised HTML whose links and images it inspected.
+    const checked = validateRewrite(body, protectedDraft, toDraftForm(result.data, draftIsHtml), draftIsHtml);
     if (!checked.ok) return refused(422, checked.reason, checked.message);
 
-    const rewritten = draftIsHtml ? sanitizeComposeHtml(checked.text) : checked.text;
+    const rewritten = checked.text;
     // The sanitiser must not have eaten a token either (one inside an attribute it dropped, say).
     if (!sameTemplateTokens(body, rewritten) || rewritten.trim() === '') {
       return refused(422, 'variables_changed', 'The rewrite changed your variables, so it was not used. Try again or edit by hand.');
     }
     // Images are protected too, but "kept as written" is about the template syntax the rep can see.
     const kept = protectedDraft.tokens.filter((token) => !token.startsWith('<')).length;
-    return NextResponse.json({ success: true, action, body: rewritten, kept });
+    // `format` is the draft's, so the preview never guesses from the text (a plain draft can read like markup).
+    return NextResponse.json({ success: true, action, body: rewritten, kept, format: draftIsHtml ? 'html' : 'text' });
   } catch (error: unknown) {
     // The error's name only: a provider or parser message could quote the draft.
     console.error('[ai/compose-rewrite] failed:', error instanceof Error ? error.name : typeof error);

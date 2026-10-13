@@ -1,14 +1,12 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import DOMPurify from 'isomorphic-dompurify';
 import { ChevronDown, Loader2, Sparkles, Undo2, X } from 'lucide-react';
-import { blockRemoteImages } from '@/lib/compose/html';
+import { sanitizePreviewHtml } from '@/lib/compose/html';
 import { insertBelow, MAX_REWRITE_INSTRUCTION_CHARS, REWRITE_ACTIONS, type RewriteActionId } from '@/lib/compose/rewrite';
-import { isHtml } from '@/lib/email/sanitize';
 import { useDismiss } from './PickerMenu';
 
-interface RewriteResult { action: RewriteActionId; body: string; source: string; kept: number }
+interface RewriteResult { action: RewriteActionId; body: string; source: string; kept: number; format: 'html' | 'text' }
 
 /**
  * AI on the draft (POST /api/ai/compose-rewrite). The rewrite lands in a preview, never in the
@@ -38,12 +36,12 @@ export function useAiRewrite(body: string, setBody: (next: string) => void) {
         body: JSON.stringify({ action, body, ...(instruction ? { instruction } : {}) }),
         signal: controller.signal,
       });
-      const data = (await res.json().catch(() => ({}))) as { success?: boolean; body?: string; kept?: number; message?: string; error?: string };
+      const data = (await res.json().catch(() => ({}))) as { success?: boolean; body?: string; kept?: number; format?: 'html' | 'text'; message?: string; error?: string };
       if (!res.ok || !data.success || typeof data.body !== 'string') {
         setError(data.message || data.error || 'The draft could not be rewritten. Nothing was changed.');
         return;
       }
-      setResult({ action, body: data.body, source: body, kept: data.kept ?? 0 });
+      setResult({ action, body: data.body, source: body, kept: data.kept ?? 0, format: data.format === 'html' ? 'html' : 'text' });
     } catch (err) {
       if ((err as Error)?.name !== 'AbortError') setError('The draft could not be rewritten. Nothing was changed.');
     } finally {
@@ -175,13 +173,18 @@ export function AiRewritePreview({ state, body }: { state: AiRewriteState; body:
           <Sparkles className="h-3.5 w-3.5 text-brand-orange-text" aria-hidden="true" />
           {actionLabel(result.action)} - review before using it
         </p>
-        {isHtml(result.body) ? (
+        {/* The draft's own format, from the server: a plain draft can read like markup and must show as text. */}
+        {result.format === 'html' ? (
           <div
             className="compose-prose max-h-56 select-text overflow-y-auto rounded-lg border border-card-border bg-card-bg px-3 py-2"
-            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(blockRemoteImages(result.body)) }}
+            // No image address survives sanitizePreviewHtml: an unreviewed rewrite must not fetch anything.
+            dangerouslySetInnerHTML={{ __html: sanitizePreviewHtml(result.body) }}
           />
         ) : (
           <p className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-lg border border-card-border bg-card-bg px-3 py-2 text-text-primary">{result.body}</p>
+        )}
+        {result.format === 'html' && /<img\b/i.test(result.body) && (
+          <p className="text-text-muted">Images are not loaded in this preview; they stay as they are in your draft.</p>
         )}
         {result.kept > 0 && (
           <p className="text-text-muted">

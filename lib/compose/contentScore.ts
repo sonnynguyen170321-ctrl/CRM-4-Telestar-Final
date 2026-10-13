@@ -54,6 +54,12 @@ const LONG_WORDS = 200;
 const MIN_WORDS = 25;
 const SUBJECT_MAX_CHARS = 60;
 const MIN_WORDS_FOR_GRADE = 12;
+/**
+ * The score reads at most this much: far past any email worth scoring, and a bound on the work done
+ * per keystroke whatever was pasted in.
+ */
+export const MAX_SCORED_BODY_CHARS = 20_000;
+const MAX_SCORED_SUBJECT_CHARS = 500;
 
 /** English trigger words and phrases spam filters and readers both react to. Lower case. */
 const SPAM_EN = [
@@ -106,8 +112,9 @@ export function syllableCount(word: string): number {
  */
 function readableText(body: string): string {
   let text = isHtml(body) ? htmlToPlainText(body) : body;
-  text = text.replace(/\{\{\s*(?:#if\b[^}]*|else|\/if)\s*\}\}/g, ' ');
-  text = text.replace(/\{\{\s*([a-zA-Z][\w.]*)[^}]*\}\}/g, (_w, field: string) => field.replace(/\./g, ''));
+  // Bounded repetitions: an unbounded `[^}]*` rescans to the end from every `{{` that never closes.
+  text = text.replace(/\{\{\s{0,20}(?:#if\b[^}]{0,300}|else|\/if)\s{0,20}\}\}/g, ' ');
+  text = text.replace(/\{\{\s{0,20}([a-zA-Z][\w.]{0,100})\s{0,20}(?:\|[^}]{0,300})?\}\}/g, (_w, field: string) => field.replace(/\./g, ''));
   for (let guard = 0; guard < 10 && /\{[^{}|]*\|[^{}]*\}/.test(text); guard++) {
     text = text.replace(/\{([^{}|]*)\|[^{}]*\}/g, '$1');
   }
@@ -119,17 +126,39 @@ function countTerm(haystack: string, term: string): number {
   return (haystack.match(new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, 'giu')) ?? []).length;
 }
 
+const BARE_URL = /\b(?:https?:\/\/|www\.)\S+/gi;
+const ANCHOR_OPEN = /<a\b/gi;
+const ANCHOR_CLOSE = /<\/a>/gi;
+
+/**
+ * Links: anchors with an href, plus addresses written as text outside them. A forward scan: the
+ * regexes this replaced (`<a[^>]*href`, `<a[\s\S]*?</a>`) rescanned from every `<a`, which made 60 KB
+ * of `<a ` take seconds. A missing `>` or `</a>` ends the scan rather than being sought again.
+ */
 function countLinks(body: string): number {
-  if (isHtml(body)) {
-    const anchors = (body.match(/<a\b[^>]*\bhref\s*=/gi) ?? []).length;
-    const bare = (htmlToPlainText(body.replace(/<a\b[\s\S]*?<\/a>/gi, ' ')).match(/\b(?:https?:\/\/|www\.)\S+/gi) ?? []).length;
-    return anchors + bare;
+  if (!isHtml(body)) return (body.match(BARE_URL) ?? []).length;
+  let anchors = 0;
+  let outside = '';
+  let i = 0;
+  for (;;) {
+    ANCHOR_OPEN.lastIndex = i;
+    const open = ANCHOR_OPEN.exec(body);
+    if (!open) break;
+    const gt = body.indexOf('>', open.index);
+    if (gt === -1) break;
+    if (/\bhref\s*=/i.test(body.slice(open.index, gt))) anchors++;
+    outside += `${body.slice(i, open.index)} `;
+    ANCHOR_CLOSE.lastIndex = gt + 1;
+    const close = ANCHOR_CLOSE.exec(body);
+    if (!close) { i = body.length; break; }
+    i = close.index + close[0].length;
   }
-  return (body.match(/\b(?:https?:\/\/|www\.)\S+/gi) ?? []).length;
+  outside += body.slice(i);
+  return anchors + (htmlToPlainText(outside).match(BARE_URL) ?? []).length;
 }
 
 function isShouting(subject: string): boolean {
-  const letters = subject.replace(/\{\{[^}]*\}\}/g, '').replace(/[^\p{L}]/gu, '');
+  const letters = subject.replace(/\{\{[^}]{0,300}\}\}/g, '').replace(/[^\p{L}]/gu, '');
   return letters.length >= 6 && letters === letters.toUpperCase() && letters !== letters.toLowerCase();
 }
 
@@ -160,12 +189,14 @@ function gradeOf(words: string[], sentences: number): number | null {
 }
 
 export function measureContent(input: { subject: string; body: string }): { language: ContentLanguage; metrics: ContentMetrics } {
-  const body = unchipifyMergeTags(input.body ?? '');
-  const subject = unchipifyMergeTags(input.subject ?? '').trim();
+  const body = unchipifyMergeTags((input.body ?? '').slice(0, MAX_SCORED_BODY_CHARS));
+  const subject = unchipifyMergeTags((input.subject ?? '').slice(0, MAX_SCORED_SUBJECT_CHARS)).trim();
   const text = readableText(body);
   const words = wordsOf(text);
   const language = detectLanguage(text);
-  const sentences = Math.max(1, (text.match(/[.!?]+(?=\s|$)/g) ?? []).length);
+  // Only the last mark of a run ("?!") is followed by a space or the end: the same count as
+  // `[.!?]+(?=\s|$)`, without its backtracking over a long run of dots.
+  const sentences = Math.max(1, (text.match(/[.!?](?=\s|$)/g) ?? []).length);
   const both = normalise(`${subject}\n${text}`).toLowerCase();
   const people = personCounts(text, language);
   return {

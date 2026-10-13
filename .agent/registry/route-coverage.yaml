@@ -98,6 +98,7 @@ routes:
   - path: app/api/ai/compose-rewrite/route.ts
     methods: [POST]
     tests:
+      - tests/compose-ai-rewrite-security.test.ts
       - tests/compose-ai-rewrite.test.ts
   - path: app/api/ai/console/route.ts
     methods: [GET]

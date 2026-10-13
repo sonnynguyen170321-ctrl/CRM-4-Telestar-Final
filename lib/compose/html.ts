@@ -48,18 +48,65 @@ export function chipifyMergeTags(html: string): string {
     .join('');
 }
 
-const CHIP_RE = /<span\b[^>]*\bdata-merge-tag="([^"]*)"[^>]*>[\s\S]*?<\/span>/gi;
+const CHIP_ATTR_RE = /\bdata-merge-tag="([^"]*)"/i;
 const CHIP_FALLBACK_RE = /\bdata-fallback="([^"]*)"/i;
+const SPAN_OPEN_RE = /<span\b/gi;
+const SPAN_CLOSE_RE = /<\/span>/gi;
 
-/** The inverse of `chipifyMergeTags`: chips back to plain `{{field|fallback}}` text. */
+/** The `>` that ends the tag opened at `start`, skipping any inside a quoted attribute; -1 if none. */
+function tagClose(html: string, start: number): number {
+  let quote: string | null = null;
+  for (let j = start + 1; j < html.length; j++) {
+    const ch = html[j];
+    if (quote) { if (ch === quote) quote = null; continue; }
+    if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === '>') return j;
+  }
+  return -1;
+}
+
+function chipToTag(whole: string, field: string): string {
+  const name = unescapeAttr(field);
+  if (!/^[a-zA-Z][a-zA-Z0-9]*(?:\.[a-zA-Z][a-zA-Z0-9]*)?$/.test(name)) return '';
+  const fallbackMatch = whole.match(CHIP_FALLBACK_RE);
+  const fallback = fallbackMatch ? unescapeAttr(fallbackMatch[1]).replace(/[}\r\n]/g, ' ').trim() : '';
+  return fallback ? `{{${name}|${fallback}}}` : `{{${name}}}`;
+}
+
+/**
+ * The inverse of `chipifyMergeTags`: chips back to plain `{{field|fallback}}` text.
+ *
+ * A forward scan, not one regex. The regex it replaces
+ * (`<span[^>]*data-merge-tag="..."[^>]*>[\s\S]*?</span>`) backtracked: 60 KB of
+ * `<span data-merge-tag="a" ` took 95 seconds, on routes that run it on whatever the browser sends.
+ * Every step here moves forward, and a missing `>` or `</span>` ends the scan instead of being
+ * searched for again from every later `<span`.
+ */
 export function unchipifyMergeTags(html: string): string {
-  return html.replace(CHIP_RE, (whole, field: string) => {
-    const name = unescapeAttr(field);
-    if (!/^[a-zA-Z][a-zA-Z0-9]*(?:\.[a-zA-Z][a-zA-Z0-9]*)?$/.test(name)) return '';
-    const fallbackMatch = whole.match(CHIP_FALLBACK_RE);
-    const fallback = fallbackMatch ? unescapeAttr(fallbackMatch[1]).replace(/[}\r\n]/g, ' ').trim() : '';
-    return fallback ? `{{${name}|${fallback}}}` : `{{${name}}}`;
-  });
+  if (!/data-merge-tag/i.test(html)) return html;
+  let out = '';
+  let i = 0;
+  for (;;) {
+    SPAN_OPEN_RE.lastIndex = i;
+    const open = SPAN_OPEN_RE.exec(html);
+    if (!open) break;
+    const gt = tagClose(html, open.index);
+    if (gt === -1) break;
+    const field = html.slice(open.index, gt + 1).match(CHIP_ATTR_RE);
+    if (!field) {
+      // A later <span before this '>' lies in the same text, which has no chip attribute either.
+      out += html.slice(i, gt + 1);
+      i = gt + 1;
+      continue;
+    }
+    SPAN_CLOSE_RE.lastIndex = gt + 1;
+    const close = SPAN_CLOSE_RE.exec(html);
+    if (!close) break;
+    const end = close.index + close[0].length;
+    out += html.slice(i, open.index) + chipToTag(html.slice(open.index, end), field[1]);
+    i = end;
+  }
+  return out + html.slice(i);
 }
 
 /**
@@ -119,17 +166,30 @@ export function plainTextToHtml(text: string): string {
 
 /** The text of an HTML body as the parser reads it, with block ends as line breaks. */
 export function htmlToPlainText(html: string): string {
+  // Linear patterns only: `<li[^>]*>` and `[ \t]+\n` both backtracked on a long run without the
+  // character they wait for. The bullet now goes in front of the tag, which the parser removes.
   const marked = html
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(?:p|div|h[1-6]|blockquote|ul|ol)>/gi, '$&\n\n')
     .replace(/<\/li>/gi, '$&\n')
-    .replace(/<li\b[^>]*>/gi, '- ');
+    .replace(/<li\b/gi, '- $&');
   const fragment = DOMPurify.sanitize(marked, { ALLOWED_TAGS: [], KEEP_CONTENT: true, RETURN_DOM_FRAGMENT: true });
-  return (fragment.textContent ?? '')
-    .replace(/ /g, ' ')
-    .replace(/[ \t]+\n/g, '\n')
+  return trimLineEnds((fragment.textContent ?? '').replace(/\u00a0/g, ' '))
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+/** Spaces and tabs right before each line break removed, in one pass. */
+function trimLineEnds(text: string): string {
+  let out = '';
+  let pending = '';
+  for (const ch of text) {
+    if (ch === ' ' || ch === '\t') { pending += ch; continue; }
+    if (ch !== '\n') out += pending;
+    pending = '';
+    out += ch;
+  }
+  return out + pending;
 }
 
 /** No visible text and no image: the draft is empty however many empty paragraphs it has. */
@@ -182,6 +242,72 @@ export function sanitizeComposeHtml(html: string): string {
   } finally {
     DOMPurify.removeHook('uponSanitizeAttribute');
   }
+}
+
+export interface SanitizedCompose {
+  html: string;
+  /** Every `href`, as the parser read it (entities decoded, quotes gone), trimmed. */
+  hrefs: string[];
+  /** Every `src`, the same way. */
+  srcs: string[];
+  images: number;
+}
+
+/**
+ * `sanitizeComposeHtml`, plus the addresses the result actually carries, read from the parsed DOM
+ * rather than matched in the text: an unquoted `href=`, a `>` inside an earlier attribute or an
+ * entity-encoded scheme all read the same to the parser as to a mail client. The HTML returned is
+ * the serialisation of that same DOM, so what was inspected is exactly what is returned.
+ */
+export function sanitizeComposeDetailed(html: string): SanitizedCompose {
+  DOMPurify.addHook('uponSanitizeAttribute', keepAttribute as never);
+  try {
+    const fragment = DOMPurify.sanitize(html, {
+      FORBID_TAGS: FORBIDDEN_TAGS,
+      FORBID_ATTR: FORBIDDEN_ATTRS,
+      ALLOW_DATA_ATTR: false,
+      RETURN_DOM_FRAGMENT: true,
+    }) as DocumentFragment;
+    const read = (name: string) => Array.from(fragment.querySelectorAll(`[${name}]`), (el) => (el.getAttribute(name) ?? '').trim());
+    const hrefs = read('href');
+    const srcs = read('src');
+    const images = fragment.querySelectorAll('img').length;
+    const holder = fragment.ownerDocument.createElement('div');
+    holder.appendChild(fragment);
+    return { html: holder.innerHTML.trim(), hrefs, srcs, images };
+  } finally {
+    DOMPurify.removeHook('uponSanitizeAttribute');
+  }
+}
+
+/** Drop every image address, whatever its quoting: a preview must never fetch anything. */
+function dropSource(_node: Element, data: AttributeHookData): void {
+  if (data.attrName === 'src') data.keepAttr = false;
+}
+
+/**
+ * HTML for an in-app preview of text nobody has reviewed yet (an AI rewrite): the compose
+ * allowlist, and no `src` on any element, decided on the parsed attribute rather than by a regex
+ * over the text, so `src='...'` and `src=...` lose theirs as surely as `src="..."`.
+ */
+export function sanitizePreviewHtml(html: string): string {
+  DOMPurify.addHook('uponSanitizeAttribute', keepAttribute as never);
+  DOMPurify.addHook('uponSanitizeAttribute', dropSource as never);
+  try {
+    return DOMPurify.sanitize(html, {
+      FORBID_TAGS: FORBIDDEN_TAGS,
+      FORBID_ATTR: [...FORBIDDEN_ATTRS, 'src'],
+      ALLOW_DATA_ATTR: false,
+    }).trim();
+  } finally {
+    DOMPurify.removeHook('uponSanitizeAttribute');
+    DOMPurify.removeHook('uponSanitizeAttribute');
+  }
+}
+
+/** HTML with every image removed: what the model may not add (originals come back as tokens). */
+export function stripImages(html: string): string {
+  return DOMPurify.sanitize(html, { FORBID_TAGS: ['img', 'picture', 'source', 'image'], ALLOW_DATA_ATTR: false });
 }
 
 // ─── What the editor cannot show ─────────────────────────────────────────────
