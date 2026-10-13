@@ -10,7 +10,9 @@ import { renderSubject, renderTemplate } from '@/lib/templates/render';
 import { loadRenderLead, loadRenderSender } from '@/lib/templates/renderContext';
 import { parseBody } from '@/lib/validation/core';
 import { sendEmailSchema } from '@/lib/validation/schemas';
-import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
+import { createOutboundMessage, emailSendPayloadFor, enqueueTimedEmailSend } from '@/lib/workflows/email';
+import { clearDraft, resolveComposerSendOptions, reviveCancelled } from '@/lib/email/composedSend';
+import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
 import { newRequestId } from '@/lib/email/idempotency';
 import { resolveComposerTask } from '@/lib/sequences/composerTask';
 import type { SequenceStepRef } from '@/lib/sequences/stepOutcome';
@@ -147,6 +149,11 @@ export async function POST(req: NextRequest) {
   if (!prepared.ok) return prepared.response;
   text = prepared.value.body;
 
+  // Schedule / undo window / tracking (lib/email/composedSend.ts); tracking not named takes the tenant default.
+  const options = await resolveComposerSendOptions(tenantId, body);
+  if (!options.ok) return options.response;
+  const { timing, trackOpens, trackClicks } = options.value;
+
   const startedAt = Date.now();
   let created: Awaited<ReturnType<typeof createOutboundMessage>> | null = null;
   try {
@@ -167,29 +174,47 @@ export async function POST(req: NextRequest) {
       body: text,
       tenantId,
       ...(stepRef ? { sequenceId: stepSequenceId, sequenceStepOrder: stepOrder } : {}),
+      scheduledFor: timing.scheduledFor,
+      composedById: user.id,
+      trackOpens,
+      trackClicks,
     });
     created = outboundMessage;
 
+    // The rep took this one back (undo) and has written it again under the same key: it is theirs
+    // to revive with the new content. Anyone else's cancelled message is not.
+    let row = outboundMessage;
+    let revived = false;
+    if (row.status === OUTBOUND_STATUS.CANCELLED) {
+      const back = await reviveCancelled(tenantId, user.id, row.id, {
+        subject, body: text, cc: prepared.value.cc, bcc: prepared.value.bcc,
+        scheduledFor: timing.scheduledFor, trackOpens, trackClicks,
+      });
+      if (!back) return NextResponse.json({ error: 'This email was cancelled. Start a new one.', code: 'cancelled' }, { status: 409 });
+      row = back;
+      revived = true;
+    }
+
     // The files go on the message before it is queued, so the worker finds them. A failure here
     // makes the message terminal, so a send reported as failed cannot be swept up and sent later.
-    const attachFailure = await finalizeComposed(tenantId, user.id, outboundMessage, startedAt, prepared.value);
+    const attachFailure = await finalizeComposed(tenantId, user.id, revived ? { ...row, createdAt: undefined } : outboundMessage, startedAt, prepared.value);
     if (attachFailure) return attachFailure;
 
-    await enqueueEmailSendWorkflow(
-      {
-        outboundMessageId: outboundMessage.id,
-        ...(stepRef ? { sequenceStepRef: stepRef } : {}),
-        accountId: body.accountId,
-        to: body.to,
-        subject,
-        body: text,
-        leadId: body.leadId,
-        templateId: body.templateId,
-      },
-      tenantId
+    await enqueueTimedEmailSend(
+      { ...emailSendPayloadFor(row), ...(stepRef ? { sequenceStepRef: stepRef } : {}) },
+      tenantId,
+      timing
     );
+    if (body.leadId) await clearDraft(tenantId, user.id, `lead:${body.leadId}`);
 
-    return NextResponse.json({ success: true, outboundMessageId: outboundMessage.id, droppedCopies: prepared.value.droppedCopies });
+    return NextResponse.json({
+      success: true,
+      outboundMessageId: outboundMessage.id,
+      droppedCopies: prepared.value.droppedCopies,
+      // The composer's toast: when it will go, and whether it can still be taken back.
+      sendAt: timing.kind === 'scheduled' ? timing.scheduledFor : null,
+      undoSeconds: timing.kind === 'undo' ? Math.round(timing.delayMs / 1000) : 0,
+    });
   } catch (err) {
     console.error('[email/send] enqueue failed:', err);
     // Told it failed, so it must not go out later: terminal, unless this was a retry of an earlier send.

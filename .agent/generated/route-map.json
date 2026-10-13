@@ -132,13 +132,20 @@
     "/api/email/accounts/[id]",
     "/api/email/attachments",
     "/api/email/attachments/[id]",
+    "/api/email/drafts",
     "/api/email/oauth/google",
     "/api/email/oauth/google/callback",
     "/api/email/oauth/microsoft",
     "/api/email/oauth/microsoft/callback",
+    "/api/email/outbound/[id]/cancel",
+    "/api/email/outbound/[id]/schedule",
+    "/api/email/outbound/[id]/status",
+    "/api/email/preflight",
     "/api/email/preview",
     "/api/email/providers",
     "/api/email/send",
+    "/api/email/send-defaults",
+    "/api/email/test-send",
     "/api/health",
     "/api/icp/campaigns",
     "/api/icp/campaigns/[id]",
@@ -274,5 +281,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 39,
-  "apiRouteCount": 224
+  "apiRouteCount": 231
 }

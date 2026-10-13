@@ -25,6 +25,7 @@ vi.mock('@/lib/auth', async (importOriginal) => {
 vi.mock('@/lib/workflows/email', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/workflows/email')>()),
   enqueueEmailSendWorkflow: (...a: unknown[]) => mockEnqueue(...a),
+  enqueueTimedEmailSend: (payload: unknown, tenantId: unknown) => mockEnqueue(payload, tenantId),
 }));
 
 import { prisma } from '@/lib/prisma';

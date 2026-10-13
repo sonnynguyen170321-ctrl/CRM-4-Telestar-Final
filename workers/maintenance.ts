@@ -351,6 +351,8 @@ async function repairStalePendingOutbound(): Promise<{ fixed: number; details: s
       ],
       createdAt: { lt: cutoff },
       sentAt: null,
+      // A send scheduled for later is waiting on purpose, not stalled.
+      AND: [{ OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date() } }] }],
     },
     take: RECONCILE_BATCH,
   });

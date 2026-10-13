@@ -62,9 +62,9 @@ describe('what the screens no longer carry', () => {
   it('the inbox says a reply is queued, sends a request id, and shows delivery state', () => {
     const inbox = read('app', 'inbox', 'page.tsx');
     expect(inbox).not.toMatch(/Reply sent successfully/);
-    expect(inbox).toContain("showToast('Reply queued'");
+    expect(inbox).toContain('Reply queued');
     expect(inbox).toContain('clientRequestId: replyRequestIdRef.current');
-    expect(inbox).toContain('describeDelivery(msg.deliveryStatus, null)');
+    expect(inbox).toContain('describeDelivery(msg.deliveryStatus, null, msg.scheduledFor)');
     expect(inbox).toContain('msg.deliveryError ?? base.detail');
   });
 

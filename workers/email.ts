@@ -23,6 +23,7 @@ import { isHtml } from '@/lib/email/sanitize';
 import { composeEmailBody } from '@/lib/email/signature';
 import { buildReferences, cleanMessageId, normalizeMessageId, replySubject, stripReplyPrefix } from '@/lib/sequences/threadingRules';
 import { nextSendAttemptAt } from '@/lib/email/sendWindow';
+import { msUntilDue, resolveTracking } from '@/lib/email/sendControls';
 import { businessDayPolicyFor } from '@/lib/sequences/rules';
 
 /**
@@ -293,6 +294,27 @@ async function handleEmailSend(payload: EmailSendPayload) {
     include: { lead: { select: { campaignId: true, assignedToId: true, timezone: true } } },
   });
   if (!existing) throw new Error(`OutboundMessage not found: ${outboundMessageId}`);
+
+  // ── Taken back by the rep (undo send / cancelled schedule) ────────────────
+  if (existing.status === OUTBOUND_STATUS.CANCELLED) {
+    return { skipped: true, reason: 'cancelled' };
+  }
+
+  // ── Not yet due ───────────────────────────────────────────────────────────
+  // A scheduled message is never sent before its time, whatever woke this job (an old job for a
+  // time the rep moved, or the redrive sweep). Re-queue for the current time and stand down; the
+  // reschedule key is derived from that time, so repeated early wake-ups collapse into one job.
+  if (existing.status === OUTBOUND_STATUS.PENDING) {
+    const wait = msUntilDue(existing.scheduledFor);
+    if (wait > 0 && existing.scheduledFor) {
+      await enqueueReschedule(JobType.EMAIL_SEND, payload, {
+        tenantId: existing.tenantId,
+        delay: wait,
+        discriminator: `sched:${existing.scheduledFor.toISOString()}`,
+      });
+      return { skipped: true, reason: 'not_yet_due', dueAt: existing.scheduledFor };
+    }
+  }
 
   // ── Terminal and ambiguous states are never sent again ────────────────────
   // A row is only re-sendable from `pending` or `failed`. Everything else either
@@ -762,18 +784,24 @@ async function handleEmailSend(payload: EmailSendPayload) {
 
     // Open and click tracking, only for a sequence that opted in (both off by default — a pixel and
     // rewritten links are deliverability signals). The unsubscribe link is never rewritten.
-    if (existing.sequenceId && !trackingConfigured()) {
+    // A one-off written in the composer carries its own decision on the row (per-email toggle,
+    // defaulted from the tenant setting); it wins over the cadence (lib/email/sendControls.ts).
+    const composerDecided = existing.trackOpens === true || existing.trackClicks === true;
+    if ((existing.sequenceId || composerDecided) && !trackingConfigured()) {
       // A send must never fail because tracking cannot sign links; it goes out untracked.
       console.warn('[email] tracking skipped: no TRACKING_SECRET / AUTH_SECRET in this process', { outboundMessageId });
-    } else if (existing.sequenceId) {
-      const tracking = await prisma.sequence.findFirst({
-        where: { id: existing.sequenceId, tenantId: existing.tenantId },
-        select: { trackOpens: true, trackClicks: true },
-      });
-      if (tracking?.trackClicks) {
+    } else if (existing.sequenceId || composerDecided) {
+      const sequenceFlags = existing.sequenceId
+        ? await prisma.sequence.findFirst({
+            where: { id: existing.sequenceId, tenantId: existing.tenantId },
+            select: { trackOpens: true, trackClicks: true },
+          })
+        : null;
+      const tracking = resolveTracking(existing, sequenceFlags);
+      if (tracking.clicks) {
         htmlPayload = rewriteLinksForTracking(htmlPayload, baseUrl, existing.tenantId, outboundMessageId);
       }
-      if (tracking?.trackOpens) {
+      if (tracking.opens) {
         htmlPayload = `${htmlPayload}${openPixelHtml(baseUrl, existing.tenantId, outboundMessageId)}`;
         openTracked = true;
       }
