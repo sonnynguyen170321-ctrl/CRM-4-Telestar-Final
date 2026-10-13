@@ -1,5 +1,6 @@
 import { registrableDomain } from "@telestar/core-identity/registrableDomain";
 import { canonicalizeIndustry } from "@telestar/core-scoring/rules/dictionaries/industry";
+import { ALL_COUNTRIES, ISO2_TO_COUNTRY } from "@telestar/core-scoring/rules/dictionaries/countries";
 import { REGION_KEYS, REGION_TO_COUNTRIES } from "@telestar/core-scoring/rules/dictionaries/regions";
 import { SENIORITY_RANK, type SeniorityTier } from "@telestar/core-scoring/rules/dictionaries/seniority";
 import { SIZE_BAND_MAP } from "@telestar/core-scoring/rules/dictionaries/sizeBands";
@@ -34,7 +35,7 @@ export type BuilderRules = {
 type RegionKey = (typeof REGION_KEYS)[number];
 
 const KNOWN_COUNTRIES: ReadonlySet<string> = new Set(
-  Object.values(REGION_TO_COUNTRIES).flatMap((countries) => countries.map((country) => foldText(country))),
+  [...ALL_COUNTRIES, ...Object.values(REGION_TO_COUNTRIES).flat()].map((country) => foldText(country)),
 );
 
 // What people type for a region that is not a dictionary key. Folded, so diacritics and case do not matter.
@@ -67,20 +68,8 @@ const REGION_ALIASES: Record<string, readonly RegionKey[]> = {
 // No geography constraint at all.
 const UNCONSTRAINED_GEOS: ReadonlySet<string> = new Set(["worldwide", "global", "anywhere", "international", "world"]);
 
-// ISO 3166-1 alpha-2 codes for the countries the dictionaries know.
-const ISO2: Record<string, string> = {
-  nz: "New Zealand", de: "Germany", au: "Australia", sg: "Singapore", vn: "Vietnam", ae: "United Arab Emirates",
-  sa: "Saudi Arabia", tr: "Turkey", eg: "Egypt", id: "Indonesia", in: "India", ma: "Morocco", my: "Malaysia",
-  th: "Thailand", ph: "Philippines", jp: "Japan", kr: "South Korea", cn: "China", hk: "Hong Kong", tw: "Taiwan",
-  gb: "United Kingdom", fr: "France", it: "Italy", es: "Spain", pt: "Portugal", nl: "Netherlands", be: "Belgium",
-  at: "Austria", ch: "Switzerland", se: "Sweden", no: "Norway", dk: "Denmark", fi: "Finland", pl: "Poland",
-  cz: "Czechia", ie: "Ireland", ca: "Canada", mx: "Mexico", br: "Brazil", ar: "Argentina", cl: "Chile",
-  co: "Colombia", pe: "Peru", za: "South Africa", ng: "Nigeria", ke: "Kenya", qa: "Qatar", kw: "Kuwait",
-  bh: "Bahrain", om: "Oman", jo: "Jordan", lb: "Lebanon", il: "Israel", pk: "Pakistan", bd: "Bangladesh",
-  lk: "Sri Lanka", np: "Nepal", ru: "Russia", ua: "Ukraine", kz: "Kazakhstan", us: "United States",
-  uk: "United Kingdom", dz: "Algeria", tn: "Tunisia", iq: "Iraq", ir: "Iran", ro: "Romania", hu: "Hungary",
-  gr: "Greece", rs: "Serbia", bg: "Bulgaria", hr: "Croatia", sk: "Slovakia", si: "Slovenia",
-};
+// ISO 3166-1 alpha-2 codes (the whole table lives with the country dictionary).
+const ISO2 = ISO2_TO_COUNTRY;
 
 /**
  * A raw country string as the canonical country name, or null when it cannot be placed.

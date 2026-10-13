@@ -134,6 +134,12 @@ export const REGION_TO_COUNTRIES: Record<RegionKey, readonly string[]> = {
     "Montenegro",
     "Moldova",
     "Belarus",
+    "Andorra",
+    "Liechtenstein",
+    "Monaco",
+    "San Marino",
+    "Kosovo",
+    "Vatican City",
   ],
   NORDICS: ["Denmark", "Finland", "Iceland", "Norway", "Sweden"],
   // German-speaking DACH (used by FlexEnergy: "German-speaking part of Switzerland").
@@ -152,6 +158,16 @@ export const REGION_TO_COUNTRIES: Record<RegionKey, readonly string[]> = {
     "Paraguay",
     "Bolivia",
     "Venezuela",
+    // regions-v3: Central America and the Spanish-speaking Caribbean.
+    "Costa Rica",
+    "Panama",
+    "Guatemala",
+    "Honduras",
+    "El Salvador",
+    "Nicaragua",
+    "Cuba",
+    "Dominican Republic",
+    "Puerto Rico",
   ],
   SOUTH_AMERICA: [
     "Brazil",
@@ -164,6 +180,8 @@ export const REGION_TO_COUNTRIES: Record<RegionKey, readonly string[]> = {
     "Paraguay",
     "Bolivia",
     "Venezuela",
+    "Guyana",
+    "Suriname",
   ],
   MENA: [
     "Saudi Arabia",
@@ -185,6 +203,7 @@ export const REGION_TO_COUNTRIES: Record<RegionKey, readonly string[]> = {
     "Libya",
     "Syria",
     "Yemen",
+    "Palestine",
   ],
   NORTH_AFRICA: ["Morocco", "Algeria", "Tunisia", "Libya", "Egypt"],
   CENTRAL_AFRICA: [
@@ -196,11 +215,17 @@ export const REGION_TO_COUNTRIES: Record<RegionKey, readonly string[]> = {
     "Gabon",
     "Equatorial Guinea",
   ],
-  SOUTH_ASIA: ["India", "Pakistan", "Bangladesh", "Sri Lanka", "Nepal", "Bhutan", "Maldives"],
+  SOUTH_ASIA: ["Afghanistan", "India", "Pakistan", "Bangladesh", "Sri Lanka", "Nepal", "Bhutan", "Maldives"],
   CENTRAL_ASIA: ["Kazakhstan", "Uzbekistan", "Kyrgyzstan", "Tajikistan", "Turkmenistan"],
   AFRICA: [
     "Egypt", "Morocco", "Algeria", "Tunisia", "Libya", "Nigeria", "Ghana", "Kenya", "Ethiopia", "Tanzania",
     "Uganda", "Rwanda", "Senegal", "Ivory Coast", "South Africa", "Cameroon", "Chad", "Gabon",
+    // regions-v3: the rest of the continent, so "Africa" covers every African country the dictionary knows.
+    "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cape Verde", "Central African Republic", "Comoros",
+    "Democratic Republic of the Congo", "Republic of the Congo", "Djibouti", "Equatorial Guinea", "Eritrea",
+    "Eswatini", "Gambia", "Guinea", "Guinea-Bissau", "Lesotho", "Liberia", "Madagascar", "Malawi", "Mali",
+    "Mauritania", "Mauritius", "Mozambique", "Namibia", "Niger", "Sao Tome and Principe", "Seychelles",
+    "Sierra Leone", "Somalia", "South Sudan", "Sudan", "Togo", "Zambia", "Zimbabwe",
   ],
   GCC: ["Saudi Arabia", "United Arab Emirates", "Qatar", "Kuwait", "Bahrain", "Oman"],
   CIS: ["Russia", "Ukraine", "Belarus", "Moldova", "Kazakhstan", "Uzbekistan", "Kyrgyzstan", "Tajikistan", "Turkmenistan", "Armenia", "Azerbaijan", "Georgia"],
@@ -214,7 +239,7 @@ export const REGION_TO_COUNTRIES: Record<RegionKey, readonly string[]> = {
   ],
 };
 
-export const REGIONS_DICTIONARY_VERSION = "regions-v2";
+export const REGIONS_DICTIONARY_VERSION = "regions-v3";
 
 function isRegionKey(value: string): value is RegionKey {
   return (REGION_KEYS as readonly string[]).includes(value);

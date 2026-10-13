@@ -13,6 +13,8 @@ import {
 
 import { readApiError } from '@/lib/api/client';
 import EvidenceCard from '@/components/research/EvidenceCard';
+import { matchedEvidence } from '@/lib/research/matchedEvidence';
+import { describeReason } from '@/lib/research/verificationReasons';
 import { DrawerNavButtons, useDrawerNavigation } from '@/components/shared/DrawerNavigation';
 
 type CandidateDetail = {
@@ -24,6 +26,11 @@ type CandidateDetail = {
     title: string | null;
     companyName: string | null;
     location: string | null;
+    country?: string | null;
+    kind?: string | null;
+    verification?: string | null;
+    verificationReason?: string | null;
+    verificationJson?: unknown;
     fitScore: number | null;
     fitReason: string | null;
     fitSource: string | null;
@@ -202,13 +209,7 @@ export default function ResearchCandidateDrawer({ candidateId, onClose, siblingI
                 <p className="mt-2 type-body leading-relaxed text-text-secondary">
                   {detail.candidate.fitReason || "The source matched terms from this run's query plan."}
                 </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {toLabels(detail.candidate.matchHintsJson).map((hint) => (
-                    <span key={hint} className="rounded-full border border-card-border bg-card-bg px-2.5 py-1 type-meta text-text-muted">
-                      {hint}
-                    </span>
-                  ))}
-                </div>
+                <MatchedEvidence candidate={detail.candidate} />
               </section>
 
               <section>
@@ -247,10 +248,37 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function toLabels(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string')
-    : [];
+/**
+ * What was actually found, with the quote behind it. Not the run's query terms: those say what we asked
+ * for (a person who matched nothing still carried "Aviation"), not what the source said.
+ */
+function MatchedEvidence({ candidate }: { candidate: CandidateDetail['candidate'] }) {
+  const facts = matchedEvidence(candidate);
+  if (facts.length === 0) {
+    return (
+      <p className="mt-3 type-meta text-text-muted">
+        {candidate.verification === 'pending' ? 'Being checked against its own evidence.' : 'Nothing was read from the source that matches this run.'}
+      </p>
+    );
+  }
+  return (
+    <dl className="mt-3 space-y-2">
+      {facts.map((fact) => (
+        <div key={fact.label} className="type-meta">
+          <dt className="inline font-semibold text-text-primary">{fact.label}: </dt>
+          <dd className="inline text-text-secondary">
+            {fact.value}
+            {fact.standing === 'outside' && <span className="ml-2 font-semibold text-red-300">outside the target countries</span>}
+            {fact.standing === 'unknown' && <span className="ml-2 text-text-muted">not stated</span>}
+          </dd>
+          {fact.quote && <dd className="mt-0.5 border-l-2 border-card-border pl-2 text-text-muted">&ldquo;{fact.quote}&rdquo;</dd>}
+        </div>
+      ))}
+      {candidate.verification && candidate.verificationReason && (
+        <p className="type-meta text-text-muted">Verdict: {describeReason(candidate.verificationReason)}</p>
+      )}
+    </dl>
+  );
 }
 
 

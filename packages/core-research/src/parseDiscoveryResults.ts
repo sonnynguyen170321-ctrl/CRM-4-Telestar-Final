@@ -5,6 +5,8 @@
 
 import { isInstitutionalHost, registrableDomain } from "@telestar/core-identity/registrableDomain";
 
+import { extractPersonHeadline, extractPersonLocation } from "./personProfile";
+
 export type RawSearchHit = {
   title: string;
   url: string;
@@ -20,6 +22,13 @@ export type ParsedCandidate = {
   title: string | null;
   companyName: string | null;
   location: string | null;
+  /**
+   * Canonical country of `location` (contacts): read from the head of the profile text, null when the head
+   * states none. Absent on companies, whose country comes from classification.
+   */
+  country?: string | null;
+  /** The headline line of the profile head ("Role at Employer"), kept as evidence; never written to `title`. */
+  headline?: string | null;
   source: { query: string; url: string; snippet: string | null; provider: string | null };
   dedupeFingerprint: string;
 };
@@ -329,6 +338,8 @@ export function parseContactHits(query: string, hits: RawSearchHit[]): ParsedCan
     role = cleanSerpFragment(role);
     company = cleanSerpFragment(company);
     seen.add(slug);
+    const place = extractPersonLocation(hit.snippet);
+    const head = extractPersonHeadline(hit.snippet, name);
     out.push({
       kind: "CONTACT",
       name,
@@ -336,7 +347,9 @@ export function parseContactHits(query: string, hits: RawSearchHit[]): ParsedCan
       linkedinUrl: `https://www.linkedin.com/in/${slug}`,
       title: role,
       companyName: company,
-      location: null,
+      location: place?.location ?? null,
+      country: place?.country ?? null,
+      headline: head?.headline ?? null,
       source: { query, url: hit.url, snippet: hit.snippet, provider: hit.provider },
       dedupeFingerprint: `contact:linkedin:${slug}`,
     });

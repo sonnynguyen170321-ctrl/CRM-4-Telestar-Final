@@ -65,16 +65,18 @@ type CandidateRow = {
   companyName: string | null;
   title: string | null;
   location: string | null;
+  country?: string | null;
   fitScore: number | null;
   fitReason: string | null;
   status: string;
   previouslyPromoted: boolean;
-  /** Null on contact rows and on company rows from before verification (2026-10-08). */
+  /** Null on rows from before verification existed (companies 2026-10-08, people 2026-10-13). */
   verification: Verification | null;
   verificationReason: string | null;
   verificationJson: {
     judgeReason?: string | null;
     company?: { kind?: string | null; industry?: string | null; whatTheySell?: string | null; hqCountry?: string | null; employeeCount?: number | null };
+    person?: { title?: string | null; employer?: string | null; location?: string | null; country?: string | null };
   } | null;
 };
 
@@ -861,11 +863,14 @@ const VERIFICATION_LABEL: Record<Verification, { text: string; tone: string }> =
 function VerificationCell({ candidate }: { candidate: CandidateRow }) {
   const label = VERIFICATION_LABEL[candidate.verification ?? 'pending'];
   const company = candidate.verificationJson?.company;
-  const facts = [
-    company?.whatTheySell || company?.industry,
-    company?.hqCountry,
-    typeof company?.employeeCount === 'number' ? `${company.employeeCount.toLocaleString()} staff` : null,
-  ].filter(Boolean);
+  const person = candidate.verificationJson?.person;
+  const facts = person
+    ? [person.title, person.employer, person.location ?? person.country].filter(Boolean)
+    : [
+        company?.whatTheySell || company?.industry,
+        company?.hqCountry,
+        typeof company?.employeeCount === 'number' ? `${company.employeeCount.toLocaleString()} staff` : null,
+      ].filter(Boolean);
   const judge = candidate.verificationJson?.judgeReason;
   return (
     <div className="space-y-1">

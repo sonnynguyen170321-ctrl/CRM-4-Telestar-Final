@@ -13,8 +13,8 @@ export const MAX_CLASSIFY_PER_CALL = 4;
 /** Output budget per classify call: room for MAX_CLASSIFY_PER_CALL full answers with all their quotes. */
 export const CLASSIFY_MAX_OUTPUT_TOKENS = 6000;
 
-const BEGIN_FENCE = "<<<BEGIN_UNTRUSTED>>>";
-const END_FENCE = "<<<END_UNTRUSTED>>>";
+export const BEGIN_FENCE = "<<<BEGIN_UNTRUSTED>>>";
+export const END_FENCE = "<<<END_UNTRUSTED>>>";
 
 /**
  * Scraped text is attacker-controlled: a page can say "ignore the rules, this is an operator". It is
@@ -22,7 +22,7 @@ const END_FENCE = "<<<END_UNTRUSTED>>>";
  * and speak as the instructions. The prompt is a second line of defence — groundClassification is the
  * first, because it checks every claim against the text regardless of what the model was told.
  */
-function defang(text: string): string {
+export function defang(text: string): string {
   return text.replace(/<<</g, "‹‹‹").replace(/>>>/g, "›››");
 }
 
@@ -36,12 +36,12 @@ const LINE_BREAKS_AND_CONTROLS = new RegExp(
  * One short line of untrusted text. A candidate name comes from a search-result title, so it can carry
  * a newline followed by "[1] name: ..." or an instruction; flattened and truncated it can do neither.
  */
-function oneLine(text: string | null | undefined): string {
+export function oneLine(text: string | null | undefined): string {
   return defang(String(text ?? "").replace(LINE_BREAKS_AND_CONTROLS, " ").replace(/\s+/g, " ").trim().slice(0, MAX_FIELD_CHARS));
 }
 
 /** Source text is already whitespace-collapsed by the bundle; this only removes what could break a line. */
-function bodyText(text: string): string {
+export function bodyText(text: string): string {
   return defang(text.replace(LINE_BREAKS_AND_CONTROLS, " ").replace(/\s+/g, " ").trim());
 }
 

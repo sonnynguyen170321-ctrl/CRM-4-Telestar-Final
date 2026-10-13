@@ -16,6 +16,7 @@ import { prisma } from '@/lib/prisma';
 
 import { claimDomainClassification, completeDomainClassification, failDomainClassification } from './domainClassificationCache';
 import { fetchIdentityPages } from './fetchIdentityPages';
+import { verifyPeople } from './verifyPeople';
 import { combineWithJudge, scoreClassifiedCandidate, type VerificationResult } from './verifyScoring';
 import type { CandidateOutcome, ClaimedCandidate, VerifyBatchFn } from './verify';
 
@@ -60,6 +61,18 @@ export function createVerifyBatch(deps: VerifyBatchDeps = {}): VerifyBatchFn {
   const fetchPages = deps.fetchPages ?? fetchIdentityPages;
 
   return async (input) => {
+    // People are read from their profile text; companies from their own pages. One batch may hold both
+    // (a run is one kind, but a rerun after a mixed history must not misroute a row).
+    const people = input.candidates.filter((c) => c.kind === 'contact');
+    const companies = input.candidates.filter((c) => c.kind !== 'contact');
+    const peopleOutcomes = new Map<string, CandidateOutcome>();
+    if (people.length > 0) await verifyPeople({ ...input, candidates: people }, generate, peopleOutcomes);
+    if (companies.length === 0) return peopleOutcomes;
+    const companyOutcomes = await verifyCompanies({ ...input, candidates: companies });
+    return new Map([...peopleOutcomes, ...companyOutcomes]);
+  };
+
+  async function verifyCompanies(input: Parameters<VerifyBatchFn>[0]): Promise<Map<string, CandidateOutcome>> {
     // Domain claims this batch holds and has not completed. If anything below throws they are released
     // as failed, so the retry does not find its own leftover claims and report the domains as busy.
     const held = new Map<string, { id: string; token: string }>();
@@ -71,7 +84,7 @@ export function createVerifyBatch(deps: VerifyBatchDeps = {}): VerifyBatchFn {
       }
       throw error;
     }
-  };
+  }
 
   async function verify(
     { tenantId, runId, candidates }: Parameters<VerifyBatchFn>[0],

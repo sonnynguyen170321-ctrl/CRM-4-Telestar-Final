@@ -180,7 +180,7 @@ export async function listResearchCandidates(query: CandidateListQuery, tenantId
       take: pageSize,
       select: {
         id: true, runId: true, kind: true, status: true, name: true, domain: true,
-        linkedinUrl: true, title: true, companyName: true, location: true,
+        linkedinUrl: true, title: true, companyName: true, location: true, country: true,
         fitScore: true, fitReason: true, fitSource: true, emailGuess: true,
         dedupeFingerprint: true, promotedAccountId: true, promotedContactId: true,
         createdAt: true, verification: true, verificationReason: true, verificationJson: true,
@@ -287,7 +287,8 @@ export async function getCandidateEvidence(candidateId: string, tenantId: string
     where: { id: candidateId, tenantId },
     select: {
       id: true, name: true, domain: true, linkedinUrl: true, title: true, companyName: true,
-      location: true, fitScore: true, fitReason: true, fitSource: true, status: true,
+      location: true, country: true, kind: true, fitScore: true, fitReason: true, fitSource: true, status: true,
+      verification: true, verificationReason: true, verificationJson: true,
       matchHintsJson: true, sourceJson: true, promotedAccountId: true, promotedContactId: true,
       runId: true,
     },

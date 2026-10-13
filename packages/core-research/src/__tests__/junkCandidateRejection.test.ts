@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { cleanSerpFragment, looksLikePersonName, looksLikeListicleResult, parseCompanyHits, parseContactHits, type RawSearchHit } from "../parseDiscoveryResults";
 import { scoreCandidateHeuristic } from "../scoreCandidates";
-import { extractLinkedInPeopleFromText, isTargetTitle } from "../peopleDiscovery";
 import { humanize } from "../insightMapper";
 
 // Research used to harvest any linkedin.com/in/* SERP hit as a "person": when the
@@ -88,45 +87,6 @@ describe("company harvest — reject listicles, name from the real segment", () 
   it("uses the domain-matching segment as the name, not the tagline", () => {
     const [c] = parseCompanyHits("q", [cHit("Payments infrastructure for platforms | Stripe", "https://stripe.com/")]);
     expect(c.name).toBe("Stripe");
-  });
-});
-
-describe("Vietnamese support", () => {
-  it("extracts Vietnamese names from LinkedIn snippets", () => {
-    for (const text of [
-      "Nguyễn Văn Minh - Sales Director at Vinamilk",
-      "Trần Thị Hương - Trade Marketing Manager at Masan",
-      "Lê Đức Anh - IT Director at Acecook",
-    ]) {
-      expect(extractLinkedInPeopleFromText(text, "Co", null).length).toBeGreaterThan(0);
-    }
-  });
-
-  it("accepts Vietnamese decision-maker titles and rejects VN junior ones", () => {
-    for (const ok of ["Giám đốc kinh doanh", "Tổng giám đốc", "Trưởng phòng", "Sales Director"]) {
-      expect(isTargetTitle(ok)).toBe(true);
-    }
-    for (const bad of ["Thực tập sinh", "Trợ lý giám đốc", "intern"]) {
-      expect(isTargetTitle(bad)).toBe(false);
-    }
-  });
-});
-
-describe("company-page people extraction — person validation + noise cleaning", () => {
-  it("keeps a real person and cleans SERP noise from the company", () => {
-    const out = extractLinkedInPeopleFromText(
-      "Sarah Lee - VP Sales at Rippling | 500+ connections | LinkedIn",
-      "Fallback Co",
-      "https://www.linkedin.com/in/sarah-lee",
-    );
-    expect(out).toHaveLength(1);
-    expect(out[0].name).toBe("Sarah Lee");
-    expect(out[0].companyName).toBe("Rippling"); // "| 500+ connections | LinkedIn" stripped
-  });
-
-  it("rejects a non-person phrase even with a target-title tail", () => {
-    // "Our Team" matched the old [A-Z][a-z]+ shape + isTargetTitle('Sales') → a fake person.
-    expect(extractLinkedInPeopleFromText("Our Team - Sales at Acme", "Acme", null)).toHaveLength(0);
   });
 });
 

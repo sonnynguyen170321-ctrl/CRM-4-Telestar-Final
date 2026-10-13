@@ -17,13 +17,13 @@ import {
   type ParsedCandidate,
   type RawSearchHit,
 } from '@telestar/core-research/parseDiscoveryResults';
-import { OFF_PERSONA_SCORE_CAP, scoreCandidateHeuristic } from '@telestar/core-research/scoreCandidates';
+import { scoreCandidateHeuristic, type HeuristicFit } from '@telestar/core-research/scoreCandidates';
 import { runQueryAcrossProviders, type SearchDeps } from '@telestar/core-search/search/companyIntelSearch';
 import { resolveUsableProviderChain } from '@telestar/core-search/search/env';
 
 import { prisma } from '@/lib/prisma';
 
-import { applyAiFit, type AiFitCandidate } from './aiFit';
+import { runGeoFrom, type RunGeo } from './runGeo';
 import { searchDepsFor } from './searchGateway';
 import { beginVerification } from './verify';
 
@@ -49,9 +49,6 @@ export type ResearchRunKind = 'company' | 'contact';
 
 const PACKAGE_KIND = { company: 'COMPANY', contact: 'CONTACT' } as const;
 
-/** How often a working pass touches its run row while it does work that writes nothing else. */
-const HEARTBEAT_MS = 60_000;
-
 export type CreateRunInput = {
   tenantId: string;
   kind: ResearchRunKind;
@@ -61,7 +58,7 @@ export type CreateRunInput = {
   /** Free-form builder params. When absent the queries come from the ICP rules. */
   builderParams?: ResearchBuilderParams | null;
   queryLimit?: number;
-  /** Re-rank each pass's new candidates with the AI-fit layer (`lib/research/aiFit.ts`). */
+  /** Kept for old callers. Contacts are now checked by verification (verifyPeople), which replaces the AI re-rank. */
   aiFit?: boolean;
 };
 
@@ -208,10 +205,10 @@ export async function runDiscoveryPass(params: {
   // Judged against the run's whole persona set, not only the query that surfaced a candidate: a CTO
   // found by the "CEO" query is on-persona when the run also searched for CTOs.
   const personaTitles = personaTitlesOf(queries);
-  // Company runs are judged by verification (lib/research/verify.ts) on the company's own evidence;
-  // the AI re-rank of a 240-character snippet was the weaker version of that and is not run for them.
-  const aiFitRequested = run.kind !== 'company' && readAiFitFlag(run.paramsJson);
-  const createdThisPass: AiFitCandidate[] = [];
+  // Both kinds are judged by verification (lib/research/verify.ts) on their own evidence: a company's pages,
+  // a person's profile text. The AI re-rank of a 240-character snippet was the weaker version of that.
+  // Where a contact is, against the run's target countries, is a gate (owner report, 2026-10-13).
+  const geo: RunGeo = run.kind === 'contact' ? runGeoFrom(run.paramsJson, rules) : { targetCountries: [], geoGate: false };
 
   await prisma.researchRun.updateMany({
     where: { id: runId, tenantId, startedAt: null },
@@ -278,7 +275,7 @@ export async function runDiscoveryPass(params: {
         rules,
         deps,
         personaTitles,
-        created: createdThisPass,
+        geo,
       });
     } catch (error) {
       // A dead provider or a malformed SERP page kills one query, not the run. The attempt is already
@@ -311,34 +308,6 @@ export async function runDiscoveryPass(params: {
         duplicateCount: { increment: harvested.duplicates },
       },
     });
-  }
-
-  // Re-rank what this pass found, before the run can be marked finished — a `succeeded` run is one
-  // whose scores are final. Advisory: any failure leaves the heuristic scores standing.
-  if (aiFitRequested && createdThisPass.length > 0) {
-    // The cursor write is the run's heartbeat, and re-ranking writes none. A slow model would let the
-    // row go quiet past STALE_RUNNER_MS, the UI would offer Resume, and a second slice would run the
-    // same cursor beside this one. Touch the row while it works.
-    const heartbeat = setInterval(() => {
-      void prisma.researchRun
-        .updateMany({ where: { id: runId, tenantId, status: 'running' }, data: { updatedAt: new Date() } })
-        .catch((error) => console.error('[research] heartbeat failed', { runId, error }));
-    }, HEARTBEAT_MS);
-    try {
-      const signals = Array.from(new Set(queries.flatMap((q) => q.hints))).slice(0, 40);
-      await applyAiFit({
-        tenantId,
-        runId,
-        kind: run.kind as ResearchRunKind,
-        targetSignals: signals,
-        personaTitles,
-        candidates: createdThisPass,
-      });
-    } catch (error) {
-      console.error('[research] AI fit failed; heuristic scores kept', { runId, error });
-    } finally {
-      clearInterval(heartbeat);
-    }
   }
 
   result.finished = cursor >= queries.length;
@@ -377,9 +346,9 @@ export async function runDiscoveryPass(params: {
           describeEmptyRun({ queriesRun: cursor, hitsSeen, filtered, rejectedByIcp: result.rejected })
         : null;
 
-    // Company candidates are checked before the run settles: verification keeps the run `running`
+    // Candidates (companies and people) are checked before the run settles: verification keeps the run `running`
     // and settles it when the last candidate is checked (lib/research/verify.ts).
-    if (!brokenRun && run.kind === 'company' && !nothingFound && (await (params.beginVerification ?? beginVerification)(tenantId, runId))) {
+    if (!brokenRun && !nothingFound && (await (params.beginVerification ?? beginVerification)(tenantId, runId))) {
       return result;
     }
 
@@ -404,8 +373,7 @@ async function harvestQuery(input: {
   rules: unknown | null;
   deps: SearchDeps;
   personaTitles?: string[];
-  /** Collects every candidate this query created, for the AI-fit re-rank at the end of the pass. */
-  created?: AiFitCandidate[];
+  geo?: RunGeo;
 }): Promise<{ discovered: number; duplicates: number; rejected: number; hits: number; filtered?: CompanyHitRejections; providerFailures: Map<string, number | null> }> {
   const { tenantId, runId, kind, query, rules, deps } = input;
 
@@ -459,20 +427,10 @@ async function harvestQuery(input: {
       query,
       candidate,
       personaTitles: input.personaTitles ?? [],
+      geo: input.geo,
     });
-    if (outcome.status === 'created') {
-      discovered += 1;
-      input.created?.push({
-        id: outcome.id,
-        name: candidate.name,
-        title: candidate.title,
-        companyName: candidate.companyName,
-        domain: candidate.domain,
-        snippet: candidate.source.snippet,
-        offPersona: outcome.offPersona,
-        heuristicScore: outcome.score,
-      });
-    } else duplicates += 1;
+    if (outcome.status === 'created') discovered += 1;
+    else duplicates += 1;
   }
 
   return { discovered, duplicates, rejected, hits: hits.length, filtered: companyParse?.rejected, providerFailures };
@@ -485,17 +443,16 @@ async function persistCandidate(input: {
   query: DiscoveryQuery;
   candidate: ParsedCandidate;
   personaTitles: string[];
-}): Promise<{ status: 'created'; id: string; offPersona: boolean; score: number } | { status: 'duplicate' }> {
+  geo?: RunGeo;
+}): Promise<{ status: 'created'; id: string } | { status: 'duplicate' }> {
   const { tenantId, runId, kind, query, candidate } = input;
   const hints = query.hints ?? [];
-  const fit = scoreCandidateHeuristic(candidate, hints, { personaTitles: input.personaTitles });
-  // A titled contact the heuristic put under the persona cap is off-persona; the AI layer may not
-  // lift it back over.
-  const offPersona =
-    candidate.kind === 'CONTACT' &&
-    input.personaTitles.length > 0 &&
-    Boolean(candidate.title?.trim()) &&
-    fit.score <= OFF_PERSONA_SCORE_CAP;
+  const fit = scoreCandidateHeuristic(candidate, hints, {
+    personaTitles: input.personaTitles,
+    targetCountries: input.geo?.targetCountries,
+    geoGate: input.geo?.geoGate,
+  });
+  const verification = initialVerification(kind, fit, candidate);
 
   let created: { id: string } | null = null;
   try {
@@ -511,14 +468,16 @@ async function persistCandidate(input: {
         title: candidate.title,
         companyName: candidate.companyName,
         location: candidate.location,
-        sourceJson: candidate.source as never,
+        country: candidate.country ?? null,
+        sourceJson: sourceJsonOf(candidate) as never,
         matchHintsJson: hints as never,
         dedupeFingerprint: candidate.dedupeFingerprint,
         fitScore: fit.score,
         fitReason: fit.reason,
         fitSource: 'heuristic',
-        // A company is shown only once it has been checked against its own evidence (2026-10-08).
-        ...(kind === 'company' ? { verification: 'pending' as const } : {}),
+        // A candidate is shown only once it has been checked against its own evidence (companies 2026-10-08,
+        // people 2026-10-13).
+        ...verification,
       },
       select: { id: true },
     });
@@ -533,7 +492,30 @@ async function persistCandidate(input: {
   if (!created) return { status: 'duplicate' };
 
   await recordEvidence(tenantId, runId, created.id, query.query, candidate);
-  return { status: 'created', id: created.id, offPersona, score: fit.score };
+  return { status: 'created', id: created.id };
+}
+
+/** The source as stored, plus what was read from the profile head so the reader can see it. */
+function sourceJsonOf(candidate: ParsedCandidate): Record<string, unknown> {
+  if (candidate.kind !== 'CONTACT') return candidate.source;
+  return { ...candidate.source, profile: { headline: candidate.headline ?? null, location: candidate.location, country: candidate.country ?? null } };
+}
+
+/**
+ * Where a new candidate starts. Companies and people both wait for verification; a person the profile head
+ * already places outside the run's target countries is settled now, with no model call: the country was
+ * read from the head by rules, and the rejection says so.
+ */
+function initialVerification(kind: ResearchRunKind, fit: HeuristicFit, candidate: ParsedCandidate) {
+  if (kind === 'contact' && fit.rejection === 'person_outside_target') {
+    return {
+      verification: 'rejected' as const,
+      verificationReason: fit.rejection,
+      verificationJson: { via: 'rules', reason: fit.rejection, person: { location: candidate.location, country: candidate.country ?? null } } as never,
+      verifiedAt: new Date(),
+    };
+  }
+  return { verification: 'pending' as const };
 }
 
 /**
@@ -606,10 +588,6 @@ function readQueries(json: unknown): DiscoveryQuery[] {
     const titleHint = typeof obj.titleHint === 'string' && obj.titleHint.trim() ? obj.titleHint : undefined;
     return [{ query, hints, ...(titleHint ? { titleHint } : {}) }];
   });
-}
-
-function readAiFitFlag(paramsJson: unknown): boolean {
-  return Boolean(paramsJson && typeof paramsJson === 'object' && (paramsJson as { aiFit?: unknown }).aiFit === true);
 }
 
 async function loadRules(tenantId: string, icpVersionId: string | null): Promise<unknown | null> {
