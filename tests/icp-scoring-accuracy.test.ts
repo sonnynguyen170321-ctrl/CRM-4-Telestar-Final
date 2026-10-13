@@ -64,7 +64,7 @@ describe('country', () => {
     ['United States U.S.A.', 'United States'],
     ['America USA', 'United States'],
     ['Georgia US', 'Georgia US'],
-    ['Korea (North)', 'Korea (north)'],
+    ['Korea (North)', 'North Korea'],
     ['Vietnam (VN)', 'Vietnam'],
     ['United States (USA)', 'United States'],
     ['Germany (DE).', 'Germany'],
