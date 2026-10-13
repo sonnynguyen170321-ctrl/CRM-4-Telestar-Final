@@ -6,6 +6,10 @@ export interface PickerItem {
   id: string;
   label: string;
   hint?: string;
+  /** Section heading; consecutive items with the same group share one heading. */
+  group?: string;
+  /** Text to insert instead of `{{id}}` (the syntax help rows). */
+  insert?: string;
 }
 
 interface PickerListProps {
@@ -36,8 +40,11 @@ export function PickerList({ items, activeIndex, onPick, onHover, emptyText, lab
   return (
     <ul id={listId} role="listbox" aria-label={label} className="max-h-56 overflow-y-auto py-1">
       {items.map((item, index) => (
+        <React.Fragment key={item.id}>
+        {item.group && item.group !== items[index - 1]?.group ? (
+          <li role="presentation" className="px-3 pb-0.5 pt-1.5 text-[10px] font-bold uppercase tracking-wide text-text-muted">{item.group}</li>
+        ) : null}
         <li
-          key={item.id}
           id={`${listId}-${index}`}
           ref={index === activeIndex ? activeRef : undefined}
           role="option"
@@ -53,6 +60,7 @@ export function PickerList({ items, activeIndex, onPick, onHover, emptyText, lab
           <span className="font-semibold">{item.label}</span>
           {item.hint ? <span className="ml-2 text-text-muted">{item.hint}</span> : null}
         </li>
+        </React.Fragment>
       ))}
     </ul>
   );

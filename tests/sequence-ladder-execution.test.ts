@@ -108,6 +108,13 @@ vi.mock('@/lib/email/suppress', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/email/suppress')>()),
   blockIfBounced: async () => null,
 }));
+// The render context (account, campaign name, saved AI variables, sender profile) is read from tables this
+// file's prisma mock does not model; tests/personalization-render-parity.test.ts covers it against a real database.
+vi.mock('@/lib/templates/renderContext', () => ({
+  loadRenderLead: async (_tenantId: string, lead: unknown) => lead,
+  loadRenderSender: async () => null,
+}));
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     get lead() {
@@ -236,6 +243,7 @@ vi.mock('@/lib/workflows/email', () => ({
 
 vi.mock('@/lib/templates/render', () => ({
   renderTemplate: (text: string) => text,
+  renderSubject: (text: string) => text,
 }));
 
 const { handleExecuteTask } = await import('@/workers/sequence');

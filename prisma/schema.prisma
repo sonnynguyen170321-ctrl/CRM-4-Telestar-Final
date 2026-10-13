@@ -396,6 +396,11 @@ model User {
   reports     User[]   @relation("UserReports")
   avatarUrl   String?
   timezone    String   @default("Asia/Ho_Chi_Minh")
+  /// Sender details for the {{senderPhone}} / {{senderTitle}} / {{senderCalendarLink}} merge fields.
+  /// All optional; the user sets them in Settings. A blank one renders as nothing (or its fallback).
+  phone        String?
+  jobTitle     String?
+  calendarLink String?
   isActive    Boolean  @default(true)
   /// Bumped whenever a change must invalidate every existing session — password change,
   /// admin reset, deactivate/reactivate, role change, tenant move, or an explicit
@@ -4610,6 +4615,11 @@ model LeadAiInsight {
   hooksGeneratedAt   DateTime?
   draftJson          Json?
   draftGeneratedAt   DateTime?
+  /// The AI merge variables ({{ai.icebreaker}} ...): { icebreaker, painPoint, valueProp, companySummary,
+  /// whyNow, personalLine } as strings. Generated from research, then editable by the rep; an absent key
+  /// means there was nothing grounded to say. Read through lib/leads/aiVariablesStore.ts.
+  variablesJson      Json?
+  variablesGeneratedAt DateTime?
   /// Who triggered the most recent generation. Plain string, no FK: it is attribution only.
   generatedById      String?
   createdAt          DateTime  @default(now())

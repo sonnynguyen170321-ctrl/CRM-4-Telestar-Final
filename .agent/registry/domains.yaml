@@ -194,6 +194,9 @@ domains:
       # Inserts a merge field into a template subject or body at the cursor.
       - lib/templates/insertMergeTag.ts
       - lib/templates/render.ts
+      # Loads what the one renderer needs beyond the lead row (account, campaign, saved AI variables, sender
+      # profile) so the preview, the send route and both workers render with the same context.
+      - lib/templates/renderContext.ts
       # The shared composer: editor schema, HTML sanitiser, merge-field checks, attachment policy,
       # CC/BCC rules; snippets (personal/shared); the composer's routes (preview, attachments).
       - lib/compose/**
@@ -227,6 +230,7 @@ domains:
       - tests/email-safety.test.ts
       - tests/email-send-paused-mailbox.test.ts
       - tests/compose-*.test.ts
+      - tests/personalization-*.test.ts
       - tests/email-composer-fixes.test.ts
       - tests/unsubscribe.test.ts
       - tests/demo-email-barrier.test.ts

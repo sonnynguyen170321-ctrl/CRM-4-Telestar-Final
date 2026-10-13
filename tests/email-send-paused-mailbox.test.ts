@@ -30,6 +30,12 @@ vi.mock('@/lib/auth', () => ({
   requireAuth: (...a: unknown[]) => mockRequireAuth(...a),
   canAccessLead: (...a: unknown[]) => mockCanAccessLead(...a),
 }));
+// The render context reads tables this file's prisma mock does not model; tests/personalization-lab.test.ts covers it.
+vi.mock('@/lib/templates/renderContext', () => ({
+  loadRenderLead: async (_tenantId: string, lead: unknown) => lead,
+  loadRenderSender: async () => null,
+}));
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     lead: { findUnique: (...a: unknown[]) => mockLeadFindUnique(...a) },

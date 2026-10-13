@@ -28,6 +28,13 @@ vi.mock('@/lib/email/suppress', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/email/suppress')>()),
   blockIfBounced: (...a: unknown[]) => mockBlockIfBounced(...a),
 }));
+// The render context (account, campaign name, saved AI variables, sender profile) is read from tables this
+// file's prisma mock does not model; tests/personalization-render-parity.test.ts covers it against a real database.
+vi.mock('@/lib/templates/renderContext', () => ({
+  loadRenderLead: async (_tenantId: string, lead: unknown) => lead,
+  loadRenderSender: async () => null,
+}));
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     outboundMessage: {
@@ -89,6 +96,7 @@ vi.mock('@/lib/email/EmailService', () => ({
 
 vi.mock('@/lib/templates/render', () => ({
   renderTemplate: (...args: [string]) => mockRenderTemplate(...args),
+  renderSubject: (...args: [string]) => mockRenderTemplate(...args),
 }));
 
 vi.mock('@/lib/tenant-context', () => ({

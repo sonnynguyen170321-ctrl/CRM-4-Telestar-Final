@@ -9,7 +9,8 @@ import { EmailService } from '@/lib/email/EmailService';
 import type { SendEmailOptions, SendReceipt, SendThreading } from '@/lib/email/EmailService';
 import { effectiveDryRun, isGlobalEmailPaused, isCanaryRecipientAllowed } from '@/lib/emailSafety';
 import { generateUnsubscribeToken, buildUnsubscribeHeaders } from '@/lib/email/unsubscribe';
-import { renderTemplate } from '@/lib/templates/render';
+import { renderSubject, renderTemplate } from '@/lib/templates/render';
+import { loadRenderLead, loadRenderSender } from '@/lib/templates/renderContext';
 import {
   CLAIMABLE_STATUSES,
   OUTBOUND_STATUS,
@@ -601,9 +602,11 @@ async function handleEmailSend(payload: EmailSendPayload) {
       include: { assignedTo: { select: { id: true, firstName: true, lastName: true, role: true } } },
     });
     if (leadForRender) {
-      const sender = (account.user ?? leadForRender.assignedTo) as any;
-      finalSubject = renderTemplate(subject, leadForRender as any, sender);
-      finalBody = renderTemplate(body, leadForRender as any, sender);
+      const senderRow = (account.user ?? leadForRender.assignedTo) as any;
+      const sender = (senderRow?.id ? await loadRenderSender(existing.tenantId, senderRow.id) : null) ?? senderRow;
+      const renderLead = await loadRenderLead(existing.tenantId, leadForRender);
+      finalSubject = renderSubject(subject, renderLead, sender);
+      finalBody = renderTemplate(body, renderLead, sender);
     }
   }
 

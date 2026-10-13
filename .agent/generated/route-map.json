@@ -68,6 +68,7 @@
     "/api/ai/draft-outcome",
     "/api/ai/draft-reply",
     "/api/ai/enrich-lead",
+    "/api/ai/lead-variables",
     "/api/ai/memory",
     "/api/ai/nba",
     "/api/ai/onboarding",
@@ -271,5 +272,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 39,
-  "apiRouteCount": 221
+  "apiRouteCount": 222
 }

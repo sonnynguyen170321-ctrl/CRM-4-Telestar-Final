@@ -10,7 +10,8 @@
 BEGIN;
 
 -- People
-UPDATE "User"     SET email = 'user-' || id || '@example.invalid', "firstName" = 'User', "lastName" = left(id, 6), password = 'sanitized';
+UPDATE "User"     SET email = 'user-' || id || '@example.invalid', "firstName" = 'User', "lastName" = left(id, 6), password = 'sanitized',
+                      phone = NULL, "calendarLink" = NULL;
 UPDATE "Contact"  SET email = CASE WHEN email IS NULL THEN NULL ELSE 'contact-' || id || '@example.invalid' END,
                       "normalizedEmail" = CASE WHEN "normalizedEmail" IS NULL THEN NULL ELSE 'contact-' || id || '@example.invalid' END,
                       "alternateEmail" = NULL, "alternateEmailValidation" = NULL,

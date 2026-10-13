@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Mail, Send, X, Loader2, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
-import { addMergeFallback } from '@/lib/compose/merge';
-import { isHtmlBlank } from '@/lib/compose/html';
+import { addMergeFallback, findMergeTags } from '@/lib/compose/merge';
+import { isHtmlBlank, unchipifyMergeTags } from '@/lib/compose/html';
 import { isHtml } from '@/lib/email/sanitize';
 import ComposeEditor from '@/components/compose/ComposeEditor';
 import MailboxSelect from '@/components/compose/MailboxSelect';
@@ -13,7 +13,8 @@ import SubjectField from '@/components/compose/SubjectField';
 import AttachmentBar from '@/components/compose/AttachmentBar';
 import TemplatePicker from '@/components/compose/TemplatePicker';
 import { MissingValuesPanel, PreviewPane, SignatureBlock } from '@/components/compose/ComposeParts';
-import { useLeadPreview, useMailboxes, useMissingValues, useSnippets } from '@/components/compose/useComposeData';
+import AiVariablesPanel from '@/components/compose/AiVariablesPanel';
+import { needsServerCheck, useAiVariables, useLeadPreview, useMailboxes, useMissingValues, useSnippets } from '@/components/compose/useComposeData';
 import type { ComposeAttachment, MissingValue } from '@/components/compose/types';
 
 interface Task { id: string; type: string; title: string; description: string; dueDate: string; status: string; leadId: string; }
@@ -71,15 +72,23 @@ export default function MailComposerModal({ lead, onClose, task, onSent, initial
     if (!accountId && mailboxes.length > 0) setAccountId(mailboxes[0].id);
   }, [mailboxes, accountId]);
 
-  const clientMissing = useMissingValues(lead, subject, body);
+  const ai = useAiVariables(lead.id);
+  const clientMissing = useMissingValues(lead, subject, body, ai.loaded ? ai.saved : null);
+  // Company data, the sender and the lead's local time are known to the server only: when the draft
+  // uses one, the server render runs in the background so its "no value" warnings show without opening the preview.
+  const draftText = `${subject}
+${body}`;
+  const serverCheck = previewOn || needsServerCheck(draftText);
   const { preview, serverMissing, loading: previewLoading, error: previewError } = useLeadPreview({
-    enabled: previewOn, leadId: lead.id, accountId, subject, body,
+    enabled: serverCheck, leadId: lead.id, accountId, subject, body, refreshKey: ai.version,
   });
+  const usesAiVariables = useMemo(() => findMergeTags(unchipifyMergeTags(draftText)).some((tag) => tag.field.startsWith('ai.')), [draftText]);
   const missing: MissingValue[] = useMemo(() => {
+    const used = new Set(findMergeTags(unchipifyMergeTags(draftText)).map((tag) => tag.field));
     const byField = new Map<string, MissingValue>();
-    for (const m of [...clientMissing, ...(previewOn ? serverMissing : [])]) if (!byField.has(m.field)) byField.set(m.field, m);
+    for (const m of [...clientMissing, ...(serverCheck ? serverMissing.filter((s) => used.has(s.field)) : [])]) if (!byField.has(m.field)) byField.set(m.field, m);
     return [...byField.values()];
-  }, [clientMissing, serverMissing, previewOn]);
+  }, [clientMissing, serverMissing, serverCheck, draftText]);
 
   // A draft worth asking about: the rep has written or attached something of their own.
   const hasExtras = attachments.length > 0 || cc.length > 0 || bcc.length > 0;
@@ -298,6 +307,7 @@ export default function MailComposerModal({ lead, onClose, task, onSent, initial
           </div>
 
           <MissingValuesPanel lead={lead} missing={missing} onAddFallback={addFallback} />
+          <AiVariablesPanel ai={ai} leadFirstName={lead.firstName} defaultOpen={usesAiVariables} />
           {!previewOn && account && <SignatureBlock html={account.signaturePreview} mailboxEmail={account.email} onNavigate={onClose} />}
           <AttachmentBar attachments={attachments} onChange={setAttachments} templateAttachments={templateAttachments} disabled={sending} />
 

@@ -5,7 +5,8 @@ import { canAccessLead, requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { canViewOwned } from '@/lib/visibility';
 import { findSendableAccount } from '@/lib/email/sendableAccount';
-import { buildMergeContext, renderTemplate } from '@/lib/templates/render';
+import { buildMergeContext, renderSubject, renderTemplate } from '@/lib/templates/render';
+import { loadRenderLead, loadRenderSender } from '@/lib/templates/renderContext';
 import { findMissingMergeValues } from '@/lib/compose/merge';
 import { plainTextToHtml, sanitizeComposeHtml, unchipifyMergeTags } from '@/lib/compose/html';
 import { isHtml } from '@/lib/email/sanitize';
@@ -50,10 +51,10 @@ async function preview(user: SessionUser, input: z.infer<typeof previewSchema>) 
       orderBy: { createdAt: 'asc' },
     });
   }
-  const sender =
-    (account
-      ? await prisma.user.findFirst({ where: { id: account.userId, tenantId }, select: { firstName: true, lastName: true, role: true } })
-      : null) ?? user;
+  const sender = (account ? await loadRenderSender(tenantId, account.userId) : null) ?? user;
+  // The account, campaign and saved AI variables too: the context the send route and both workers render with.
+  const renderLead = await loadRenderLead(tenantId, lead);
+  const now = new Date();
 
   let subject = input.subject ?? '';
   let body = input.body ?? '';
@@ -67,16 +68,16 @@ async function preview(user: SessionUser, input: z.infer<typeof previewSchema>) 
     body = template.body;
   }
 
-  const context = buildMergeContext(lead, sender);
+  const context = buildMergeContext(renderLead, sender, { now });
   const missing = [
     ...findMissingMergeValues(subject, context).map((m) => ({ ...m, where: 'subject' as const })),
     ...findMissingMergeValues(body, context).map((m) => ({ ...m, where: 'body' as const })),
   ];
 
   const rawBody = unchipifyMergeTags(body);
-  const rendered = renderTemplate(rawBody, lead, sender);
+  const rendered = renderTemplate(rawBody, renderLead, sender, { now });
   return NextResponse.json({
-    subject: renderTemplate(subject, lead, sender),
+    subject: renderSubject(subject, renderLead, sender, { now }),
     // Always HTML for display; sanitised here as well as on send.
     bodyHtml: isHtml(rendered) ? sanitizeComposeHtml(rendered) : plainTextToHtml(rendered),
     missing,
