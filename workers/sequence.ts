@@ -486,7 +486,9 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     // One render context for the lead and the sender, the same one the composer preview builds, so the
     // cadence sends what the rep saw.
     const renderLead = await loadRenderLead(task.tenantId, task.lead);
-    const renderSender = (await loadRenderSender(task.tenantId, task.lead.assignedToId)) ?? task.lead.assignedTo;
+    // The sender is whoever owns the mailbox the mail leaves from (resolveSendingMailbox above), which a
+    // shared sequence sender makes someone other than the lead's owner: From and {{sender*}} must agree.
+    const renderSender = (account ? await loadRenderSender(task.tenantId, account.userId) : null) ?? task.lead.assignedTo;
 
     // Deterministic A/B variant selection (spec §42)
     let subject: string;

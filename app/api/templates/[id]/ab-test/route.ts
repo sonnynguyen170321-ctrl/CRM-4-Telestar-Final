@@ -4,6 +4,13 @@ import { requireAuth } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { handleApiError } from '@/lib/api/errors';
 import { templateAccess } from '@/lib/visibility';
+import { z } from 'zod';
+import { longText } from '@/lib/validation/core';
+
+const abVariantSchema = z.object({
+  subjectB: z.string().max(998).nullish(),
+  bodyB: longText.nullish(),
+});
 
 /**
  * A template's A/B variant. It is part of the template, so it follows the template's rule
@@ -61,8 +68,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (access === 'none') return NOT_FOUND();
     if (access !== 'manage') return FORBIDDEN();
 
-    const body = await req.json();
-    const { subjectB, bodyB } = body;
+    // The same limits as the template itself (lib/validation/schemas.ts): a variant is template copy.
+    const parsedBody = abVariantSchema.safeParse(await req.json().catch(() => null));
+    if (!parsedBody.success) {
+      return NextResponse.json({ error: parsedBody.error.issues[0]?.message ?? 'Invalid variant' }, { status: 400 });
+    }
+    const { subjectB, bodyB } = parsedBody.data;
 
     if (!subjectB && !bodyB) {
       return NextResponse.json({ error: 'Provide at least subjectB or bodyB' }, { status: 400 });

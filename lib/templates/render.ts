@@ -74,6 +74,11 @@ export interface RenderSdr {
 export interface RenderOptions {
   /** The clock, for the time-aware variables. Defaults to now. */
   now?: Date;
+  /**
+   * The last render before delivery (the email worker, the preview): the guard that keeps a value
+   * from being expanded by a later pass is removed from the text. Earlier passes keep it.
+   */
+  final?: boolean;
 }
 
 const ROLE_TITLES: Record<string, string> = {
@@ -97,6 +102,10 @@ const VALUE_CAPS: Record<string, number> = {
   'ai.whyNow': 400,
   'ai.personalLine': 400,
 };
+
+/** Longest template the renderer will expand, and the deepest spintax / conditional nesting it follows. */
+export const MAX_TEMPLATE_LENGTH = 50_000;
+export const MAX_NESTING = 5;
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as const;
 
@@ -131,10 +140,17 @@ function timeContext(lead: RenderLead, now: Date): Record<string, string> {
   };
 }
 
+/** A URL-like value may carry no scheme (`acme.test`) or http, https, mailto, tel - never `javascript:` or `data:`. */
+function isSafeUrlValue(value: string | null | undefined): boolean {
+  const v = (value ?? '').trim();
+  return !/^[a-z][a-z0-9+.-]*:/i.test(v) || /^(?:https?|mailto|tel):/i.test(v);
+}
+
 export function buildMergeContext(lead: RenderLead, sdr?: RenderSdr, options: RenderOptions = {}): Record<string, string> {
   const account = lead.account ?? null;
   const fullName = [sdr?.firstName, sdr?.lastName].filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
   const senderTitle = sdr?.jobTitle?.trim() || (sdr?.role && ROLE_TITLES[sdr.role]) || '';
+  const safeUrl = (value: string | null | undefined) => (isSafeUrlValue(value) ? (value ?? '') : '');
   const headcount = account?.size ? String(account.size) : (account?.staffCountRange ?? '');
 
   const ctx: Record<string, string> = {
@@ -144,8 +160,8 @@ export function buildMergeContext(lead: RenderLead, sdr?: RenderSdr, options: Re
     title: lead.title ?? '',
     email: lead.email ?? '',
     phone: lead.phone ?? '',
-    linkedin: lead.linkedIn ?? '',
-    website: account?.website ?? '',
+    linkedin: safeUrl(lead.linkedIn),
+    website: safeUrl(account?.website),
     domain: account?.domain ?? account?.canonicalDomain ?? '',
     industry: account?.industry ?? '',
     country: account?.country ?? '',
@@ -157,7 +173,7 @@ export function buildMergeContext(lead: RenderLead, sdr?: RenderSdr, options: Re
     senderFullName: fullName,
     senderTitle,
     senderPhone: sdr?.phone ?? '',
-    senderCalendarLink: sdr?.calendarLink ?? '',
+    senderCalendarLink: safeUrl(sdr?.calendarLink),
     senderSignatureName: fullName,
     sdrName: fullName,
     sdrTitle: senderTitle,
@@ -169,7 +185,7 @@ export function buildMergeContext(lead: RenderLead, sdr?: RenderSdr, options: Re
 }
 
 /** The pattern of one `{{field}}`, `{{field|fallback}}` or `{{field|helper|fallback}}` tag. */
-export const MERGE_FIELD_SOURCE = String.raw`\{\{\s*([a-zA-Z][a-zA-Z0-9]*(?:\.[a-zA-Z][a-zA-Z0-9]*)?)\s*(?:\|([^}]*))?\}\}`;
+export const MERGE_FIELD_SOURCE = String.raw`\{\{\s*([a-zA-Z][a-zA-Z0-9]*(?:\.[a-zA-Z][a-zA-Z0-9]*)?)\s*(?:\|([^}]{0,300}))?\}\}`;
 const MERGE_FIELD_RE = new RegExp(MERGE_FIELD_SOURCE, 'g');
 
 /** The fields a template may name (the keys of `buildMergeContext`). */
@@ -225,6 +241,7 @@ function parseConditionals(text: string): CondNode[] | null {
     if (index > last) current().push(text.slice(last, index));
     last = index + match[0].length;
     if (match[1]) {
+      if (stack.length >= MAX_NESTING) return null; // nested too deep: leave the text as written
       const node: CondBranch = { field: match[1], then: [], otherwise: [] };
       current().push(node);
       stack.push({ node, inElse: false });
@@ -280,21 +297,23 @@ function skipTag(s: string, i: number): number {
   return end === -1 ? -1 : end + 2;
 }
 
-/** Index of the `}` closing the single `{` at `open`, or -1. `{{...}}` units inside are skipped whole. */
-function findSpinClose(s: string, open: number): number {
-  let depth = 0;
-  for (let j = open + 1; j < s.length; j++) {
+/**
+ * Where each single `{` closes, in one pass with a stack (linear, whatever the nesting). `{{...}}`
+ * units are skipped whole. A `{` that never closes has no entry; if a `{{` never closes, the rest of
+ * the text is plain.
+ */
+function matchSingleBraces(s: string): Map<number, number> {
+  const closes = new Map<number, number>();
+  const stack: number[] = [];
+  for (let j = 0; j < s.length; j++) {
     if (s[j] === '{' && s[j + 1] === '{') {
       const next = skipTag(s, j);
-      if (next === -1) return -1;
+      if (next === -1) break;
       j = next - 1;
-    } else if (s[j] === '{') depth++;
-    else if (s[j] === '}') {
-      if (depth === 0) return j;
-      depth--;
-    }
+    } else if (s[j] === '{') stack.push(j);
+    else if (s[j] === '}' && stack.length > 0) closes.set(stack.pop()!, j);
   }
-  return -1;
+  return closes;
 }
 
 function splitSpinOptions(inner: string): string[] {
@@ -319,13 +338,16 @@ function splitSpinOptions(inner: string): string[] {
 
 /**
  * Replace each `{A|B|C}` by one option, chosen by a hash of the seed and the group's position, so the
- * same lead and template always read the same. A `{` with no `|` is ordinary text.
+ * same lead and template always read the same. A `{` with no `|` is ordinary text. Groups nested
+ * deeper than MAX_NESTING are left as written (the cost of a pathological template stays bounded).
  */
 export function resolveSpintax(text: string, seed: string): string {
   // The seed holds the whole template; hash it once, not once per group.
   const seedHash = fnv1a(seed);
   let counter = 0;
-  const walk = (s: string): string => {
+  const walk = (s: string, depth: number): string => {
+    if (depth > MAX_NESTING) return s;
+    const closes = matchSingleBraces(s);
     let out = '';
     let i = 0;
     while (i < s.length) {
@@ -337,12 +359,12 @@ export function resolveSpintax(text: string, seed: string): string {
         continue;
       }
       if (s[i] === '{' && s[i + 1] !== ZWSP) {
-        const close = findSpinClose(s, i);
-        if (close !== -1) {
+        const close = closes.get(i);
+        if (close !== undefined) {
           const options = splitSpinOptions(s.slice(i + 1, close));
           if (options.length > 1) {
             const choice = fnv1a(`${seedHash}#${counter++}`) % options.length;
-            out += walk(options[choice]);
+            out += walk(options[choice], depth + 1);
             i = close + 1;
             continue;
           }
@@ -353,7 +375,7 @@ export function resolveSpintax(text: string, seed: string): string {
     }
     return out;
   };
-  return walk(text);
+  return walk(text, 1);
 }
 
 // ── Values ─────────────────────────────────────────────────────────────────
@@ -378,25 +400,46 @@ function escapeHtml(value: string): string {
  *
  * The fallback text is written by the template's author and is left as written.
  */
-function asMergeData(value: string, htmlTemplate: boolean): string {
-  const safe = htmlTemplate ? escapeHtml(value) : value;
+type EscapeMode = 'html' | 'text-body' | 'subject';
+
+function asMergeData(value: string, mode: EscapeMode): string {
+  // HTML template: full escape. Plain-text template: the final body is still treated as HTML when it
+  // contains a tag (workers/email.ts), so `<` and `>` in a value must never form one. A subject is a
+  // header, not HTML, and is left as the text it is.
+  const safe = mode === 'html' ? escapeHtml(value) : mode === 'text-body' ? value.replace(/</g, '&lt;').replace(/>/g, '&gt;') : value;
   return safe.replace(/\{/g, `{${ZWSP}`);
 }
 
-export function renderTemplate(text: string, lead: RenderLead, sdr?: RenderSdr, options: RenderOptions = {}): string {
+/** Remove the between-passes guard. Call it on text that will not be rendered again. */
+export function stripMergeGuard(text: string): string {
+  return text.replace(/\{​/g, '{');
+}
+
+function renderWith(text: string, lead: RenderLead, sdr: RenderSdr | undefined, options: RenderOptions, subject: boolean): string {
+  // A template this long, or nested this deep, is almost certainly not hand-written: it is left as
+  // written rather than spending unbounded time on it (the composer's missing-value check flags the tags).
+  if (text.length > MAX_TEMPLATE_LENGTH) {
+    console.warn(`[render] template of ${text.length} characters is over the ${MAX_TEMPLATE_LENGTH} limit; left unrendered`);
+    return text;
+  }
   const ctx = buildMergeContext(lead, sdr, options);
-  const htmlTemplate = isHtml(text);
+  const mode: EscapeMode = subject ? 'subject' : isHtml(text) ? 'html' : 'text-body';
   const branched = resolveConditionals(text, ctx);
   const spun = resolveSpintax(branched, `${lead.id ?? ''}|${text}`);
-  return spun.replace(MERGE_FIELD_RE, (match, field: string, tail?: string) => {
+  const out = spun.replace(MERGE_FIELD_RE, (match, field: string, tail?: string) => {
     if (!Object.prototype.hasOwnProperty.call(ctx, field)) return match; // unknown field - leave visible so it gets noticed
     const { helpers, fallback } = parseTagTail(tail);
     const value = helpers.reduce((acc, name) => HELPERS[name](acc), ctx[field]);
-    return value !== '' ? asMergeData(value, htmlTemplate) : fallback;
+    return value !== '' ? asMergeData(value, mode) : fallback;
   });
+  return options.final ? stripMergeGuard(out) : out;
+}
+
+export function renderTemplate(text: string, lead: RenderLead, sdr?: RenderSdr, options: RenderOptions = {}): string {
+  return renderWith(text, lead, sdr, options, false);
 }
 
 /** A subject is one line: whatever the template or a value carried, no CR/LF reaches the header. */
 export function renderSubject(text: string, lead: RenderLead, sdr?: RenderSdr, options: RenderOptions = {}): string {
-  return renderTemplate(text.replace(/[\r\n]+/g, ' '), lead, sdr, options).replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
+  return renderWith(text.replace(/[\r\n]+/g, ' '), lead, sdr, options, true).replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
 }

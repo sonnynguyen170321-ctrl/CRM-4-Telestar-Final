@@ -19,6 +19,11 @@ export function sanitizeAiVariableValue(value: unknown): string {
   if (typeof value !== 'string') return '';
   return value
     .replace(/<[^>]*>/g, ' ')
+    // Contact details and links are not personalization: they would be text a model could be talked into
+    // planting (a phishing link, someone's number) in an email that carries the rep's name.
+    .replace(/\b(?:https?:\/\/|www\.)\S+/gi, ' ')
+    .replace(/\S+@\S+\.\S+/g, ' ')
+    .replace(/(?:\+\d|\b\d)[\d\s().-]{6,}\d/g, ' ')
     .replace(/[<>{}|]/g, ' ')
     .replace(/[\u0000-\u001f\u007f\u2028\u2029]/g, ' ')
     .replace(/\s+/g, ' ')

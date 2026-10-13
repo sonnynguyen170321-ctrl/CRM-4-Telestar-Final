@@ -75,9 +75,9 @@ async function preview(user: SessionUser, input: z.infer<typeof previewSchema>) 
   ];
 
   const rawBody = unchipifyMergeTags(body);
-  const rendered = renderTemplate(rawBody, renderLead, sender, { now });
+  const rendered = renderTemplate(rawBody, renderLead, sender, { now, final: true });
   return NextResponse.json({
-    subject: renderSubject(subject, renderLead, sender, { now }),
+    subject: renderSubject(subject, renderLead, sender, { now, final: true }),
     // Always HTML for display; sanitised here as well as on send.
     bodyHtml: isHtml(rendered) ? sanitizeComposeHtml(rendered) : plainTextToHtml(rendered),
     missing,

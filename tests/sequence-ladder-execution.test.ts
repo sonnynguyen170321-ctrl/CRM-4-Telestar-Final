@@ -243,6 +243,7 @@ vi.mock('@/lib/workflows/email', () => ({
 
 vi.mock('@/lib/templates/render', () => ({
   renderTemplate: (text: string) => text,
+  stripMergeGuard: (t: string) => t,
   renderSubject: (text: string) => text,
 }));
 

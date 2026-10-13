@@ -4,7 +4,9 @@
  * header safety. Pure: no database.
  */
 import { describe, it, expect } from 'vitest';
+import { isHtml } from '@/lib/email/sanitize';
 import {
+  MAX_TEMPLATE_LENGTH,
   MERGE_FIELD_NAMES,
   buildMergeContext,
   parseTagTail,
@@ -317,5 +319,75 @@ describe('picker and composer helpers understand the new syntax', () => {
   it('keeps a dotted tag and its helpers through the editor chip round trip', () => {
     const html = '<p>{{ai.icebreaker|capitalize|Hello}} and {{city}}</p>';
     expect(unchipifyMergeTags(chipifyMergeTags(html))).toBe(html);
+  });
+});
+
+describe('hardening (security review of #293)', () => {
+  const FAST = 1500;
+  const timed = (fn: () => void) => { const t = Date.now(); fn(); return Date.now() - t; };
+
+  it('pathological spintax, conditionals and tags are bounded (20k characters each)', () => {
+    const inputs = [
+      '{a'.repeat(10_000),
+      '{a|'.repeat(7_000),
+      '{{#if a}}'.repeat(2_300),
+      '{{a|'.repeat(5_000),
+      '{{'.repeat(10_000),
+      '{'.repeat(20_000) + '}'.repeat(20_000),
+      '{{#if title}}'.repeat(1_500) + '{{/if}}'.repeat(1_500),
+    ];
+    for (const input of inputs) {
+      expect(timed(() => render(input)), input.slice(0, 12)).toBeLessThan(FAST);
+    }
+  });
+
+  it('leaves a template over the length cap unrendered, and one at the cap renders', () => {
+    const over = `{{firstName}} ${'x'.repeat(MAX_TEMPLATE_LENGTH)}`;
+    expect(render(over)).toBe(over);
+    expect(render(`{{firstName}} ${'x'.repeat(100)}`)).toContain('Linh');
+  });
+
+  it('follows five levels of nesting and leaves a sixth literal', () => {
+    const cond = (n: number) => '{{#if title}}'.repeat(n) + 'X' + '{{/if}}'.repeat(n);
+    expect(render(cond(5))).toBe('X');
+    expect(render(cond(6))).toBe(cond(6));
+    // Every option nests the next level, so depth decides the outcome and not the hash.
+    const spin = (n: number): string => (n === 0 ? 'z' : `{x${spin(n - 1)}|x${spin(n - 1)}}`);
+    expect(render(spin(5))).toMatch(/^x{5}z$/);
+    expect(render(spin(7))).toContain('{');
+  });
+
+  it('a plain-text template cannot be turned into HTML by a merge value', () => {
+    const lead = { ...LEAD, company: '<img src=x onerror=alert(1)>', firstName: '<b>x</b>' };
+    const out = render('Hi {{firstName}} at {{company}}', lead);
+    expect(out).not.toMatch(/<img|<b>|onerror=alert\(1\)>/);
+    expect(isHtml(out)).toBe(false);
+    expect(render('A & B {{company}}', { ...LEAD, company: 'Q&A Ltd' })).toBe('A & B Q&A Ltd');
+  });
+
+  it('keeps the guard between passes and removes it from the final text', () => {
+    const lead = { ...LEAD, firstName: '{{lastName}}' };
+    const first = render('Hi {{firstName}}', lead);
+    expect(first).toContain('{​{');
+    expect(render(first, lead)).toBe(first);
+    const last = renderTemplate(first, lead, SDR, { now: WED_MORNING, final: true });
+    expect(last).toBe('Hi {{lastName}}');
+    expect(renderSubject('Hi {{firstName}}', lead, SDR, { now: WED_MORNING, final: true })).toBe('Hi {{lastName}}');
+  });
+
+  it('leaves digits and ordinary characters in a subject alone', () => {
+    expect(renderSubject('Q4 2028 plan 0829 for {{firstName}}', LEAD, SDR, { now: WED_MORNING })).toBe('Q4 2028 plan 0829 for Linh');
+    expect(renderSubject('a\u2028b\u2029c', LEAD, SDR)).toBe('a b c');
+  });
+
+  it('does not HTML-escape a subject', () => {
+    expect(renderSubject('{{company}}', { ...LEAD, company: 'Q&A <Ltd> "x"' }, SDR, { now: WED_MORNING, final: true })).toBe('Q&A <Ltd> "x"');
+  });
+
+  it('drops a URL-like value with an unsafe scheme', () => {
+    const lead = { ...LEAD, linkedIn: 'javascript:alert(1)', account: { website: 'data:text/html,x', domain: 'acme.test' } };
+    const sdr = { ...SDR, calendarLink: 'vbscript:x' };
+    expect(render('[{{linkedin}}][{{website}}][{{senderCalendarLink}}]', lead, sdr)).toBe('[][][]');
+    expect(render('{{website}}|{{senderCalendarLink}}', { ...LEAD, account: { website: 'acme.test' } }, { ...SDR, calendarLink: 'mailto:a@b.test' })).toBe('acme.test|mailto:a@b.test');
   });
 });
