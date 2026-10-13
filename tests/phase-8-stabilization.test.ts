@@ -46,6 +46,11 @@ vi.mock('@/lib/email/suppress', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/email/suppress')>()),
   blockIfBounced: async () => null,
 }));
+vi.mock('@/lib/templates/renderContext', () => ({
+  loadRenderLead: async (_tenantId: string, lead: unknown) => lead,
+  loadRenderSender: async () => null,
+}));
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     task: {
