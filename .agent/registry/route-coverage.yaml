@@ -592,6 +592,7 @@ routes:
     methods: [POST]
     tests:
       - tests/admin-audit-coverage.test.ts
+      - tests/icp-editor-errors.test.ts
       - tests/icp-management-ui.test.ts
       - tests/icp-preview-score.test.ts
       - tests/icp-review-workflow.test.ts
@@ -600,6 +601,7 @@ routes:
     methods: [POST]
     tests:
       - tests/admin-audit-coverage.test.ts
+      - tests/icp-editor-errors.test.ts
       - tests/icp-management-ui.test.ts
       - tests/icp-preview-score.test.ts
       - tests/icp-review-workflow.test.ts
@@ -608,6 +610,7 @@ routes:
     methods: [POST]
     tests:
       - tests/admin-audit-coverage.test.ts
+      - tests/icp-editor-errors.test.ts
       - tests/icp-management-ui.test.ts
       - tests/icp-preview-score.test.ts
       - tests/icp-review-workflow.test.ts
@@ -616,6 +619,7 @@ routes:
     methods: [POST]
     tests:
       - tests/admin-audit-coverage.test.ts
+      - tests/icp-editor-errors.test.ts
       - tests/icp-management-ui.test.ts
       - tests/icp-preview-score.test.ts
       - tests/icp-review-workflow.test.ts
@@ -624,6 +628,7 @@ routes:
     methods: [PATCH]
     tests:
       - tests/admin-audit-coverage.test.ts
+      - tests/icp-editor-errors.test.ts
       - tests/icp-management-ui.test.ts
       - tests/icp-preview-score.test.ts
       - tests/icp-review-workflow.test.ts
@@ -632,6 +637,7 @@ routes:
     methods: [POST]
     tests:
       - tests/admin-audit-coverage.test.ts
+      - tests/icp-editor-errors.test.ts
       - tests/icp-management-ui.test.ts
       - tests/icp-preview-score.test.ts
       - tests/icp-review-workflow.test.ts
@@ -640,6 +646,7 @@ routes:
     methods: [GET, POST]
     tests:
       - tests/admin-audit-coverage.test.ts
+      - tests/icp-editor-errors.test.ts
       - tests/icp-management-ui.test.ts
       - tests/icp-preview-score.test.ts
       - tests/icp-review-workflow.test.ts
