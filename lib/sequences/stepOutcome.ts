@@ -26,6 +26,7 @@
 import { prisma } from '@/lib/prisma';
 import { advanceSequence } from '@/lib/sequences/engine';
 import { SEND_FAILED_OUTCOME } from '@/lib/sequences/autoSendState';
+import { failureCodeFor, reasonCodeNote } from '@/lib/sequences/blockPolicy';
 
 /**
  * What a send needs to carry to settle the step it belongs to.
@@ -110,7 +111,8 @@ export async function releaseSequenceStep(ref: SequenceStepRef, reason: string):
         lockedAt: null,
         runNowRequestedAt: null,
         outcome: SEND_FAILED_OUTCOME,
-        notes: reason.slice(0, 500),
+        // A fixed code, never the provider's text: task APIs return this row to reps.
+        notes: reasonCodeNote(failureCodeFor(reason)),
       },
     });
 

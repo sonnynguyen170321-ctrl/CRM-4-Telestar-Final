@@ -3,7 +3,7 @@ import { canAccessUser, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { advanceSequence } from '@/lib/sequences/engine';
 import { SENT_OUTSIDE_OUTCOME } from '@/lib/sequences/autoSendState';
-import { cancelAutoSendJob, evaluateAutoStep, staleLockCutoff } from '@/lib/sequences/autoSendGuard';
+import { cancelAutoSendJob, evaluateAutoStep, isAutomaticEmailTask, moveAutoSendJob, staleLockCutoff } from '@/lib/sequences/autoSendGuard';
 
 /**
  * One action applied to many tasks, for both the HTTP route and the chat assistant.
@@ -244,6 +244,7 @@ export async function applyBulkTaskAction(
         failed.push({ taskId: task.id, reason: 'Only pending tasks can be rescheduled' });
         continue;
       }
+      if (input.dueDate && (await isAutomaticEmailTask(task))) await moveAutoSendJob(task, input.dueDate);
       // No Activity here: `ActivityType` has no reschedule/reassign member, and the
       // Prisma audit extension already records the update in `AuditLog`. Inventing an
       // activity type would corrupt the leaderboard, which counts outreach activities.

@@ -91,7 +91,8 @@ async function lacksLiveJob(tenantId: string, taskId: string, enrollmentId: stri
   const run = await tenantStorage.run({ tenantId, bypassRls: true }, () =>
     prisma.jobRun.findUnique({ where: { dedupeKey }, select: { status: true } })
   );
-  return !run;
+  // Only a job that can still run counts; a completed or failed one will not send this task again.
+  return !run || run.status === 'completed' || run.status === 'failed';
 }
 
 /** What converting would do. Writes nothing. */

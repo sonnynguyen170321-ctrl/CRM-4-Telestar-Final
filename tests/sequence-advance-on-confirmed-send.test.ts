@@ -309,7 +309,7 @@ describe.skipIf(!hasDb)('a cadence step settles on the provider outcome', () => 
     // overdue task with a Complete button that would advance the cadence past an email nobody got.
     expect(settledTask.status, 'a refused send closes its step').toBe('skipped');
     expect(settledTask.outcome).toBe('send_failed');
-    expect(settledTask.notes).toContain('sender policy');
+    expect(settledTask.notes).toBe('code:rejected');
     expect(settledTask.lockedAt, 'and unlocked').toBeNull();
     expect(after.status).toBe('paused');
     expect(after.pausedReason).toBe('send_failed');

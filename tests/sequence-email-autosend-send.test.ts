@@ -125,7 +125,9 @@ describe('a refused send settles the task', () => {
 
     const task = await readTask(c.taskId);
     expect(task).toMatchObject({ status: 'skipped', outcome: 'send_failed', lockedAt: null });
-    expect(task.notes).toContain('sender policy');
+    // A fixed code, never the provider's words.
+    expect(task.notes).toBe('code:rejected');
+    expect(JSON.stringify(task)).not.toContain('sender policy');
     expect(await readEnrollment(c.enrollmentId)).toMatchObject({ status: 'paused', pausedReason: 'send_failed', currentStep: 1 });
 
     // The rep fixes the problem and resumes: the same step is runnable again, without the old reason.
@@ -140,14 +142,51 @@ describe('a refused send settles the task', () => {
 });
 
 describe('a barred step settles the task', () => {
-  it('closes it with the reason when the bar is final (the lead is archived)', async () => {
+  it('closes it with a reason code when the bar is final (the campaign is completed)', async () => {
+    const c = await seedCadence(t, { autoComplete: true, withTemplate: true });
+    await t.inTenant(() => prisma.campaign.update({ where: { id: t.campaignId }, data: { status: 'completed' } }));
+
+    expect(await execute(c)).toMatchObject({ status: 'skipped', reason: 'campaign_completed' });
+
+    expect(await readTask(c.taskId)).toMatchObject({ status: 'skipped', outcome: 'send_blocked', notes: 'code:campaign_completed' });
+    expect(enqueued.calls.filter((x) => x.type === 'email.send')).toHaveLength(0);
+  });
+
+  it('rechecks instead of closing when the cause can be lifted, and sends once it is (unarchived)', async () => {
     const c = await seedCadence(t, { autoComplete: true, withTemplate: true });
     await t.inTenant(() => prisma.lead.update({ where: { id: c.leadId }, data: { archivedAt: new Date() } }));
 
-    expect(await execute(c)).toMatchObject({ status: 'skipped', reason: 'lead_archived' });
+    expect(await execute(c)).toMatchObject({ status: 'deferred', reason: 'lead_archived' });
+    const held = await readTask(c.taskId);
+    expect(held.status).toBe('pending');
+    expect(held.notes).toMatch(/^held_since:/);
 
-    expect(await readTask(c.taskId)).toMatchObject({ status: 'skipped', outcome: 'send_blocked' });
-    expect(enqueued.calls.filter((x) => x.type === 'email.send')).toHaveLength(0);
+    await t.inTenant(() => prisma.lead.update({ where: { id: c.leadId }, data: { archivedAt: null } }));
+    expect(await execute(c)).toMatchObject({ status: 'queued' });
+    expect((await readTask(c.taskId)).notes, 'the recheck note is cleared when the step goes out').toBeNull();
+  });
+
+  it('closes a recheck that has waited 7 days (the sequence stayed off)', async () => {
+    const c = await seedCadence(t, { autoComplete: true, withTemplate: true });
+    await t.inTenant(async () => {
+      await prisma.sequence.update({ where: { id: c.sequenceId }, data: { isActive: false } });
+      await prisma.task.update({ where: { id: c.taskId }, data: { notes: 'held_since:' + new Date(Date.now() - 8 * 86_400_000).toISOString() } });
+    });
+
+    expect(await execute(c)).toMatchObject({ status: 'skipped', reason: 'sequence_inactive' });
+
+    expect(await readTask(c.taskId)).toMatchObject({ status: 'skipped', outcome: 'send_blocked', notes: 'code:sequence_inactive' });
+  });
+
+  it('keeps rechecking inside the 7 days', async () => {
+    const c = await seedCadence(t, { autoComplete: true, withTemplate: true });
+    await t.inTenant(async () => {
+      await prisma.sequence.update({ where: { id: c.sequenceId }, data: { isActive: false } });
+      await prisma.task.update({ where: { id: c.taskId }, data: { notes: 'held_since:' + new Date(Date.now() - 2 * 86_400_000).toISOString() } });
+    });
+
+    expect(await execute(c)).toMatchObject({ status: 'deferred', reason: 'sequence_inactive' });
+    expect((await readTask(c.taskId)).status).toBe('pending');
   });
 
   it('waits and looks again when the bar can be lifted (the campaign is paused)', async () => {
@@ -159,7 +198,7 @@ describe('a barred step settles the task', () => {
     expect(result).toMatchObject({ status: 'deferred', reason: 'campaign_paused' });
     const task = await readTask(c.taskId);
     expect(task.status, 'not closed: resuming the campaign must pick it up').toBe('pending');
-    expect(task.dueDate.getTime(), 'the due date moves to the recheck').toBeGreaterThan(Date.now() + 5 * 3_600_000);
+    expect(task.dueDate.getTime(), 'the due date moves to the recheck').toBeGreaterThan(Date.now() + 30 * 60_000);
     expect((await readEnrollment(c.enrollmentId)).holdReason).toBe('campaign_paused');
     expect(enqueued.calls.some((x) => x.type === 'sequence.execute-task:reschedule')).toBe(true);
   });

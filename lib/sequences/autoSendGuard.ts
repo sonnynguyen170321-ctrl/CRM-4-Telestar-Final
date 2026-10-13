@@ -19,6 +19,7 @@ import { sequenceQueue } from '@/lib/bullmq/queues';
 import { JobType } from '@/lib/bullmq/types';
 import { buildIdempotencyKey, OUTBOUND_STATUS } from '@/lib/email/idempotency';
 import { isAutomaticStep } from './autoSendState';
+import { rescheduleSequenceTask } from '@/lib/bullmq/rescheduleSequenceTask';
 
 /** A task lock older than this belongs to an attempt that ended without settling the step. */
 export const STALE_LOCK_MS = 10 * 60 * 1000;
@@ -54,7 +55,12 @@ export function staleLockCutoff(now: Date = new Date()): Date {
   return new Date(now.getTime() - STALE_LOCK_MS);
 }
 
-/** The task's message is with the mail worker (queued, deferred, sending, or being reconciled). */
+/**
+ * The task's message is with the mail worker (queued, deferred, sending, or being reconciled).
+ * `failed` counts: it is retryable, so the worker may still send it, and a rep who then says they
+ * sent it elsewhere would double-send. It stops counting once it is permanently failed (the task is
+ * then already closed) or cancelled.
+ */
 async function messageIsLive(taskId: string): Promise<boolean> {
   const outbound = await prisma.outboundMessage.findUnique({
     where: { idempotencyKey: buildIdempotencyKey({ kind: 'task', taskId }) },
@@ -62,6 +68,7 @@ async function messageIsLive(taskId: string): Promise<boolean> {
   });
   return (
     outbound?.status === OUTBOUND_STATUS.PENDING ||
+    outbound?.status === OUTBOUND_STATUS.FAILED ||
     outbound?.status === OUTBOUND_STATUS.SENDING ||
     outbound?.status === OUTBOUND_STATUS.RECONCILIATION_REQUIRED
   );
@@ -149,5 +156,28 @@ export async function cancelAutoSendJob(task: Pick<GuardTask, 'id' | 'leadId' | 
   } catch (err) {
     console.warn(`[autoSendGuard] could not remove the queued job for task ${task.id}:`, err);
     return 0;
+  }
+}
+
+/**
+ * Moving an automatic task's due date moves its send with it. Without this the queued job still
+ * fires at the old time (or the new date is a lie). Best effort on the queue, like the cancel above.
+ */
+export async function moveAutoSendJob(
+  task: Pick<GuardTask, 'id' | 'leadId' | 'sequenceId' | 'tenantId'>,
+  dueDate: Date
+): Promise<void> {
+  try {
+    if (!task.sequenceId) return;
+    const enrollment = await prisma.sequenceEnrollment.findFirst({
+      where: { leadId: task.leadId, sequenceId: task.sequenceId, status: 'active' },
+      orderBy: { startedAt: 'desc' },
+      select: { id: true },
+    });
+    if (!enrollment) return;
+    await prisma.sequenceEnrollment.updateMany({ where: { id: enrollment.id }, data: { nextActionAt: dueDate } });
+    await rescheduleSequenceTask({ taskId: task.id, expectedEnrollmentId: enrollment.id, targetDueAt: dueDate, tenantId: task.tenantId });
+  } catch (err) {
+    console.warn(`[autoSendGuard] could not move the queued job for task ${task.id}:`, err);
   }
 }

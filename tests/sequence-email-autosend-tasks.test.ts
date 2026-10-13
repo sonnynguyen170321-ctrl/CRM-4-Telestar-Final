@@ -102,18 +102,22 @@ describe('what the list says about an email the CRM sends itself', () => {
   });
 
   it('is failed, with the reason, when the provider refused it', () => {
-    const closed = deriveEmailStepInfo({ ...base, task: { ...base.task, status: 'skipped', outcome: 'send_failed', notes: '550 5.7.1 rejected' } });
-    expect(closed).toMatchObject({ state: 'failed', label: 'Failed: 550 5.7.1 rejected' });
+    const closed = deriveEmailStepInfo({ ...base, task: { ...base.task, status: 'skipped', outcome: 'send_failed', notes: 'code:rejected' } });
+    expect(closed).toMatchObject({ state: 'failed', label: 'Failed: The mail provider did not accept the message' });
     const paused = deriveEmailStepInfo({
       ...base,
       enrollment: { status: 'paused', pausedReason: 'send_failed', holdReason: null },
-      outbound: { status: 'failed', errorMessage: 'mailbox full' },
+      outbound: { status: 'failed', errorMessage: '550 smtp transcript tenant-id-123 mailbox full' },
     });
-    expect(paused).toMatchObject({ state: 'failed', label: 'Failed: mailbox full' });
+    expect(paused.label).toBe('Failed: The mail provider did not accept the message');
+    expect(JSON.stringify(paused)).not.toContain('tenant-id-123');
+    // Free text on an old row is never shown.
+    const legacy = deriveEmailStepInfo({ ...base, task: { ...base.task, status: 'skipped', outcome: 'send_failed', notes: '550 raw provider text' } });
+    expect(JSON.stringify(legacy)).not.toContain('raw provider');
   });
 
   it('says a barred step was not sent, rather than that it failed', () => {
-    const info = deriveEmailStepInfo({ ...base, task: { ...base.task, status: 'skipped', outcome: 'send_blocked', notes: 'The address is on the suppression list' } });
+    const info = deriveEmailStepInfo({ ...base, task: { ...base.task, status: 'skipped', outcome: 'send_blocked', notes: 'code:recipient_suppressed' } });
     expect(info.label).toBe('Not sent: The address is on the suppression list');
   });
 
@@ -216,6 +220,40 @@ describe('Complete on an email the CRM sends itself', () => {
 
     expect(res.status).toBe(200);
     expect((await readTask(c.taskId)).status).toBe('completed');
+  });
+});
+
+describe('a retryable failed message is still live', () => {
+  it('refuses sentOutsideCrm while the worker may still retry it', async () => {
+    const c = await seedCadence(t, { autoComplete: true, withTemplate: true });
+    await t.inTenant(() =>
+      prisma.outboundMessage.create({
+        data: {
+          tenantId: t.tenantId, leadId: c.leadId, accountId: t.accountId, to: c.email, subject: 's', body: 'b',
+          idempotencyKey: 'manual-task:' + c.taskId, status: 'failed', sequenceId: c.sequenceId, sequenceStepOrder: 1,
+        },
+      })
+    );
+
+    const res = await t.inTenant(() => put(c.taskId, { status: 'completed', sentOutsideCrm: true }));
+
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ code: 'send_in_flight' });
+  });
+});
+
+describe('moving the due date of an automatic task', () => {
+  it('moves the queued send with it', async () => {
+    const c = await seedCadence(t, { autoComplete: true, withTemplate: true });
+    await t.inTenant(() => scheduleJob(c.taskId, c.enrollmentId));
+    const later = new Date(Date.now() + 5 * 86_400_000);
+
+    const res = await t.inTenant(() => put(c.taskId, { dueDate: later.toISOString() }));
+
+    expect(res.status).toBe(200);
+    const [job] = [...fakeQueue.jobs.values()];
+    expect(job.opts.delay).toBeGreaterThan(4 * 86_400_000);
+    expect((await readEnrollment(c.enrollmentId)).nextActionAt?.getTime()).toBe(later.getTime());
   });
 });
 

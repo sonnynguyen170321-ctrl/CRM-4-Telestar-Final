@@ -10,8 +10,10 @@
  * Read only. Nothing here changes a row.
  */
 import { prisma } from '@/lib/prisma';
+import { buildIdempotencyKey } from '@/lib/email/idempotency';
 import { describeHold } from '@/lib/sequences/holdReasons';
 import { PAUSED_REASON_LABELS, normalizePausedReason } from '@/lib/automation/types';
+import { describeReasonCode, failureCodeFor, parseReasonCode } from '@/lib/sequences/blockPolicy';
 
 export type AutoSendState =
   /** Due later; the CRM sends it by itself. */
@@ -95,7 +97,9 @@ export function deriveEmailStepInfo(input: StateInput): EmailStepInfo {
 
   if (task.status === 'skipped') {
     if (task.outcome === SEND_FAILED_OUTCOME || task.outcome === SEND_BLOCKED_OUTCOME) {
-      const reason = task.notes?.trim() || 'the email could not be sent';
+      // Only a stored code is worded, never free text: notes on older rows may hold provider text.
+      const code = parseReasonCode(task.notes);
+      const reason = code ? describeReasonCode(code, (r) => describeHold(r)?.label ?? null) : 'The email could not be sent';
       // A refusal is a failure; a bar (the lead replied, the address is suppressed) is the CRM
       // choosing not to send, and calling that a failure sends the rep looking for a fault.
       const verb = task.outcome === SEND_BLOCKED_OUTCOME ? 'Not sent' : 'Failed';
@@ -111,7 +115,10 @@ export function deriveEmailStepInfo(input: StateInput): EmailStepInfo {
 
   if (enrollment?.status === 'paused') {
     if (enrollment.pausedReason === 'send_failed') {
-      const reason = outbound?.errorMessage?.trim() || PAUSED_REASON_LABELS.send_failed;
+      // The provider's text is mapped to our own wording and goes no further.
+      const reason = outbound?.errorMessage?.trim()
+        ? describeReasonCode(failureCodeFor(outbound.errorMessage), () => null)
+        : PAUSED_REASON_LABELS.send_failed;
       return { ...base, state: 'failed', reason, label: `Failed: ${reason}` };
     }
     const reason = PAUSED_REASON_LABELS[normalizePausedReason(enrollment.pausedReason ?? 'manual')];
@@ -174,10 +181,11 @@ export async function attachEmailStepInfo<T extends TaskRow>(
       orderBy: { startedAt: 'desc' },
       select: { leadId: true, sequenceId: true, status: true, pausedReason: true, holdReason: true },
     }),
+    // Exactly each task's own message: every send for a task is keyed on the task id, so this is
+    // one row per task at most rather than the lead's whole send history.
     prisma.outboundMessage.findMany({
-      where: { leadId: { in: leadIds }, sequenceId: { in: sequenceIds }, sequenceStepOrder: { not: null } },
-      orderBy: { createdAt: 'desc' },
-      select: { leadId: true, sequenceId: true, sequenceStepOrder: true, status: true, errorMessage: true },
+      where: { idempotencyKey: { in: relevant.map((t) => buildIdempotencyKey({ kind: 'task', taskId: t.id })) } },
+      select: { idempotencyKey: true, status: true, errorMessage: true },
     }),
   ]);
 
@@ -189,11 +197,7 @@ export async function attachEmailStepInfo<T extends TaskRow>(
     const key = `${e.leadId}:${e.sequenceId}`;
     if (!enrollmentByKey.has(key)) enrollmentByKey.set(key, e);
   }
-  const outboundByKey = new Map<string, (typeof outbound)[number]>();
-  for (const m of outbound) {
-    const key = `${m.leadId}:${m.sequenceId}:${m.sequenceStepOrder}`;
-    if (!outboundByKey.has(key)) outboundByKey.set(key, m);
-  }
+  const outboundByKey = new Map(outbound.map((m) => [m.idempotencyKey, m]));
 
   return tasks.map((t) => {
     if (!(t.type === 'email' && t.sequenceId && t.sequenceStep !== null)) return { ...t, emailStep: null };
@@ -203,7 +207,7 @@ export async function attachEmailStepInfo<T extends TaskRow>(
       sequenceName: nameById.get(t.sequenceId) ?? null,
       stepOrder: t.sequenceStep,
       enrollment: enrollmentByKey.get(`${t.leadId}:${t.sequenceId}`) ?? null,
-      outbound: outboundByKey.get(`${t.leadId}:${t.sequenceId}:${t.sequenceStep}`) ?? null,
+      outbound: outboundByKey.get(buildIdempotencyKey({ kind: 'task', taskId: t.id })) ?? null,
     });
     return { ...t, emailStep };
   });

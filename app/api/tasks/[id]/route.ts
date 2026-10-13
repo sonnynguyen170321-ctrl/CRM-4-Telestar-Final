@@ -8,7 +8,7 @@ import { businessTimezoneFor } from '@/lib/dates/businessTimezone';
 import { parseBody } from '@/lib/validation/core';
 import { updateTaskSchema } from '@/lib/validation/schemas';
 import { attachEmailStepInfo, SENT_OUTSIDE_OUTCOME } from '@/lib/sequences/autoSendState';
-import { cancelAutoSendJob, evaluateAutoStep, staleLockCutoff } from '@/lib/sequences/autoSendGuard';
+import { cancelAutoSendJob, evaluateAutoStep, isAutomaticEmailTask, moveAutoSendJob, staleLockCutoff } from '@/lib/sequences/autoSendGuard';
 
 export async function GET(
   _req: NextRequest,
@@ -115,6 +115,10 @@ export async function PUT(
       },
       include: { lead: true },
     });
+    // A new date for an email the CRM sends itself moves its queued send too.
+    if (body.dueDate !== undefined && task.status === 'pending' && (await isAutomaticEmailTask(task))) {
+      await moveAutoSendJob(task, body.dueDate);
+    }
   }
 
   // Auto-log activity when task is completed or skipped
