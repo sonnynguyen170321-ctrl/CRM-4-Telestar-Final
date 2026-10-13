@@ -8,7 +8,7 @@ import { z } from "zod";
 // classifier's GROUNDED facts, never page text, and its answer can reject or confirm but never invents a
 // fact. No provider call here: the caller injects the model, like lib/research/aiFit.ts.
 
-export const FIT_JUDGE_ELEMENTS = ["industry", "geo", "size", "kind", "competitor", "excluded"] as const;
+export const FIT_JUDGE_ELEMENTS = ["industry", "geo", "size", "kind", "competitor", "excluded", "persona"] as const;
 export type FitJudgeElement = (typeof FIT_JUDGE_ELEMENTS)[number];
 
 export type FitJudgement = {
@@ -43,7 +43,7 @@ export type FitJudgeItem = {
 };
 
 export const MAX_JUDGE_ITEMS_PER_CALL = 20;
-const MAX_FIELD = 200;
+export const MAX_FIELD = 200;
 const MAX_ICP_LIST = 40;
 const MAX_REASON = 120;
 
@@ -60,7 +60,7 @@ const INVISIBLE_FORMAT_CHARS = new RegExp(
  * bidi, line/paragraph separators, Unicode tag characters — the ways a page hides text from a reader
  * but not from a model), bounded.
  */
-function clean(value: string | number | null | undefined, max = MAX_FIELD): string {
+export function clean(value: string | number | null | undefined, max = MAX_FIELD): string {
   return String(value ?? "")
     .replace(/[\u0000-\u001f\u007f]+/g, " ")
     .replace(INVISIBLE_FORMAT_CHARS, "")
@@ -69,7 +69,7 @@ function clean(value: string | number | null | undefined, max = MAX_FIELD): stri
     .slice(0, max);
 }
 
-const list = (values: readonly string[] | undefined): string[] =>
+export const list = (values: readonly string[] | undefined): string[] =>
   (values ?? []).map((value) => clean(value, 80)).filter(Boolean).slice(0, MAX_ICP_LIST);
 
 export function buildFitJudgePrompt(icp: FitJudgeIcp, items: FitJudgeItem[]): string {

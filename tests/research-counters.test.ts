@@ -130,10 +130,12 @@ describe('the evidence drawer', () => {
 describe('wiring', () => {
   const read = (path: string) => readFileSync(join(process.cwd(), path), 'utf8');
 
-  it('keeps a busy run from looking dead while it re-ranks', () => {
-    const discovery = read('lib/research/discovery.ts');
-    expect(discovery).toMatch(/const heartbeat = setInterval\(/);
-    expect(discovery).toMatch(/clearInterval\(heartbeat\)/);
+  it('keeps a busy run from looking dead while it verifies', () => {
+    // The AI re-rank in discovery is gone (people are verified like companies); the slice that does the
+    // slow work now owns the heartbeat.
+    const verify = read('lib/research/verify.ts');
+    expect(verify).toMatch(/const heartbeat = setInterval\(/);
+    expect(verify).toMatch(/clearInterval\(heartbeat\)/);
   });
 
   it('takes the tab counts from the server', () => {

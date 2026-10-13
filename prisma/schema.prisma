@@ -4098,6 +4098,9 @@ model ResearchCandidate {
   title       String?
   companyName String?
   location    String?
+  /// Canonical country of `location`, read from the head of a person's profile (contacts). Null when the
+  /// profile states no place we can put in a country: unknown, never guessed.
+  country     String?
 
   /// Where this came from: query, url, snippet, provider. Kept so a reviewer sees the evidence rather
   /// than a bare score.

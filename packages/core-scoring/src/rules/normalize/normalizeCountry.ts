@@ -2,11 +2,14 @@
 //
 // Canonical names match the region dictionary's country lists so geo comparisons
 // (targetCountries, expanded regions, office-location) are apples-to-apples.
+import { ALL_COUNTRIES, COUNTRY_SPELLINGS } from "../dictionaries/countries";
 import { REGION_TO_COUNTRIES } from "../dictionaries/regions";
 
 // NFC + diacritic-fold + alias map. Pure.
 
 const COUNTRY_ALIASES: Record<string, string> = {
+  // Every country in the world under its canonical name, plus the spellings people write (countries.ts).
+  ...COUNTRY_SPELLINGS,
   usa: "United States",
   "u.s.": "United States",
   "u.s.a.": "United States",
@@ -81,7 +84,7 @@ export function normalizeCountry(raw: string | undefined | null): string | null 
     const head = normalizeCountry(restated[1]);
     const inner = restated[2].trim();
     if (head && (/^[a-z]{2}$/i.test(inner) || head === normalizeCountry(inner))) return head;
-    return titleCaseCountry(foldText(trimmed));
+    return aliasOf(foldText(trimmed)) ?? titleCaseCountry(foldText(trimmed));
   }
   const folded = foldText(trimmed);
 
@@ -134,6 +137,7 @@ export function normalizeCountries(
 }
 
 const KNOWN_COUNTRIES: ReadonlySet<string> = new Set([
+  ...ALL_COUNTRIES,
   ...Object.values(REGION_TO_COUNTRIES).flat(),
   ...Object.values(COUNTRY_ALIASES),
 ]);
@@ -148,5 +152,5 @@ export function countryVariants(canonical: string): string[] {
   const aliases = Object.entries(COUNTRY_ALIASES)
     .filter(([, value]) => value === canonical)
     .map(([alias]) => alias);
-  return [foldText(canonical), ...aliases];
+  return Array.from(new Set([foldText(canonical), ...aliases]));
 }

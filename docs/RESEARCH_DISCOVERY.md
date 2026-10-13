@@ -100,7 +100,7 @@ rather than a surprise:
   scored, but never crawled and classified. This is the classifier that was brought from 20% to 64%
   category / 95% sector accuracy; wiring it means an enrichment worker and, critically, remembering
   that its idempotency key contains `researchVersion`.
-- **Email finding and people discovery** (`findContactEmail`, `peopleDiscovery`, `contactExtract`).
+- **Email finding and people discovery** (`findContactEmail`, `contactExtract`; the old `peopleDiscovery` was unused and is gone).
   A `contact` run finds people but not their addresses, so promotion leaves them as pool records —
   correct behaviour, but it means contact runs are half a feature until this lands.
 - **The AI fit re-rank** (`scoreCandidatesWithAi`). Left out on purpose: discovery is deterministic,

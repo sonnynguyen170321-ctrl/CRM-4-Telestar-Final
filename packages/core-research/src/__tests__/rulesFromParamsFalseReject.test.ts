@@ -195,3 +195,32 @@ describe("free text is a tag, not the raw industry", () => {
     expect(classificationToEvidence({ ...c, industryKey: null }, { name: "X", domain: null }).company.industry).toBeUndefined();
   });
 });
+
+describe('resolveCountry — any real country', () => {
+  it.each([
+    ['Afghanistan', 'Afghanistan'],
+    ['Kabul, Afghanistan', 'Afghanistan'],
+    ['AF', 'Afghanistan'],
+    ['Zimbabwe', 'Zimbabwe'],
+    ['Harare, Zimbabwe', 'Zimbabwe'],
+    ['Reykjavik, Iceland', 'Iceland'],
+    ['Tashkent, Uzbekistan', 'Uzbekistan'],
+    ['Ulaanbaatar, Mongolia', 'Mongolia'],
+    ['PS', 'Palestine'],
+    ['Côte d’Ivoire'.replace('’', "'"), 'Ivory Coast'],
+  ])('%s -> %s', (raw, expected) => {
+    expect(resolveCountry(raw)).toBe(expected);
+  });
+
+  it('still places no US state, city or invented country', () => {
+    expect(resolveCountry('Wichita Falls, Texas')).toBeNull();
+    expect(resolveCountry('Boston, MA')).toBeNull();
+    expect(resolveCountry('Atlantis')).toBeNull();
+  });
+
+  it('gates on Afghanistan now that it resolves', () => {
+    const built = builderParamsToRulesV2({ queryPlanVersion: 1, mode: 'BUILDER', queryLimit: 50, industries: [], keywords: [], titles: [], geos: ['Afghanistan'], seniority: [], excludeKeywords: [], excludeDomains: [] } as never, 'run-af');
+    expect(built.geoGate).toBe(true);
+    expect(built.rules.geography.targetCountries).toContain('Afghanistan');
+  });
+});

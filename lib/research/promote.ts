@@ -39,19 +39,22 @@ export async function promoteCandidates(params: {
     where: { tenantId, id: { in: candidateIds } },
     select: {
       id: true, kind: true, status: true, name: true, domain: true, linkedinUrl: true,
-      title: true, companyName: true, location: true, emailGuess: true, phone: true,
-      fitScore: true, fitReason: true, runId: true, dedupeFingerprint: true, verification: true,
+      title: true, companyName: true, location: true, country: true, emailGuess: true, phone: true,
+      fitScore: true, fitReason: true, runId: true, dedupeFingerprint: true, verification: true, verificationJson: true,
     },
   });
 
   const results: PromoteResult[] = [];
-  for (const candidate of candidates) {
+  for (const row of candidates) {
+    // A person's checked title, employer and country fill what the page title did not carry.
+    const candidate = withVerifiedPerson(row);
     if (candidate.status === 'dismissed' || candidate.status === 'duplicate') {
       results.push({ candidateId: candidate.id, status: 'skipped', reason: 'candidate_' + candidate.status });
       continue;
     }
     // Not promoted while its check is running or after it was ruled out (2026-10-08). The page hides the
     // button; this is the rule, so a direct API call cannot put a job board into a campaign.
+    // People and companies alike (2026-10-13: a person outside the target country was promotable).
     if (candidate.verification === 'pending' || candidate.verification === 'rejected') {
       results.push({ candidateId: candidate.id, status: 'skipped', reason: 'candidate_' + candidate.verification });
       continue;
@@ -85,7 +88,8 @@ export async function promoteCandidates(params: {
       name: companyName,
       domain: candidate.domain,
       website: candidate.domain ? 'https://' + candidate.domain : null,
-      country: candidate.location,
+      // A person's location says where they sit, not where their employer is headquartered.
+      country: candidate.kind === 'company' ? candidate.location : null,
       linkedIn: candidate.kind === 'company' ? candidate.linkedinUrl : null,
     });
 
@@ -104,7 +108,7 @@ export async function promoteCandidates(params: {
         fullName: candidate.name,
         email: candidate.emailGuess,
         title: candidate.title,
-        country: candidate.location,
+        country: candidate.country,
         phone: candidate.phone,
         linkedIn: candidate.linkedinUrl,
       });
@@ -154,7 +158,7 @@ export async function promoteCandidates(params: {
           phone: candidate.phone,
           linkedIn: candidate.linkedinUrl,
           website: candidate.domain ? 'https://' + candidate.domain : null,
-          country: candidate.location,
+          country: candidate.kind === 'contact' ? candidate.country : candidate.location,
           sourceType: 'research',
           sourceName: 'research:' + candidate.runId,
           rawPayload: {
@@ -162,6 +166,7 @@ export async function promoteCandidates(params: {
             dedupeFingerprint: candidate.dedupeFingerprint,
             discoveryFitScore: candidate.fitScore,
             discoveryFitReason: candidate.fitReason,
+            discoveryLocation: candidate.location,
           },
         },
       });
@@ -238,6 +243,22 @@ export async function promoteCandidates(params: {
   }
 
   return results;
+}
+
+/**
+ * What verification read from a person's profile (lib/research/verifyPeople.ts), filled in where the search
+ * result's own title carried nothing. A grounded fact, not a guess: it was quoted from the profile head.
+ */
+function withVerifiedPerson<T extends { kind: string; title: string | null; companyName: string | null; country: string | null; verificationJson: unknown }>(row: T): T {
+  if (row.kind !== 'contact') return row;
+  const person = (row.verificationJson as { person?: { title?: unknown; employer?: unknown; country?: unknown } } | null)?.person;
+  const text = (value: unknown): string | null => (typeof value === 'string' && value.trim() ? value.trim() : null);
+  return {
+    ...row,
+    title: row.title ?? text(person?.title),
+    companyName: row.companyName ?? text(person?.employer),
+    country: row.country ?? text(person?.country),
+  };
 }
 
 function splitName(displayName: string): { first: string; last: string } {

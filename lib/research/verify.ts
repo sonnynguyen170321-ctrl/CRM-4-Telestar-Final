@@ -41,8 +41,15 @@ const INFRA = new Set<string>(INFRA_REASONS);
 
 export type ClaimedCandidate = {
   id: string;
+  kind: 'company' | 'contact';
   name: string;
   domain: string | null;
+  /** Contacts: the role on the page title, the employer, where the head of the profile says they are. */
+  title: string | null;
+  companyName: string | null;
+  location: string | null;
+  country: string | null;
+  linkedinUrl: string | null;
   sourceJson: Prisma.JsonValue;
   matchHintsJson: Prisma.JsonValue;
   verifyAttempts: number;
@@ -96,7 +103,7 @@ export async function beginVerification(
     console.error('[research] could not queue verification', { runId, error });
     await prisma.researchRun.updateMany({
       where: { id: runId, tenantId, status: 'running' },
-      data: { status: 'paused', errorMessage: 'Checking the companies found could not be queued (background worker unreachable). Resume to continue.' },
+      data: { status: 'paused', errorMessage: 'Checking the results found could not be queued (background worker unreachable). Resume to continue.' },
     });
   }
   return true;
@@ -203,7 +210,7 @@ async function claimPendingCandidates(tenantId: string, runId: string, now: Date
   });
   return prisma.researchCandidate.findMany({
     where: { tenantId, runId, verifyClaimToken: token },
-    select: { id: true, name: true, domain: true, sourceJson: true, matchHintsJson: true, verifyAttempts: true, verifyClaimToken: true },
+    select: { id: true, kind: true, name: true, domain: true, title: true, companyName: true, location: true, country: true, linkedinUrl: true, sourceJson: true, matchHintsJson: true, verifyAttempts: true, verifyClaimToken: true },
     orderBy: { createdAt: 'asc' },
   });
 }
@@ -256,6 +263,8 @@ export async function finalizeVerification(tenantId: string, runId: string, now:
     where: { tenantId, runId, verification: { not: null } },
     _count: { _all: true },
   });
+  const runKind = (await prisma.researchRun.findFirst({ where: { id: runId, tenantId }, select: { kind: true } }))?.kind;
+  const [one, many] = runKind === 'contact' ? ['person', 'people'] : ['company', 'companies'];
   const total = rows.reduce((n, r) => n + r._count._all, 0);
   const count = (v: string) => rows.filter((r) => r.verification === v).reduce((n, r) => n + r._count._all, 0);
   const unverified = rows.filter((r) => r.verification === 'unverified');
@@ -274,7 +283,7 @@ export async function finalizeVerification(tenantId: string, runId: string, now:
       where: { id: runId, tenantId, status: 'running' },
       data: {
         status: 'failed',
-        errorMessage: `Found ${total} compan${total === 1 ? 'y' : 'ies'} but could not check any of them (${topReasons(unverified)}). Resume to try again.`,
+        errorMessage: `Found ${total} ${total === 1 ? one : many} but could not check any of them (${topReasons(unverified)}). Resume to try again.`,
         verificationFinishedAt: now,
         finishedAt: now,
       },
@@ -285,7 +294,7 @@ export async function finalizeVerification(tenantId: string, runId: string, now:
   const warning = unverified.length > 0 ? `${count('unverified')} of ${total} could not be checked: ${topReasons(unverified)}.` : null;
   const emptyShortlist =
     total > 0 && shortlisted === 0
-      ? `None of the ${total} companies found fit: ${topReasons(rows.filter((r) => r.verification === 'rejected'))}.`
+      ? `None of the ${total} ${many} found fit: ${topReasons(rows.filter((r) => r.verification === 'rejected'))}.`
       : null;
   await prisma.researchRun.updateMany({
     where: { id: runId, tenantId, status: 'running' },

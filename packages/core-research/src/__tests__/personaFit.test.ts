@@ -71,19 +71,20 @@ describe("contacts are judged on their job title", () => {
   });
 
   it("treats a missing title as unknown, not wrong — scored between, and flagged", () => {
-    const missing = scoreCandidateHeuristic(contact({ title: null }), HINTS, { personaTitles: PERSONAS });
+    const noRole = { ...contact().source, snippet: "Acme SaaS" };
+    const missing = scoreCandidateHeuristic(contact({ title: null, source: noRole }), HINTS, { personaTitles: PERSONAS });
     const wrong = scoreCandidateHeuristic(contact(), HINTS, { personaTitles: PERSONAS });
     const right = scoreCandidateHeuristic(contact({ title: "CEO" }), HINTS, { personaTitles: PERSONAS });
 
     expect(missing.score).toBeGreaterThan(wrong.score);
     expect(missing.score).toBeLessThan(right.score);
-    expect(missing.reason).toMatch(/No job title found/);
+    expect(missing.reason).toMatch(/No current job title found/);
   });
 
   it("uses the profile text when the page title carried only a name — labelled as unconfirmed", () => {
     // Exa titles a LinkedIn profile with the person's name alone; the highlight carries the role.
     const mentioned = scoreCandidateHeuristic(
-      contact({ title: null, source: { ...contact().source, snippet: "CTO at Acme SaaS · London, United Kingdom" } }),
+      contact({ title: null, source: { ...contact().source, snippet: "Sam Taylor\nCTO at Acme SaaS\nLondon, United Kingdom" } }),
       HINTS,
       { personaTitles: PERSONAS }
     );
@@ -92,14 +93,15 @@ describe("contacts are judged on their job title", () => {
     });
     const confirmed = scoreCandidateHeuristic(contact({ title: "CTO" }), HINTS, { personaTitles: PERSONAS });
 
-    expect(mentioned.reason).toMatch(/Profile text mentions "CTO" — title not confirmed/);
+    expect(mentioned.reason).toMatch(/Profile headline says "CTO".*title not confirmed/);
     expect(mentioned.score).toBeGreaterThan(silent.score);
     expect(mentioned.score).toBeLessThan(confirmed.score);
   });
 
   it("leaves company scoring and persona-less runs exactly as they were", () => {
     const legacy = scoreCandidateHeuristic(contact(), ["lead", "saas", "united kingdom"]);
-    expect(legacy.reason).toMatch(/Matched 3 ICP signals/);
+    // The country is a gate for contacts, no longer a keyword that matches anywhere in the profile.
+    expect(legacy.reason).toMatch(/Matched 2 ICP signals: lead, saas/);
   });
 });
 
