@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Mail,
@@ -30,8 +30,8 @@ import { PAUSED_REASON_LABELS, normalizePausedReason } from '@/lib/automation/ty
 import dynamic from 'next/dynamic';
 
 const PhoneCallPanel = dynamic(() => import('@/components/dialer/PhoneCallPanel'), { ssr: false });
-// The browser softphone pulls in the Telnyx SDK; it loads only when a rep opens it.
-const Softphone = dynamic(() => import('@/components/dialer/Softphone'), { ssr: false });
+import { dialerDock, CALL_LOGGED_EVENT, OWN_PHONE_EVENT, type CallLoggedDetail } from '@/lib/telephony/dialerDock';
+import { targetFromLead } from '@/lib/telephony/dialerTargets';
 import { useDialerStatus } from '@/components/dialer/useDialerStatus';
 import type { DialerStatus } from '@/lib/telephony/dialerStatus';
 import { chooseCallSurface } from '@/lib/telephony/callSurface';
@@ -318,13 +318,16 @@ function LeadDetailPanelBody({
       setCallWaiting(false);
     }
     setOpenStatus(answer);
+    // One softphone for the whole app: the docked dialer, with this lead preselected. The panel below is
+    // only for a dialer that is off or a lead with no number to call from the CRM.
+    if (lead && chooseCallSurface({ target: phoneCallTarget(lead.phone, lead.contact?.country), dialerStatus: answer }) === 'softphone') {
+      dialerDock.open({ target: targetFromLead(lead), ownPhoneLeadId: lead.id });
+      return;
+    }
     setShowDialer(true);
   };
   /** A softphone call on this lead that ended without an outcome (tab closed mid-call): nudge to finish it. */
   const [pendingCallId, setPendingCallId] = useState<string | null>(null);
-  const [resumeCallId, setResumeCallId] = useState<string | null>(null);
-  /** "Call from my own phone instead": the phone-call panel for this open, though the dialer is on. */
-  const [ownPhone, setOwnPhone] = useState(false);
   const [adHocActivities, setAdHocActivities] = useState<Array<{
     id: string; type: string; channel: string; description?: string; recordingCallId?: string; metadata: Record<string, unknown>; createdAt: string;
     user: { firstName: string; lastName: string };
@@ -483,6 +486,51 @@ function LeadDetailPanelBody({
         .catch(() => {});
     }
   };
+
+  /**
+   * A call logged from the phone panel: shown in the timeline straight away, and the lead re-read so
+   * its tags and last-contacted date are the server's — the next log builds on them, not on this
+   * drawer's copy.
+   */
+  const handleCallLogged = (activity: { action: string; outcome: string; label: string; notes: string }) => {
+    setAdHocActivities((prev) => [{
+      id: Date.now().toString(),
+      type: 'call_logged',
+      channel: 'phone',
+      metadata: activity,
+      createdAt: new Date().toISOString(),
+      user: { firstName: currentUser?.firstName ?? '', lastName: currentUser?.lastName ?? '' },
+    }, ...prev]);
+    reloadLead();
+  };
+
+  // The docked dialer is global; it tells this drawer when a call on this lead was logged, when the rep
+  // wants their own phone instead, and when the wrap-up chose "meeting booked".
+  const dockHandlers = useRef({ handleCallLogged, leadId: lead?.id ?? null });
+  useEffect(() => {
+    dockHandlers.current = { handleCallLogged, leadId: lead?.id ?? null };
+  });
+  useEffect(() => {
+    const onLogged = (event: Event) => {
+      const detail = (event as CustomEvent<CallLoggedDetail>).detail;
+      if (!detail || detail.leadId !== dockHandlers.current.leadId) return;
+      if (detail.resumed) setPendingCallId(null);
+      dockHandlers.current.handleCallLogged(detail.activity);
+      if (detail.meetingBooked) setShowBookingModal(true);
+    };
+    const onOwnPhone = (event: Event) => {
+      const detail = (event as CustomEvent<{ leadId?: string }>).detail;
+      if (!detail || detail.leadId !== dockHandlers.current.leadId) return;
+      setOpenStatus('enabled');
+      setShowDialer(true);
+    };
+    window.addEventListener(CALL_LOGGED_EVENT, onLogged);
+    window.addEventListener(OWN_PHONE_EVENT, onOwnPhone);
+    return () => {
+      window.removeEventListener(CALL_LOGGED_EVENT, onLogged);
+      window.removeEventListener(OWN_PHONE_EVENT, onOwnPhone);
+    };
+  }, []);
 
   useEffect(() => {
     if (!leadId) {
@@ -879,23 +927,6 @@ function LeadDetailPanelBody({
     }
   };
 
-  /**
-   * A call logged from the phone panel: shown in the timeline straight away, and the lead re-read so
-   * its tags and last-contacted date are the server's — the next log builds on them, not on this
-   * drawer's copy.
-   */
-  const handleCallLogged = (activity: { action: string; outcome: string; label: string; notes: string }) => {
-    setAdHocActivities((prev) => [{
-      id: Date.now().toString(),
-      type: 'call_logged',
-      channel: 'phone',
-      metadata: activity,
-      createdAt: new Date().toISOString(),
-      user: { firstName: currentUser?.firstName ?? '', lastName: currentUser?.lastName ?? '' },
-    }, ...prev]);
-    reloadLead();
-  };
-
   const handleArchive = async () => {
     if (!lead) return;
 
@@ -1245,8 +1276,7 @@ function LeadDetailPanelBody({
             <button
               type="button"
               onClick={() => {
-                setResumeCallId(pendingCallId);
-                setShowDialer(true);
+                if (lead) dialerDock.open({ target: targetFromLead(lead), resumeCallId: pendingCallId });
               }}
               className="px-2.5 py-1 rounded-lg border border-brand-orange-text/40 text-brand-orange-text font-semibold hover:bg-brand-orange-text/10"
             >
@@ -2680,22 +2710,28 @@ function LeadDetailPanelBody({
           },
           onClose: () => {
             setShowDialer(false);
-            setResumeCallId(null);
-            setOwnPhone(false);
           },
           onLogged: (activity: Parameters<typeof handleCallLogged>[0]) => {
-            if (resumeCallId) setPendingCallId(null);
             handleCallLogged(activity);
           },
           onMeetingBooked: () => setShowBookingModal(true),
         };
-        // One call screen: the softphone (Vietnam included) with the QR for the rep's own phone inside it,
-        // or the phone panel alone while the dialer is off. The do-not-call warning blocks on both.
-        const surface = chooseCallSurface({ target: phoneCallTarget(lead.phone, lead.contact?.country), dialerStatus: openStatus });
-        if (resumeCallId) return <Softphone {...dialerProps} resumeCallId={resumeCallId} />;
-        if (surface === 'softphone' && !ownPhone) return <Softphone {...dialerProps} onOwnPhone={() => setOwnPhone(true)} />;
-        // With the dialer available the panel offers the way back to calling from the CRM.
-        return <PhoneCallPanel {...dialerProps} onCallFromCrm={openStatus === 'enabled' && phoneCallTarget(lead.phone, lead.contact?.country).e164 ? () => setOwnPhone(false) : undefined} />;
+        // The phone panel is for a dialer that is off or a rep calling from their own phone; calling from the
+        // CRM is the docked dialer (one softphone in the app). The do-not-call warning blocks on both.
+        const canCallFromCrm = openStatus === 'enabled' && Boolean(phoneCallTarget(lead.phone, lead.contact?.country).e164);
+        return (
+          <PhoneCallPanel
+            {...dialerProps}
+            onCallFromCrm={
+              canCallFromCrm
+                ? () => {
+                    dialerProps.onClose();
+                    dialerDock.open({ target: targetFromLead(lead), ownPhoneLeadId: lead.id });
+                  }
+                : undefined
+            }
+          />
+        );
       })()}
 
       {showBookingModal && lead && (

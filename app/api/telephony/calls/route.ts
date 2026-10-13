@@ -18,6 +18,8 @@ const CALL_ATTEMPT_MIN_INTERVAL_MS = 3_000;
 const Body = z.object({
   leadId: z.string().min(1).max(64),
   contactId: z.string().min(1).max(64).optional(),
+  /** The company number to show as caller ID; omitted means the country rule in `callerId.ts`. */
+  fromNumberId: z.string().min(1).max(64).optional(),
 });
 
 /**
@@ -65,16 +67,36 @@ export async function POST(req: NextRequest) {
   if (attemptsInFlight.has(flightKey)) return tooSoon();
   attemptsInFlight.add(flightKey);
   try {
-    return await placeAttempt({ user: { ...user, tenantId }, leadId: parsed.data.leadId, contactId: parsed.data.contactId });
+    return await placeAttempt({
+      user: { ...user, tenantId },
+      leadId: parsed.data.leadId,
+      contactId: parsed.data.contactId,
+      fromNumberId: parsed.data.fromNumberId,
+    });
   } finally {
     attemptsInFlight.delete(flightKey);
   }
 }
 
-async function placeAttempt(input: { user: SessionUser & { tenantId: string }; leadId: string; contactId?: string }) {
+async function placeAttempt(input: { user: SessionUser & { tenantId: string }; leadId: string; contactId?: string; fromNumberId?: string }) {
   const { user } = input;
   const { tenantId } = user;
   const now = new Date();
+
+  // The chosen caller ID must be one of this company's own active outbound numbers. Another tenant's
+  // number, an inactive one and an inbound-only one are all "not a number you can call from": the same
+  // answer, so the route does not say which ids exist elsewhere.
+  let fromE164: string | undefined;
+  if (input.fromNumberId) {
+    const number = await prisma.telephonyNumber.findFirst({
+      where: { id: input.fromNumberId, tenantId, isActive: true, purpose: { in: ['outbound', 'both'] } },
+      select: { e164: true },
+    });
+    if (!number) {
+      return NextResponse.json({ error: 'That caller ID is not available', code: 'invalid_from_number' }, { status: 400, headers: NO_STORE });
+    }
+    fromE164 = number.e164;
+  }
 
   const recent = await prisma.call.findFirst({
     where: { tenantId, userId: user.id, direction: 'outbound', createdAt: { gt: new Date(now.getTime() - CALL_ATTEMPT_MIN_INTERVAL_MS) } },
@@ -106,7 +128,7 @@ async function placeAttempt(input: { user: SessionUser & { tenantId: string }; l
   // The id is chosen here so the token is signed before the row exists: a row is never left
   // `authorized` without a token the softphone could use.
   const callId = randomUUID();
-  const token = authorized ? issueCallToken({ callId, tenantId, userId: user.id, toE164: decision.toE164 }, Math.floor(now.getTime() / 1000)) : null;
+  const token = authorized ? issueCallToken({ callId, tenantId, userId: user.id, toE164: decision.toE164, ...(fromE164 ? { fromE164 } : {}) }, Math.floor(now.getTime() / 1000)) : null;
 
   await prisma.call.create({
     data: {
@@ -118,6 +140,8 @@ async function placeAttempt(input: { user: SessionUser & { tenantId: string }; l
       leadId: gate.leadId,
       contactId: gate.contactId,
       toE164: decision.toE164,
+      // Only a number the rep chose is recorded here; the country-rule number is written when the webhook connects.
+      fromE164: fromE164 ?? null,
       authorizedAt: authorized ? now : null,
       blockedReasons: [...decision.reasons, ...(decision.dryRun ? ['dry_run'] : [])],
       compliance: decision,

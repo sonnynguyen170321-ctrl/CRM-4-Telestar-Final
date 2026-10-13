@@ -17,11 +17,16 @@ export type CallTokenClaims = {
   tenantId: string;
   userId: string;
   toE164: string;
+  /**
+   * The caller ID the rep chose for this call, when they chose one. Signed into the token so the webhook
+   * transfers with exactly this number and refuses a token whose number differs from the call row's.
+   */
+  fromE164?: string;
   /** Unix seconds. */
   expiresAt: number;
 };
 
-type Wire = { c: string; t: string; u: string; n: string; e: number };
+type Wire = { c: string; t: string; u: string; n: string; e: number; f?: string };
 
 export const MIN_AUTH_SECRET_LENGTH = 32;
 
@@ -41,7 +46,14 @@ function sign(payload: string): string {
 }
 
 export function issueCallToken(claims: Omit<CallTokenClaims, 'expiresAt'>, nowSeconds = Math.floor(Date.now() / 1000)): string {
-  const wire: Wire = { c: claims.callId, t: claims.tenantId, u: claims.userId, n: claims.toE164, e: nowSeconds + CALL_TOKEN_TTL_SECONDS };
+  const wire: Wire = {
+    c: claims.callId,
+    t: claims.tenantId,
+    u: claims.userId,
+    n: claims.toE164,
+    e: nowSeconds + CALL_TOKEN_TTL_SECONDS,
+    ...(claims.fromE164 ? { f: claims.fromE164 } : {}),
+  };
   const payload = Buffer.from(JSON.stringify(wire), 'utf8').toString('base64url');
   return `${payload}.${sign(payload)}`;
 }
@@ -70,8 +82,12 @@ export function verifyCallToken(token: string | null | undefined, nowSeconds = M
   if (![wire.c, wire.t, wire.u, wire.n].every((v) => typeof v === 'string' && v) || typeof wire.e !== 'number') {
     return { ok: false, reason: 'malformed' };
   }
+  if (wire.f !== undefined && (typeof wire.f !== 'string' || !wire.f)) return { ok: false, reason: 'malformed' };
   if (nowSeconds >= wire.e) return { ok: false, reason: 'expired' };
-  return { ok: true, claims: { callId: wire.c, tenantId: wire.t, userId: wire.u, toE164: wire.n, expiresAt: wire.e } };
+  return {
+    ok: true,
+    claims: { callId: wire.c, tenantId: wire.t, userId: wire.u, toE164: wire.n, ...(wire.f ? { fromE164: wire.f } : {}), expiresAt: wire.e },
+  };
 }
 
 /** The token as the browser SDK carries it: Telnyx `client_state` is base64. */

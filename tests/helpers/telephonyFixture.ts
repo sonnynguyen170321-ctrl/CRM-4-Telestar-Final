@@ -136,6 +136,8 @@ export async function makeCall(
     answeredAt: Date | null;
     authorizedAt: Date | null;
     createdAt: Date;
+    /** The caller ID the rep chose when asking for the call. */
+    fromE164: string | null;
   }> = {}
 ) {
   const status = data.status ?? 'authorized';
@@ -153,6 +155,7 @@ export async function makeCall(
         answeredAt: data.answeredAt ?? null,
         providerSessionId: data.sessionId ?? null,
         providerControlId: data.controlId ?? null,
+        fromE164: data.fromE164 ?? null,
         ...(data.createdAt ? { createdAt: data.createdAt } : {}),
       },
     })
@@ -160,8 +163,13 @@ export async function makeCall(
 }
 
 /** The client state the softphone sends: a call token for this call, base64 as Telnyx carries it. */
-export function clientStateFor(call: { id: string; tenantId: string; userId: string | null; toE164: string }, nowSeconds?: number) {
-  return toClientState(issueCallToken({ callId: call.id, tenantId: call.tenantId, userId: call.userId!, toE164: call.toE164 }, nowSeconds));
+export function clientStateFor(call: { id: string; tenantId: string; userId: string | null; toE164: string; fromE164?: string | null }, nowSeconds?: number) {
+  return toClientState(
+    issueCallToken(
+      { callId: call.id, tenantId: call.tenantId, userId: call.userId!, toE164: call.toE164, ...(call.fromE164 ? { fromE164: call.fromE164 } : {}) },
+      nowSeconds
+    )
+  );
 }
 
 export const reload = (tenantId: string, id: string) => inTenant(tenantId, () => prisma.call.findFirstOrThrow({ where: { id, tenantId } }));

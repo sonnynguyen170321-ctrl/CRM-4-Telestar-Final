@@ -12,12 +12,15 @@ import {
   LogOut,
   Sun,
   Moon,
+  Phone,
 } from 'lucide-react';
 import { hardSignOut } from '@/lib/auth/clientSignOut';
 import { useAppContext } from '@/context/AppContext';
 import { readNotifPrefs, isMuted, NOTIF_PREFS_EVENT } from '@/lib/notifications/prefs';
 import { openLeadSlideOver } from '@/lib/leads/openLead';
 import EnvironmentBadge from '@/components/operating/EnvironmentBadge';
+import { useDialerStatus } from '@/components/dialer/useDialerStatus';
+import { dialerDock } from '@/lib/telephony/dialerDock';
 
 interface Notification {
   id: string;
@@ -54,6 +57,7 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
   const [notifPrefs, setNotifPrefs] = useState<Record<string, boolean>>({});
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [bellOpen, setBellOpen] = useState(false);
+  const { status: dialerStatus } = useDialerStatus();
   const [plusOpen, setPlusOpen] = useState(false);
   const [personaOpen, setPersonaOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
@@ -337,6 +341,18 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
         >
           {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4 text-amber-400" />}
         </button>
+
+        {dialerStatus === 'enabled' && (
+          <button
+            type="button"
+            onClick={() => dialerDock.toggle()}
+            aria-label="Open dialer (Alt+Shift+D)"
+            title="Dialer (Alt+Shift+D)"
+            className="p-2 text-text-secondary hover:text-text-primary hover:bg-card-border/30 rounded-lg transition-colors duration-150 focus-ring"
+          >
+            <Phone className="w-4 h-4" aria-hidden="true" />
+          </button>
+        )}
 
         {/* Notifications Bell */}
         <div className="relative">

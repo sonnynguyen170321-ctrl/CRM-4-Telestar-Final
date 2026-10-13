@@ -18,14 +18,18 @@ export type CallRequestResult =
 const checkFailed = (message: string, code: SoftphoneError['code'] = 'check_failed'): CallRequestResult => ({ kind: 'error', error: { code, message } });
 
 /** `POST /api/telephony/calls`: runs the gate and, when allowed, returns the token to dial with. */
-export async function requestCall(input: { leadId: string; contactId?: string; fetchImpl?: Fetch }): Promise<CallRequestResult> {
+export async function requestCall(input: { leadId: string; contactId?: string; fromNumberId?: string; fetchImpl?: Fetch }): Promise<CallRequestResult> {
   const call: Fetch = input.fetchImpl ?? ((url, init) => fetch(url, init));
   let response: Response;
   try {
     response = await call('/api/telephony/calls', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ leadId: input.leadId, ...(input.contactId ? { contactId: input.contactId } : {}) }),
+      body: JSON.stringify({
+        leadId: input.leadId,
+        ...(input.contactId ? { contactId: input.contactId } : {}),
+        ...(input.fromNumberId ? { fromNumberId: input.fromNumberId } : {}),
+      }),
     });
   } catch {
     return checkFailed('Could not reach the server. Check your connection and try again.');
@@ -35,6 +39,9 @@ export async function requestCall(input: { leadId: string; contactId?: string; f
   if (response.status === 403 && body?.code === 'dialer_disabled') return checkFailed('The dialer is not enabled.', 'dialer_disabled');
   if (response.status === 429) return checkFailed('A call was just started. Wait a few seconds and try again.', 'rate_limited');
   if (response.status === 404) return checkFailed('This lead could not be found.');
+  if (response.status === 400 && body?.code === 'invalid_from_number') {
+    return checkFailed('That company number is no longer available as a caller ID. Pick another, or choose Automatic.');
+  }
   if (response.status === 422) {
     // No number that can be dialled: the gate's reasons say why (no phone, invalid number...).
     const reasons = Array.isArray(body?.reasons) && body.reasons.length > 0 ? (body.reasons as string[]) : ['no_phone'];
