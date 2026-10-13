@@ -28,6 +28,8 @@ import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/context/ToastContext';
 import { readApiError } from '@/lib/api/client';
 import CommandCenterStrip from '@/components/dashboard/CommandCenterStrip';
+import AutoSendStatus, { autoSendText } from '@/components/sequences/AutoSendStatus';
+import type { EmailStepInfo } from '@/lib/sequences/autoSendState';
 
 // Slide-over loads on demand — its chunk fetches the first time a task's lead is opened.
 const LeadDetailPanel = dynamic(() => import('@/components/LeadDetailPanel'), { ssr: false });
@@ -54,7 +56,16 @@ interface Task {
   status: 'pending' | 'completed' | 'skipped';
   completedAt: string | null;
   priority: string;
+  sequenceId?: string | null;
+  sequenceStep?: number | null;
+  /** For a sequence email task: whether the CRM sends it itself, and what it is doing with it. */
+  emailStep?: EmailStepInfo | null;
 }
+
+/** An email the CRM sends itself: nothing for the rep to complete. */
+const isAutoEmail = (task: Task) => task.type === 'email' && Boolean(task.emailStep?.automatic);
+/** A sequence email the rep writes: Complete opens the composer. */
+const isManualSequenceEmail = (task: Task) => task.type === 'email' && Boolean(task.emailStep) && !task.emailStep?.automatic;
 
 /**
  * Activity-feed timestamp: show just the time for today's entries, but prefix the
@@ -105,6 +116,8 @@ export default function DashboardPage() {
   const [selectedSdrId, setSelectedSdrId] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<'today' | 'yesterday' | 'overdue'>('today');
   const [loggingTask, setLoggingTask] = useState<Task | null>(null);
+  // A manual sequence email being written: the lead drawer opens with the composer on this task.
+  const [composeTask, setComposeTask] = useState<Task | null>(null);
   const [callOutcome, setCallOutcome] = useState('no_answer');
   const [channelAction, setChannelAction] = useState('');
   const [responseReceived, setResponseReceived] = useState(false);
@@ -255,6 +268,16 @@ export default function DashboardPage() {
   const pendingTodayCount = todayTasks.filter((t) => t.status === 'pending').length;
 
   const handleTaskComplete = (task: Task) => {
+    if (isAutoEmail(task)) {
+      showToast('The CRM sends this email itself. If you sent it yourself, choose "I sent it outside the CRM".', 'info');
+      return;
+    }
+    if (isManualSequenceEmail(task)) {
+      // The send closes the task and moves the cadence on, once the provider has confirmed it.
+      setComposeTask(task);
+      setSelectedLeadId(task.leadId);
+      return;
+    }
     if (task.type === 'phone' || task.type === 'linkedin' || task.type === 'whatsapp') {
       setLoggingTask(task);
       setCallOutcome('no_answer');
@@ -280,7 +303,7 @@ export default function DashboardPage() {
       body: JSON.stringify({ status, notes, outcome }),
     });
     if (!res.ok) {
-      showToast('Failed to update task', 'error');
+      showToast(await readApiError(res, 'Failed to update task'), 'error');
       // Returned, not just toasted: a caller that goes on to move the lead and announce it is
       // reporting work the server refused.
       return false;
@@ -290,6 +313,38 @@ export default function DashboardPage() {
     clearDeferred(taskId);
     loadAll();
     return true;
+  };
+
+  // The rep says they sent an automatic email from outside the CRM: logged, and the cadence moves on.
+  const handleSentOutside = async (task: Task) => {
+    if (!window.confirm('Confirm you sent this email from outside the CRM? It will be logged and the sequence will move on to the next step.')) return;
+    const res = await fetch(`/api/tasks/${task.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'completed', sentOutsideCrm: true }),
+    });
+    if (!res.ok) {
+      showToast(await readApiError(res, 'Could not log the email'), 'error');
+      return;
+    }
+    showToast('Logged as sent outside the CRM', 'success');
+    loadAll();
+  };
+
+  // Cancel an automatic email that has not gone out. The queued send is removed with the task.
+  const handleDontSend = async (task: Task) => {
+    if (!window.confirm('Cancel this email? It will not be sent.')) return;
+    const res = await fetch(`/api/tasks/${task.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'skipped' }),
+    });
+    if (!res.ok) {
+      showToast(await readApiError(res, 'Could not cancel the email'), 'error');
+      return;
+    }
+    showToast('Email cancelled', 'info');
+    loadAll();
   };
 
   const handleLoggingSubmit = async (e: React.FormEvent) => {
@@ -1200,7 +1255,13 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="flex items-center gap-1.5 self-auto flex-shrink-0">
-                    {task.status === 'pending' ? (
+                    {task.status === 'pending' && isAutoEmail(task) && task.emailStep ? (
+                      <AutoSendStatus
+                        step={task.emailStep}
+                        onSentOutside={() => handleSentOutside(task)}
+                        onDontSend={() => handleDontSend(task)}
+                      />
+                    ) : task.status === 'pending' ? (
                       <>
                         <button
                           onClick={() => handleTaskComplete(task)}
@@ -1270,7 +1331,7 @@ export default function DashboardPage() {
                             : 'bg-card-border text-text-secondary border-transparent'
                         }`}
                       >
-                        {task.status.toUpperCase()}
+                        {isAutoEmail(task) && task.emailStep ? autoSendText(task.emailStep) : task.status.toUpperCase()}
                       </span>
                     )}
                   </div>
@@ -1402,7 +1463,8 @@ export default function DashboardPage() {
           leadId={selectedLeadId}
           siblingIds={visibleTaskLeadIds}
           onNavigate={setSelectedLeadId}
-          onClose={() => setSelectedLeadId(null)}
+          onClose={() => { setSelectedLeadId(null); setComposeTask(null); }}
+          composeTask={composeTask && composeTask.leadId === selectedLeadId ? composeTask : null}
         />
       )}
 

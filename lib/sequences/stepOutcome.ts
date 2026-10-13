@@ -16,7 +16,7 @@
  * | provider said            | what happens                                                  |
  * |--------------------------|---------------------------------------------------------------|
  * | accepted                 | `finalizeSequenceStep` — task completed, counters, advance     |
- * | refused, definitively    | `releaseSequenceStep` — task reopened, enrollment paused       |
+ * | refused, definitively    | `releaseSequenceStep` — task skipped as `send_failed`, enrollment paused |
  * | nothing (timeout, drop)  | neither; the row is `reconciliation_required` and the sweep decides |
  *
  * Both are idempotent and compare-and-set: a retry that reaches the same outcome twice settles
@@ -25,6 +25,7 @@
  */
 import { prisma } from '@/lib/prisma';
 import { advanceSequence } from '@/lib/sequences/engine';
+import { SEND_FAILED_OUTCOME } from '@/lib/sequences/autoSendState';
 
 /**
  * What a send needs to carry to settle the step it belongs to.
@@ -91,8 +92,11 @@ export async function finalizeSequenceStep(ref: SequenceStepRef): Promise<void> 
 /**
  * The provider refused, definitively: give the step back and stop the cadence.
  *
- * The task returns to the claimable pool and the enrollment is paused with a reason, so a
- * human decides whether to resend or drop the prospect. Pausing rather than retrying forever
+ * The task is closed as `skipped` with outcome `send_failed` and the reason (the same terminal state
+ * a pause leaves, lifecycle.ts), and the enrollment is paused with a reason, so a human decides
+ * whether to resend or drop the prospect. Left `pending` it was an overdue task with a Complete
+ * button that advanced the cadence past an email nobody received. Resuming the enrollment brings
+ * the same task back to `pending` (lifecycle.ts finishResume). Pausing rather than retrying forever
  * is the 2026-09-22 directive: a cadence must never send step 2 referencing a step 1 that was
  * refused. `paused` still occupies the lead (see `lib/sequences/occupancy.ts`), so nothing
  * else can enrol them while the decision is outstanding.
@@ -101,7 +105,13 @@ export async function releaseSequenceStep(ref: SequenceStepRef, reason: string):
   try {
     await prisma.task.updateMany({
       where: { id: ref.taskId, status: 'pending' },
-      data: { lockedAt: null },
+      data: {
+        status: 'skipped',
+        lockedAt: null,
+        runNowRequestedAt: null,
+        outcome: SEND_FAILED_OUTCOME,
+        notes: reason.slice(0, 500),
+      },
     });
 
     await prisma.sequenceEnrollment.updateMany({
@@ -120,6 +130,31 @@ export async function releaseSequenceStep(ref: SequenceStepRef, reason: string):
     console.warn(`[stepOutcome] paused the cadence for lead ${ref.leadId}: ${reason}`);
   } catch (err) {
     console.error(`[stepOutcome] could not release step for task ${ref.taskId}:`, err);
+  }
+}
+
+/**
+ * The mail worker deferred this step's send (a mailbox or provider limit): move the task's due
+ * date, and the enrollment's next action, to when it will be tried again.
+ *
+ * The task used to keep its old due date, so a send waiting for tomorrow's quota showed as
+ * overdue since this morning. Visibility only: a failed write never fails or repeats a send.
+ */
+export async function deferSequenceStep(ref: SequenceStepRef | undefined, resumeAt: Date): Promise<void> {
+  if (!ref) return;
+  try {
+    await prisma.task.updateMany({
+      where: { id: ref.taskId, status: 'pending' },
+      data: { dueDate: resumeAt },
+    });
+    await prisma.sequenceEnrollment.updateMany({
+      where: ref.enrollmentId
+        ? { id: ref.enrollmentId, status: 'active' }
+        : { leadId: ref.leadId, sequenceId: ref.sequenceId, status: 'active' },
+      data: { nextActionAt: resumeAt },
+    });
+  } catch (err) {
+    console.warn(`[stepOutcome] could not move the due date for task ${ref.taskId}:`, err);
   }
 }
 

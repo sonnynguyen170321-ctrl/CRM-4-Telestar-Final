@@ -10,6 +10,7 @@ import {
 import { enqueue } from '@/lib/bullmq/enqueue';
 import { ensureJob } from '@/lib/bullmq/ensureJob';
 import { JobType } from '@/lib/bullmq/types';
+import { isAutomaticStep } from './autoSendState';
 
 /**
  * Sequence execution engine (SKILL.md §3).
@@ -110,7 +111,9 @@ export async function createTaskForStep(
     userId: lead.assignedToId,
     type: step.channel,
     title: `Step ${step.order}: ${channelLabel} — ${sequence.name}`,
-    description: step.instructions ?? null,
+    // An email the CRM sends itself has nothing for a rep to read: its instructions are a note to a
+    // person, and the builder used to fill them with a placeholder that then showed up in the list.
+    description: step.channel === 'email' && isAutomaticStep(step) ? null : (step.instructions ?? null),
     dueDate,
     sequenceId: sequence.id,
     sequenceStep: step.order,

@@ -47,6 +47,8 @@ import CallRecordingPlayer from '@/components/telephony/CallRecordingPlayer';
 import { inferTimezone } from '@/lib/time/inferTimezone';
 import { EmailBodyView } from '@/components/shared/EmailBodyView';
 import { IcpFitCard, type IcpFitLead } from '@/components/leads/IcpFitCard';
+import { autoSendText } from '@/components/sequences/AutoSendStatus';
+import type { EmailStepInfo } from '@/lib/sequences/autoSendState';
 
 interface MeetingItem {
   id: string;
@@ -180,6 +182,9 @@ interface TaskItem {
   dueDate: string;
   completedAt?: string;
   sequenceStep?: number;
+  sequenceId?: string | null;
+  /** For a sequence email task: whether the CRM sends it itself, and what it is doing with it. */
+  emailStep?: EmailStepInfo | null;
 }
 
 interface ReminderItem {
@@ -200,6 +205,20 @@ interface LeadDetailPanelProps {
    */
   siblingIds?: readonly string[];
   onNavigate?: (leadId: string) => void;
+  /** A manual sequence email to write: the drawer opens with the composer on this task. */
+  composeTask?: ComposeTask | null;
+}
+
+interface ComposeTask {
+  id: string;
+  type: string;
+  title: string;
+  description: string;
+  dueDate: string;
+  status: string;
+  leadId: string;
+  sequenceId?: string | null;
+  sequenceStep?: number | null;
 }
 
 /**
@@ -244,6 +263,7 @@ function LeadDetailPanelBody({
   onLeadUpdate,
   animateIn,
   onBusyChange,
+  composeTask,
 }: Omit<LeadDetailPanelProps, 'siblingIds' | 'onNavigate'> & { animateIn: boolean; onBusyChange: (busy: boolean) => void }) {
   const { isManager, currentRole, currentUser } = useAppContext();
   const [lead, setLead] = useState<LeadDetail | null>(null);
@@ -264,7 +284,9 @@ function LeadDetailPanelBody({
   const [reminders, setReminders] = useState<ReminderItem[]>([]);
   const [showReminderForm, setShowReminderForm] = useState(false);
   const [newReminderText, setNewReminderText] = useState('');
-  const [showComposer, setShowComposer] = useState(false);
+  const [showComposer, setShowComposer] = useState(Boolean(composeTask));
+  // The task the composer sends for, only while it was opened from that task.
+  const [activeComposeTask, setActiveComposeTask] = useState<ComposeTask | null>(composeTask ?? null);
   const [newReminderDate, setNewReminderDate] = useState('');
   const [savingReminder, setSavingReminder] = useState(false);
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -558,7 +580,24 @@ function LeadDetailPanelBody({
       });
     });
 
+    // An email the CRM sent for a sequence step is one entry: the sent message. Its task is the same
+    // fact twice ("Completed: Step 2 ..." beside "Outbound Email"), so the task row is left out once a
+    // sent message for that step exists, and the message carries the step.
+    const sentMessages = ((lead as any)?.outboundMessages ?? []) as any[];
+    const hasSentMessageFor = (t: TaskItem) =>
+      t.sequenceId != null &&
+      t.sequenceStep != null &&
+      sentMessages.some((m) => m.status === 'sent' && m.sequenceId === t.sequenceId && m.sequenceStepOrder === t.sequenceStep);
+    const stepSequenceName = new Map<string, string>();
     tasks.forEach((t) => {
+      if (t.sequenceId && t.emailStep?.sequenceName) stepSequenceName.set(t.sequenceId, t.emailStep.sequenceName);
+    });
+    (((lead as any)?.sequenceEnrollments ?? []) as any[]).forEach((e) => {
+      if (e.sequenceId && e.sequence?.name && !stepSequenceName.has(e.sequenceId)) stepSequenceName.set(e.sequenceId, e.sequence.name);
+    });
+
+    tasks.forEach((t) => {
+      if (t.emailStep?.automatic && t.status === 'completed' && hasSentMessageFor(t)) return;
       const type =
         t.status === 'completed'
           ? 'task_completed'
@@ -576,8 +615,9 @@ function LeadDetailPanelBody({
         id: t.id,
         date: t.completedAt || t.dueDate,
         type,
-        title: label,
-        description: t.description,
+        title: t.emailStep?.automatic ? `${label} — ${autoSendText(t.emailStep)}` : label,
+        // The builder's placeholder instructions mean nothing on an email the CRM sends itself.
+        description: t.emailStep?.automatic ? '' : t.description,
         channel: t.type,
       });
     });
@@ -605,7 +645,10 @@ function LeadDetailPanelBody({
           id: m.id,
           date: m.sentAt || m.createdAt,
           type: 'activity',
-          title: `Outbound Email: ${m.subject || '— no subject —'}`,
+          title:
+            m.status === 'sent' && m.sequenceId && m.sequenceStepOrder != null
+              ? `Email sent — Step ${m.sequenceStepOrder} of ${stepSequenceName.get(m.sequenceId) ?? 'a sequence'}: ${m.subject || '— no subject —'}`
+              : `Outbound Email: ${m.subject || '— no subject —'}`,
           description: `To: ${m.to} · Status: ${m.status.toUpperCase()}${
             m.errorMessage ? ` · Error: ${m.errorMessage}` : ''
           }`,
@@ -2103,7 +2146,7 @@ function LeadDetailPanelBody({
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        {task.status === 'pending' && task.type === 'email' && task.sequenceStep != null && (
+                        {task.status === 'pending' && task.type === 'email' && task.sequenceStep != null && task.emailStep?.automatic !== false && (
                           <button
                             onClick={() => handleRunNow(task.id)}
                             disabled={runningTask === task.id}
@@ -2123,7 +2166,7 @@ function LeadDetailPanelBody({
                           </span>
                         ) : (
                           <span className="px-2 py-0.5 bg-brand-orange/10 text-brand-orange-text text-[9px] font-bold border border-brand-orange/20 rounded font-mono">
-                            PENDING
+                            {task.emailStep?.automatic ? autoSendText(task.emailStep).toUpperCase() : 'PENDING'}
                           </span>
                         )}
                       </div>
@@ -2588,6 +2631,7 @@ function LeadDetailPanelBody({
         <MailComposerModal
           initialSubject={composerSeed?.subject}
           initialBody={composerSeed?.body}
+          task={activeComposeTask ?? undefined}
           lead={{
             id: lead.id,
             firstName: lead.firstName,
@@ -2602,6 +2646,7 @@ function LeadDetailPanelBody({
           onClose={() => {
             setShowComposer(false);
             setComposerSeed(null);
+            setActiveComposeTask(null);
           }}
           onSent={() => {
             // No toast here. `onSent` fires when the send is *queued* — the composer already

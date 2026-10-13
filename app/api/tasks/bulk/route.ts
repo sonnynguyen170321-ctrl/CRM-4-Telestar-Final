@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
         userId: body.userId,
         note: body.note,
         outcome: body.outcome,
+        sentOutsideCrm: body.sentOutsideCrm,
       },
       'human'
     );

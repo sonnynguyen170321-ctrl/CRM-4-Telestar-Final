@@ -84,9 +84,11 @@ export const updateTaskSchema = z.object({
   dueDate: isoDate.optional(),
   notes: nullableLongText.optional(),
   outcome: nullableText(100).optional(),
+  /** Completing an email the CRM sends itself: the rep sent it from outside the CRM (lib/sequences/autoSendGuard.ts). */
+  sentOutsideCrm: z.boolean().optional(),
 });
 
-export const bulkTaskAction = z.enum(['complete', 'skip', 'reschedule', 'reassign', 'note']);
+export const bulkTaskAction= z.enum(['complete', 'skip', 'reschedule', 'reassign', 'note']);
 
 /**
  * Bulk task action. Every action is applied per task with the same access checks and
@@ -104,6 +106,8 @@ export const bulkTaskActionSchema = z
     /** note, and the optional shared outcome for complete */
     note: nullableLongText.optional(),
     outcome: nullableText(100).optional(),
+    /** complete: the rep sent the automatic emails from outside the CRM. */
+    sentOutsideCrm: z.boolean().optional(),
   })
   .refine((v) => v.action !== 'reschedule' || !!v.dueDate, {
     message: 'dueDate is required to reschedule',

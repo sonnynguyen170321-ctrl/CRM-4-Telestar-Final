@@ -3,6 +3,7 @@ import { getVisibleUserIds, canAccessUser, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { getLocalDayBoundaries } from '@/lib/dates/timezone';
 import { TaskType, TaskPriority } from '@prisma/client';
+import { attachEmailStepInfo } from '@/lib/sequences/autoSendState';
 
 export interface GetTasksOptions {
   tab?: 'today' | 'yesterday' | 'overdue' | 'pending' | 'all' | string | null;
@@ -88,7 +89,10 @@ export async function getTasks(user: SessionUser, options: GetTasksOptions) {
     take: limit,
   });
 
-  const normalized = tasks.map((t) =>
+  // Sequence email tasks carry what the CRM is doing with them (sending, held, failed, sent), so the
+  // list can say so instead of offering Complete on an email the CRM sends itself.
+  const withStep = await attachEmailStepInfo(tasks);
+  const normalized = withStep.map((t) =>
     t.lead ? { ...t, lead: { ...t.lead, priority: t.lead.crmPriorityScore } } : t
   );
   if (tab === 'overdue') {

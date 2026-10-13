@@ -17,7 +17,10 @@ import AiVariablesPanel from '@/components/compose/AiVariablesPanel';
 import { needsServerCheck, useAiVariables, useLeadPreview, useMailboxes, useMissingValues, useSnippets } from '@/components/compose/useComposeData';
 import type { ComposeAttachment, MissingValue } from '@/components/compose/types';
 
-interface Task { id: string; type: string; title: string; description: string; dueDate: string; status: string; leadId: string; }
+interface Task { id: string; type: string; title: string; description: string; dueDate: string; status: string; leadId: string; sequenceId?: string | null; sequenceStep?: number | null; }
+
+/** The builder's placeholder instructions say nothing a rep needs; real instructions are worth showing. */
+const PLACEHOLDER_INSTRUCTIONS = /^Log touchpoint details for the w+ outreach.?$/;
 interface Lead { id: string; firstName: string; lastName: string; company: string; title: string; email: string; phone?: string; sequenceId?: string; sequenceStep?: number; }
 interface Template { id: string; name: string; channel: string; subject?: string | null; body: string }
 
@@ -122,13 +125,16 @@ ${body}`;
     let live = true;
     Promise.all([
       fetch('/api/templates').then((r) => (r.ok ? r.json() : [])),
-      lead.sequenceId ? fetch(`/api/sequences/${lead.sequenceId}`).then((r) => (r.ok ? r.json() : null)) : Promise.resolve(null),
+      // The task's own step when composing for one: a lead can be in several sequences.
+      (task?.sequenceId ?? lead.sequenceId)
+        ? fetch(`/api/sequences/${task?.sequenceId ?? lead.sequenceId}`).then((r) => (r.ok ? r.json() : null))
+        : Promise.resolve(null),
     ])
       .then(([tpls, sequenceData]: [Template[], { steps?: Array<{ order: number; templateId?: string | null }> } | null]) => {
         if (!live) return;
         const emailTemplates = Array.isArray(tpls) ? tpls.filter((t) => t.channel === 'email') : [];
         setTemplates(emailTemplates);
-        const stepConfig = sequenceData?.steps?.find((s) => s.order === lead.sequenceStep);
+        const stepConfig = sequenceData?.steps?.find((s) => s.order === (task?.sequenceStep ?? lead.sequenceStep));
         const t = emailTemplates.find((x) => x.id === (stepConfig?.templateId ?? ''));
         if (t && !initialBody) {
           setSelectedTemplateId(t.id);
@@ -141,7 +147,7 @@ ${body}`;
       .catch(() => { if (live) setSubject((prev) => prev || DEFAULT_SUBJECT); })
     return () => { live = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lead.id, lead.sequenceId, lead.sequenceStep]);
+  }, [lead.id, lead.sequenceId, lead.sequenceStep, task?.sequenceId, task?.sequenceStep]);
 
   // The files a template always sends, so the rep sees everything that will go out.
   useEffect(() => {
@@ -246,6 +252,14 @@ ${body}`;
         </div>
 
         <div className="p-5 space-y-3 overflow-y-auto text-xs">
+          {task?.sequenceStep != null && (
+            <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-xs text-text-secondary">
+              <p>This is step {task.sequenceStep} of a sequence. The step is completed, and the sequence moves on, once this email is confirmed sent.</p>
+              {task.description && !PLACEHOLDER_INSTRUCTIONS.test(task.description.trim()) && (
+                <p className="mt-1 text-text-primary">{task.description}</p>
+              )}
+            </div>
+          )}
           <MailboxSelect id="mail-account" mailboxes={mailboxes} selectedId={accountId} onSelect={setAccountId} onNavigate={onClose} />
           {mailboxes.length === 0 && !mailboxesLoading && (
             <p className="text-xs text-text-muted">

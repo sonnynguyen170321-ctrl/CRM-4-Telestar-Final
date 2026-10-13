@@ -41,6 +41,20 @@ export interface ReconcileResult {
   blockedOrders: number[];
 }
 
+/**
+ * Whether the CRM sends this step itself.
+ *
+ * An email step with a template sends itself unless the caller says otherwise: a template is the
+ * thing a step sends, and a task for a rep to type the same email again is the exception, not the
+ * default. Said explicitly (true or false), the caller's choice stands - the builder's switch and
+ * older clients keep working. Validation (lib/validation/schemas.ts) still refuses an explicit
+ * `true` with no template.
+ */
+export function resolveAutoComplete(step: Pick<IncomingStep, 'channel' | 'templateId' | 'autoComplete'>): boolean {
+  if (step.autoComplete !== undefined) return step.autoComplete;
+  return step.channel === 'email' && Boolean(step.templateId);
+}
+
 /** Fields a step carries regardless of whether it is being created or updated. */
 function stepFields(step: IncomingStep, order: number) {
   return {
@@ -50,7 +64,7 @@ function stepFields(step: IncomingStep, order: number) {
     delayHours: step.delayHours ?? 0,
     templateId: step.templateId ?? null,
     instructions: step.instructions ?? null,
-    autoComplete: step.autoComplete ?? false,
+    autoComplete: resolveAutoComplete(step),
     sendWindowStartMinutes: step.sendWindowStartMinutes ?? null,
     sendWindowEndMinutes: step.sendWindowEndMinutes ?? null,
   };
@@ -84,7 +98,7 @@ export async function reconcileSequenceSteps(
   const ordered = incoming.map((step, idx) => ({
     order: step.order ?? idx + 1,
     channel: step.channel,
-    autoComplete: step.autoComplete ?? false,
+    autoComplete: resolveAutoComplete(step),
   }));
 
   for (const [idx, step] of incoming.entries()) {

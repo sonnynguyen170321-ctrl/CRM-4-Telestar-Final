@@ -29,6 +29,9 @@ import { deterministicOffset, buildJitterSeed } from '@/lib/automation/jitter';
 import { enqueueReschedule } from '@/lib/bullmq/enqueue';
 import { planStepThread } from '@/lib/sequences/threading';
 import { runNowRequested } from '@/lib/sequences/runNow';
+import { SEND_BLOCKED_OUTCOME } from '@/lib/sequences/autoSendState';
+import { describeHold } from '@/lib/sequences/holdReasons';
+import type { EligibilityResult } from '@/lib/automation/types';
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
 
@@ -41,6 +44,43 @@ const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
  */
 /** Holds rechecked hourly until someone acts; see the deferral audit below. */
 const SENDER_GAP_HOLDS = new Set(['no_sequence_sender', 'sequence_senders_disconnected']);
+
+/**
+ * Bars that clear themselves, so the step waits and looks again instead of being closed.
+ *
+ * A barred step used to stay `pending` with its job spent: overdue for good, with a Complete button
+ * that advanced the cadence past an email nobody sent. Closing it fixes that for the bars that are
+ * final (the lead replied, the address is suppressed). These four are conditions someone can undo -
+ * a mailbox reconnected, a campaign or sequence switched back on, a rep reactivated - and closing
+ * the step on one of them would end the cadence for good when the cause was fixed an hour later.
+ */
+const RECHECKED_BLOCKS_MS: Record<string, number> = {
+  mailbox_inactive: 60 * 60 * 1000,
+  campaign_paused: 6 * 60 * 60 * 1000,
+  sequence_inactive: 6 * 60 * 60 * 1000,
+  user_inactive: 6 * 60 * 60 * 1000,
+};
+
+/**
+ * Bars that end the step for good. The job that found one is spent and nothing will send this step,
+ * so the task is closed with the reason. A reply or a booked meeting is not on this list: the rep can
+ * hand the prospect back, and a step closed in the meantime could then neither run nor be run now.
+ * Those stay pending, with the hold recorded on the enrollment for the list to show.
+ */
+const CLOSING_BLOCKS = new Set([
+  'recipient_suppressed',
+  'lead_email_invalid',
+  'lead_email_missing',
+  'lead_archived',
+  'step_mismatch',
+  'tenant_invalid',
+]);
+
+function recheckReversibleBlock(result: EligibilityResult, now: Date): EligibilityResult {
+  const recheckMs = result.decision === 'BLOCK' ? RECHECKED_BLOCKS_MS[result.reason] : undefined;
+  if (!recheckMs) return result;
+  return { decision: 'DEFER', reason: result.reason, nextActionAt: new Date(now.getTime() + recheckMs) };
+}
 
 /** The task is due the moment it was created: how an enrollment-time immediate step is scheduled. */
 const ENROLLMENT_SCHEDULE_TOLERANCE_MS = 60_000;
@@ -345,7 +385,8 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     sendsImmediatelyOnEnroll(taskSequence, stepInfo) && scheduledAtEnrollment(task.createdAt, task.dueDate);
 
   // Evaluate central eligibility decision (spec §11–13)
-  const eligibility = evaluateAutomationEligibility({
+  const eligibilityNow = new Date();
+  const eligibility = recheckReversibleBlock(evaluateAutomationEligibility({
     tenantId: task.tenantId,
     enrollment,
     lead: task.lead,
@@ -358,9 +399,9 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     account,
     isSuppressed: Boolean(suppressed),
     senderGap,
-    now: new Date(),
+    now: eligibilityNow,
     ignoreSchedule: runNow || immediateStep,
-  });
+  }), eligibilityNow);
 
   // Handle decisions
   if (eligibility.decision === 'DEFER') {
@@ -401,7 +442,8 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     // a row on every recheck filled lead timelines with one line an hour. Only the first hold with
     // that reason is recorded — the enrollment still carries it (holdReason) for the table.
     const repeatedSenderHold =
-      SENDER_GAP_HOLDS.has(eligibility.reason) && enrollment?.holdReason === eligibility.reason;
+      (SENDER_GAP_HOLDS.has(eligibility.reason) || eligibility.reason in RECHECKED_BLOCKS_MS) &&
+      enrollment?.holdReason === eligibility.reason;
     if (task.lead.assignedToId && !repeatedSenderHold) {
       await prisma.activity.create({
         data: {
@@ -456,6 +498,20 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
 
   if (eligibility.decision !== 'ALLOW') {
     await recordHold(enrollment?.id, eligibility.reason);
+    // Barred for good (suppressed, bounced, archived, cadence moved on, lead won or lost): this job is
+    // spent and nothing will send the step, so the task is closed with the reason rather than left
+    // pending - overdue forever, and completable into an advance with no send behind it.
+    if (eligibility.decision === 'TERMINATE' || CLOSING_BLOCKS.has(eligibility.reason)) {
+      await prisma.task.updateMany({
+        where: { id: task.id, status: 'pending', lockedAt: null },
+        data: {
+          status: 'skipped',
+          runNowRequestedAt: null,
+          outcome: SEND_BLOCKED_OUTCOME,
+          notes: (describeHold(eligibility.reason)?.label ?? eligibility.reason).slice(0, 500),
+        },
+      });
+    }
     return { status: 'skipped', reason: eligibility.reason };
   }
 

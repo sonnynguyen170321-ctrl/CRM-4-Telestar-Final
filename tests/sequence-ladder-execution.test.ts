@@ -615,7 +615,9 @@ describe('interruptions — a queued follow-up refuses on its own', () => {
     const lead = await afterFirstEmail();
     lead.campaign = { id: 'camp-1', status: 'paused' };
 
-    noSecondContact(await executeStep(2), { status: 'skipped', reason: 'campaign_paused' });
+    // A paused campaign is undone by resuming it, so the step waits and looks again (6 hours) instead
+    // of being closed: closing it would end the cadence for good when the campaign came back.
+    noSecondContact(await executeStep(2), { status: 'deferred', reason: 'campaign_paused' });
   });
 
   it('holds rather than stops when the sequence has no mailbox to send from', async () => {
