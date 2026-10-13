@@ -86,7 +86,7 @@ export async function findAccentInsensitiveIds(
   return rows.map((r) => r.id);
 }
 
-export const LEAD_SEARCH_COLUMNS = ['firstName', 'lastName', 'company', 'title', 'email'] as const;
+export const LEAD_SEARCH_COLUMNS = ['firstName', 'lastName', 'company', 'title', 'email', 'phone', 'normalizedPhone'] as const;
 export const POOL_SEARCH_COLUMNS = [
   'firstName',
   'lastName',

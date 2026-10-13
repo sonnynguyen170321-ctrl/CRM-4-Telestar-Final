@@ -67,3 +67,7 @@ If the token cannot be carried, or p95 ≥ 1.5 s, switch origination to server-o
 behind `lib/telephony/provider.ts`. `compliance.ts`, the `Call` row and snapshot, the webhook inbox and
 the state machine stay the same; only the start changes — the server dials after the gate passes, so the
 browser never dials the lead directly.
+
+## Amendment, 2026-10-13 (floating dialer, caller-ID choice)
+- The softphone is one docked dialer mounted app-wide; the lead drawer's Call button opens it with that lead preselected. Targets come from `GET /api/telephony/targets` (leads the rep may work, plus the lead's own contact); a number is still never typed in.
+- The rep may choose the caller ID: `POST /api/telephony/calls` accepts `fromNumberId`, validates it is an active outbound number of the rep's tenant (else 400 `invalid_from_number`), stores it as `Call.fromE164` and signs it into the call token. The webhook refuses a token whose number differs from the row, re-checks the number is still active, and transfers with exactly that number. With no choice the country rule in `callerId.ts` applies as before.

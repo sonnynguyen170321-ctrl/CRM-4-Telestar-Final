@@ -292,3 +292,56 @@ describe('POST /api/telephony/calls', () => {
     expect((await call(users.peer, { leadId: peersLead })).response.status).toBe(201);
   });
 });
+
+describe('POST /api/telephony/calls with a chosen caller ID', () => {
+  const makeNumber = (t: string, data: Record<string, unknown> = {}) =>
+    inTenant(
+      () =>
+        prisma.telephonyNumber.create({
+          data: { tenantId: t, e164: `+1415${Math.floor(1000000 + Math.random() * 8999999)}`, country: 'US', purpose: 'both', ...data },
+        }),
+      t
+    );
+
+  it('records the chosen number on the call and signs it into the token', async () => {
+    const number = await makeNumber(tenantId);
+    const { response, body } = await call(users.rep, { leadId: ids.lead, fromNumberId: number.id });
+
+    expect(response.status).toBe(201);
+    const [row] = await callRows();
+    expect(row.fromE164).toBe(number.e164);
+    const check = verifyCallToken(fromClientState(body.clientState), Math.floor(VN_10AM.getTime() / 1000));
+    expect(check).toEqual({ ok: true, claims: expect.objectContaining({ callId: row.id, fromE164: number.e164 }) });
+  });
+
+  it('leaves the caller ID to the country rule when none is chosen: nothing recorded, nothing signed', async () => {
+    await makeNumber(tenantId);
+    const { body } = await call(users.rep, { leadId: ids.lead });
+    const [row] = await callRows();
+    expect(row.fromE164).toBeNull();
+    const check = verifyCallToken(fromClientState(body.clientState), Math.floor(VN_10AM.getTime() / 1000));
+    expect(check.ok && check.claims.fromE164).toBeFalsy();
+  });
+
+  it.each([
+    ['another company number', async () => (await makeNumber(otherTenantId)).id],
+    ['an inactive number', async () => (await makeNumber(tenantId, { isActive: false })).id],
+    ['an inbound-only number', async () => (await makeNumber(tenantId, { purpose: 'inbound' })).id],
+    ['an id that does not exist', async () => 'no-such-number'],
+  ])('refuses %s with 400 and records no call', async (_name, idOf) => {
+    const fromNumberId = await idOf();
+    const { response, body } = await call(users.rep, { leadId: ids.lead, fromNumberId });
+    expect(response.status).toBe(400);
+    expect(body.code).toBe('invalid_from_number');
+    expect(await callRows()).toHaveLength(0);
+  });
+
+  it('records a blocked attempt with the chosen number but issues no token', async () => {
+    const number = await makeNumber(tenantId);
+    vi.setSystemTime(new Date('2026-10-05T10:00:00Z'));
+    await limitHoursToOfficeDay();
+    const { body } = await call(users.rep, { leadId: ids.lead, fromNumberId: number.id });
+    expect(body).not.toHaveProperty('clientState');
+    expect((await callRows())[0]).toMatchObject({ status: 'blocked', fromE164: number.e164 });
+  });
+});

@@ -124,6 +124,9 @@ async function connectIfAllowed(event: TelnyxEvent, now: Date, noteCall: (id: st
     const hangUpOnly = (reason: string) => ({ action: 'hung_up', reason, callId: call.id }) as const;
     if (call.direction !== 'outbound' || call.status !== 'authorized') return hangUpOnly('not_authorized');
     if (call.userId !== claims.userId || call.toE164 !== claims.toE164 || !call.leadId) return hangUpOnly('token_mismatch');
+    // The caller ID is bound both ways: a token that names a number must match the row, and a row that
+    // holds a chosen number needs a token that names it. Only a call with no choice falls to the country rule.
+    if ((claims.fromE164 ?? null) !== (call.fromE164 ?? null)) return hangUpOnly('token_mismatch');
 
     const user = await prisma.user.findFirst({
       where: { id: claims.userId, tenantId: claims.tenantId, isActive: true },
@@ -147,7 +150,19 @@ async function connectIfAllowed(event: TelnyxEvent, now: Date, noteCall: (id: st
       return refuse('gate', [...decision.reasons, ...(decision.dryRun ? ['dry_run'] : [])]);
     }
 
-    const fromE164 = await pickCallerId(claims.tenantId, decision.numberCountry);
+    // A chosen caller ID must still be one of the company's active outbound numbers; otherwise this call
+    // is refused rather than silently placed from a different number.
+    let fromE164: string | null;
+    if (claims.fromE164) {
+      const chosen = await prisma.telephonyNumber.findFirst({
+        where: { tenantId: claims.tenantId, e164: claims.fromE164, isActive: true, purpose: { in: ['outbound', 'both'] } },
+        select: { e164: true },
+      });
+      if (!chosen) return refuse('caller_id_unavailable');
+      fromE164 = chosen.e164;
+    } else {
+      fromE164 = await pickCallerId(claims.tenantId, decision.numberCountry);
+    }
 
     // The claim: only one webhook can move this row out of `authorized`.
     const claimed = await prisma.call.updateMany({

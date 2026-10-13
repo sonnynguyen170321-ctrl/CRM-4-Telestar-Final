@@ -97,12 +97,11 @@ describe('dialer status store', () => {
 describe('the combined call screen is wired both ways', () => {
   const read = (...p: string[]) => readFileSync(join(process.cwd(), ...p), 'utf8');
 
-  it('the softphone offers the phone QR and "log a call I made on my phone"', () => {
-    const softphone = read('components', 'dialer', 'Softphone.tsx');
-    expect(softphone).toContain('PhoneQrBlock');
-    expect(softphone).toContain('Or call from your phone');
-    expect(softphone).toContain('Log a call I made on my phone');
-    expect(softphone).toContain('Call from CRM');
+  it('the docked dialer hands over to the drawer panel (QR, log a call made on the phone) for the rep’s own phone', () => {
+    const dock = read('components', 'dialer', 'DockedDialer.tsx');
+    expect(dock).toContain('Use my own phone');
+    expect(dock).toContain('OWN_PHONE_EVENT');
+    expect(read('components', 'dialer', 'PhoneCallPanel.tsx')).toContain('PhoneQrBlock');
   });
 
   it('the phone panel offers the way back, only when given the handler', () => {
@@ -114,8 +113,9 @@ describe('the combined call screen is wired both ways', () => {
   it('the drawer waits for the status, routes on it, and switches both ways', () => {
     const drawer = read('components', 'LeadDetailPanel.tsx');
     expect(drawer).toContain('dialerStatus.resolve()');
-    expect(drawer).toContain('dialerStatus: openStatus');
-    expect(drawer).toContain('onOwnPhone={() => setOwnPhone(true)}');
+    expect(drawer).toContain('dialerStatus: answer');
+    expect(drawer).toContain('dialerDock.open(');
+    expect(drawer).toContain('OWN_PHONE_EVENT');
     expect(drawer).toContain('onCallFromCrm=');
     expect(drawer).not.toContain('useDialerEnabled');
   });
