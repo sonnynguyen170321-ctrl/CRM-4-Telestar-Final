@@ -337,16 +337,16 @@ routes:
     guards: []
   - path: app/api/email/outbound/[id]/cancel/route.ts
     methods: [POST]
-    guards:
-      - canAccessLead (via lib/email/composedSend.ts)
+    guards: []
+    reason: Author only. lib/email/composedSend.ts loadComposed reads the message inside the session tenant and returns it only when composedById is the session user and it is not a sequence message; anyone else, a manager included, gets a 404.
   - path: app/api/email/outbound/[id]/schedule/route.ts
     methods: [POST]
-    guards:
-      - canAccessLead (via lib/email/composedSend.ts)
+    guards: []
+    reason: Author only. lib/email/composedSend.ts loadComposed reads the message inside the session tenant and returns it only when composedById is the session user and it is not a sequence message; anyone else, a manager included, gets a 404.
   - path: app/api/email/outbound/[id]/status/route.ts
     methods: [GET]
-    guards:
-      - canAccessLead (via lib/email/composedSend.ts)
+    guards: []
+    reason: Author only. lib/email/composedSend.ts loadComposed reads the message inside the session tenant and returns it only when composedById is the session user and it is not a sequence message; anyone else, a manager included, gets a 404.
   - path: app/api/email/preflight/route.ts
     methods: [POST]
     guards:
