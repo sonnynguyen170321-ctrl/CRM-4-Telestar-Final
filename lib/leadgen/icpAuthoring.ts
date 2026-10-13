@@ -23,6 +23,8 @@ export class IcpAuthoringError extends Error {
       | "not_found"
       | "draft_conflict"
       | "published_immutable"
+      | "not_a_draft"
+      | "version_archived"
       | "simplification_required"
       | "invalid_rules"
       | "review_pending"
@@ -33,6 +35,29 @@ export class IcpAuthoringError extends Error {
     super(message);
     this.name = "IcpAuthoringError";
   }
+}
+
+/**
+ * Why a version cannot be edited or published as a draft. A version in the wrong state still exists, so
+ * the answer is a 409 the editor can show, never a 404.
+ */
+export function notADraftError(status: string): IcpAuthoringError {
+  if (status === "pending_review") {
+    return new IcpAuthoringError(
+      "review_pending",
+      "This version is waiting for review and cannot be edited. Withdraw it or wait for the decision.",
+    );
+  }
+  if (status === "archived") {
+    return new IcpAuthoringError(
+      "not_a_draft",
+      "This version was replaced by a newer version and can no longer be edited. Reload to open the current one.",
+    );
+  }
+  return new IcpAuthoringError(
+    "published_immutable",
+    "Published ICP versions cannot be edited. Use Edit to start a new draft from this one.",
+  );
 }
 
 export function validateManagerRules(rulesJson: unknown, requireConstraint = false) {
@@ -245,6 +270,12 @@ export async function cloneIcpVersionAsDraft(input: {
   });
   if (!source) throw new IcpAuthoringError("not_found", "ICP version not found");
   if (source.status === "draft") return source;
+  if (source.status === "archived") {
+    throw new IcpAuthoringError(
+      "version_archived",
+      "This version was replaced by a newer one. Reload to edit the current version.",
+    );
+  }
 
   const existingDraft = await prisma.icpVersion.findFirst({
     where: {
@@ -318,18 +349,7 @@ export async function saveIcpDraft(input: {
     select: { id: true, status: true },
   });
   if (!current) throw new IcpAuthoringError("not_found", "ICP draft not found");
-  if (current.status === "pending_review") {
-    throw new IcpAuthoringError(
-      "review_pending",
-      "This version is waiting for review and cannot be edited. Withdraw it or wait for the decision.",
-    );
-  }
-  if (current.status !== "draft") {
-    throw new IcpAuthoringError(
-      "published_immutable",
-      "Published ICP versions cannot be edited",
-    );
-  }
+  if (current.status !== "draft") throw notADraftError(current.status);
 
   const result = await prisma.icpVersion.updateMany({
     where: {
@@ -370,7 +390,7 @@ export async function publishIcpDraft(input: {
   if (!current) throw new IcpAuthoringError("not_found", "ICP draft not found");
   if (current.status === "published") return current;
   if (current.status !== "draft") {
-    throw new IcpAuthoringError("published_immutable", "Only drafts can be published");
+    throw notADraftError(current.status);
   }
   const simplificationNotes = managerSimplificationNotes(current.rulesJson);
   if (simplificationNotes.length) {

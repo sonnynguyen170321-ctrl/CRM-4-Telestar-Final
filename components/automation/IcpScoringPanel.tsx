@@ -76,8 +76,9 @@ export function IcpScoringPanel() {
   const [createCampaignId, setCreateCampaignId] = useState('');
   const [summary, setSummary] = useState<Summary | null>(null);
 
+  // `loading` starts true and only covers the first load: a reload after a save or a stale-version
+  // error must not unmount the editor (and the unsaved edits and open tab inside it).
   const load = useCallback(async (preferred?: string) => {
-    setLoading(true);
     try {
       const [library, campaignData, reviews] = await Promise.all([
         icpApi.list(),

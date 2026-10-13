@@ -8,6 +8,7 @@ import { IcpRuleEditor } from '@/components/icp/IcpRuleEditor';
 import {
   currentVersionOf,
   icpApi,
+  isStaleIcpError,
   ownerLabel,
   type IcpProfile,
   type PublishOutcome,
@@ -61,6 +62,8 @@ export function IcpEditorCard({
       showToast(success, 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Request failed', 'error');
+      // The editor was showing a version the server has since moved on from: show the current one.
+      if (isStaleIcpError(error)) await onChanged();
     } finally {
       setBusy('');
     }

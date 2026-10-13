@@ -9,7 +9,7 @@ import { getVisibleCampaignIds } from "@/lib/auth";
 import { requireTenantId } from "@/lib/api/tenant";
 import { logAdminAudit } from "@/lib/audit";
 import { invalidateList } from "@/lib/cache";
-import { canAttachProfile, isScoringStaff } from "@/lib/leadgen/icpAccess";
+import { canAttachProfile, canViewProfile, isScoringStaff } from "@/lib/leadgen/icpAccess";
 import { assignCampaignIcp } from "@/lib/leadgen/icpAuthoring";
 import { prisma } from "@/lib/prisma";
 
@@ -126,8 +126,15 @@ export async function PATCH(
         { status: 409 },
       );
     }
-    if (!(await canAttachProfile(user, target.icpProfile))) {
+    // Missing and invisible look the same; an ICP the caller can see but may not attach says why.
+    if (!(await canViewProfile(user, target.icpProfile))) {
       return NextResponse.json({ error: "ICP version not found" }, { status: 404 });
+    }
+    if (!(await canAttachProfile(user, target.icpProfile))) {
+      return NextResponse.json(
+        { error: "Forbidden: you cannot attach this ICP to a campaign", code: "icp_not_attachable" },
+        { status: 403 },
+      );
     }
   }
 

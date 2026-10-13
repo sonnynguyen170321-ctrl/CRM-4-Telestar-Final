@@ -39,9 +39,25 @@ export type PublishOutcome = {
   campaigns: Array<{ id: string; name: string }>;
 };
 
+/** A failed ICP call: the server's sentence plus its status, so a screen can tell "stale" from "broken". */
+export class IcpApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code?: string,
+  ) {
+    super(message);
+    this.name = 'IcpApiError';
+  }
+}
+
+/** 404 (gone) and 409 (wrong state) both mean the screen is showing an out-of-date version. */
+export const isStaleIcpError = (error: unknown): boolean =>
+  error instanceof IcpApiError && (error.status === 404 || error.status === 409);
+
 export async function readJson<T>(response: Response): Promise<T> {
-  const data = (await response.json().catch(() => ({}))) as T & { error?: string };
-  if (!response.ok) throw new Error(data.error || 'Request failed');
+  const data = (await response.json().catch(() => ({}))) as T & { error?: string; code?: string };
+  if (!response.ok) throw new IcpApiError(data.error || 'Request failed', response.status, data.code);
   return data;
 }
 
