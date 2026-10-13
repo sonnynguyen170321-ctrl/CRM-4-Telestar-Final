@@ -7,6 +7,8 @@ import { nextBusinessDay } from '@/lib/dates/businessDays';
 import { businessTimezoneFor } from '@/lib/dates/businessTimezone';
 import { parseBody } from '@/lib/validation/core';
 import { updateTaskSchema } from '@/lib/validation/schemas';
+import { attachEmailStepInfo, SENT_OUTSIDE_OUTCOME } from '@/lib/sequences/autoSendState';
+import { cancelAutoSendJob, evaluateAutoStep, isAutomaticEmailTask, moveAutoSendJob, staleLockCutoff } from '@/lib/sequences/autoSendGuard';
 
 export async function GET(
   _req: NextRequest,
@@ -22,7 +24,8 @@ export async function GET(
   if (!(await canAccessUser(user, task.userId)) && !(await canAccessLead(user, task.lead))) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
-  return NextResponse.json(task);
+  const [withStep] = await attachEmailStepInfo([task]);
+  return NextResponse.json(withStep);
 }
 
 export async function PUT(
@@ -47,16 +50,37 @@ export async function PUT(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  // An email the CRM sends itself is not an errand to tick off. Complete is refused until the send
+  // is confirmed (or the rep says they sent it elsewhere), and neither action may touch a message
+  // that is already with the mail worker (lib/sequences/autoSendGuard.ts).
+  let automatic = false;
+  if (body.status === 'completed' || body.status === 'skipped') {
+    const verdict = await evaluateAutoStep(task, body.status === 'completed' ? 'complete' : 'skip', {
+      sentOutsideCrm: body.sentOutsideCrm,
+    });
+    if (verdict.refusal) {
+      return NextResponse.json({ error: verdict.refusal.error, code: verdict.refusal.code }, { status: verdict.refusal.status });
+    }
+    automatic = verdict.automatic;
+  }
+  const sentOutside = automatic && body.status === 'completed';
+
   let updated;
   if (body.status === 'completed' || body.status === 'skipped') {
     const updateResult = await prisma.task.updateMany({
-      where: { id, status: 'pending' },
+      where: {
+        id,
+        status: 'pending',
+        // An automatic step is also claimed against the sequence worker's lock, so a send that
+        // started between the check above and here is not raced.
+        ...(automatic ? { OR: [{ lockedAt: null }, { lockedAt: { lt: staleLockCutoff() } }] } : {}),
+      },
       data: {
         status: body.status,
         completedAt: body.status === 'completed' ? new Date() : null,
         ...(body.dueDate !== undefined && { dueDate: body.dueDate }),
         ...(body.notes !== undefined && { notes: body.notes }),
-        ...(body.outcome !== undefined && { outcome: body.outcome }),
+        ...(sentOutside ? { outcome: SENT_OUTSIDE_OUTCOME } : body.outcome !== undefined ? { outcome: body.outcome } : {}),
       },
     });
 
@@ -65,8 +89,17 @@ export async function PUT(
       if (!checkTask) {
         return NextResponse.json({ error: 'Not found' }, { status: 404 });
       }
+      if (automatic && checkTask.status === 'pending') {
+        return NextResponse.json(
+          { error: 'This email is already with the mail worker. Wait for it to be sent or to fail.', code: 'send_in_flight' },
+          { status: 409 }
+        );
+      }
       return NextResponse.json({ error: 'Task is already completed or skipped' }, { status: 409 });
     }
+
+    // The task is closed, so the queued send has no business running: take it out of the queue.
+    if (automatic) await cancelAutoSendJob(task);
 
     updated = await prisma.task.findUnique({
       where: { id },
@@ -82,6 +115,10 @@ export async function PUT(
       },
       include: { lead: true },
     });
+    // A new date for an email the CRM sends itself moves its queued send too.
+    if (body.dueDate !== undefined && task.status === 'pending' && (await isAutomaticEmailTask(task))) {
+      await moveAutoSendJob(task, body.dueDate);
+    }
   }
 
   // Auto-log activity when task is completed or skipped
@@ -106,11 +143,14 @@ export async function PUT(
         description:
           body.status === 'skipped'
             ? `Skipped task: "${task.title}"`
+            : sentOutside
+            ? `Sent ${task.type} outside the CRM: "${task.title}"`
             : `Completed ${task.type} task: "${task.title}"`,
         metadata: {
-          outcome: body.outcome,
+          outcome: sentOutside ? SENT_OUTSIDE_OUTCOME : body.outcome,
           notes: body.notes,
           taskTitle: task.title,
+          ...(sentOutside ? { sentOutsideCrm: true } : {}),
         },
       },
     });

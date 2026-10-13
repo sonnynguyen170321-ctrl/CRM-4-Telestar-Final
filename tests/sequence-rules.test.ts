@@ -582,7 +582,8 @@ describe('the send-time check reads the task\'s own sequence', () => {
 
         const result = await handleExecuteTask({ taskId: task.id, expectedEnrollmentId: stoppedEnrollment });
 
-        expect(result).toMatchObject({ status: 'skipped', reason: 'sequence_inactive' });
+        // Held and looked at again (6 hours), not closed: a sequence switched back on picks the step up.
+        expect(result).toMatchObject({ status: 'deferred', reason: 'sequence_inactive' });
       });
     } finally {
       vi.useRealTimers();

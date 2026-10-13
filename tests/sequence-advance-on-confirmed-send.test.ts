@@ -305,8 +305,12 @@ describe.skipIf(!hasDb)('a cadence step settles on the provider outcome', () => 
     const settledTask = await readTask(task.id);
     const after = await readEnrollment(enrollment.id);
     expect((await readMessage(message.id)).status).toBe(OUTBOUND_STATUS.FAILED);
-    expect(settledTask.status, 'a refused send leaves its step open').toBe('pending');
-    expect(settledTask.lockedAt, 'and unlocked, so a redrive can claim it').toBeNull();
+    // Closed as skipped with the reason - the same terminal state a pause leaves - so it is not an
+    // overdue task with a Complete button that would advance the cadence past an email nobody got.
+    expect(settledTask.status, 'a refused send closes its step').toBe('skipped');
+    expect(settledTask.outcome).toBe('send_failed');
+    expect(settledTask.notes).toBe('code:rejected');
+    expect(settledTask.lockedAt, 'and unlocked').toBeNull();
     expect(after.status).toBe('paused');
     expect(after.pausedReason).toBe('send_failed');
     expect(
@@ -569,7 +573,9 @@ describe.skipIf(!hasDb)('a refused message stays reachable by a repair sweep', (
 
       const after = await readEnrollment(enrollment.id);
       expect((await readMessage(message.id)).status).toBe('permanently_failed');
-      expect((await readTask(task.id)).status).toBe('pending');
+      const settled = await readTask(task.id);
+      expect(settled.status).toBe('skipped');
+      expect(settled.outcome).toBe('send_failed');
       expect(after.status).toBe('paused');
       expect(after.pausedReason).toBe('send_failed');
       expect(after.currentStep).toBe(1);

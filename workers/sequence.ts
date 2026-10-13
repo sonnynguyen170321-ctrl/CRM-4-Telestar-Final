@@ -29,6 +29,11 @@ import { deterministicOffset, buildJitterSeed } from '@/lib/automation/jitter';
 import { enqueueReschedule } from '@/lib/bullmq/enqueue';
 import { planStepThread } from '@/lib/sequences/threading';
 import { runNowRequested } from '@/lib/sequences/runNow';
+import { SEND_BLOCKED_OUTCOME } from '@/lib/sequences/autoSendState';
+import {
+  RECHECK_CAP_MS, classifyBlock, heldSinceNote, parseHeldSince, reasonCodeNote, recheckDelayMs,
+} from '@/lib/sequences/blockPolicy';
+import type { EligibilityResult } from '@/lib/automation/types';
 
 const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
 
@@ -41,6 +46,36 @@ const SYSTEM_USER_ID = '00000000-0000-0000-0000-000000000000';
  */
 /** Holds rechecked hourly until someone acts; see the deferral audit below. */
 const SENDER_GAP_HOLDS = new Set(['no_sequence_sender', 'sequence_senders_disconnected']);
+
+/**
+ * Apply the block policy (lib/sequences/blockPolicy.ts) to an eligibility result.
+ *
+ * Returns the result to act on: a reversible bar becomes a DEFER with a backoff (and is turned into
+ * a closing bar once it has waited the cap); a closing bar stays BLOCK and the caller closes the
+ * task; a hold stays as it is. The moment a recheck began is kept on the pending task's note.
+ */
+async function applyBlockPolicy(
+  result: EligibilityResult,
+  task: { id: string; notes: string | null },
+  now: Date
+): Promise<{ result: EligibilityResult; close: boolean }> {
+  if (result.decision === 'TERMINATE') return { result, close: true };
+  if (result.decision !== 'BLOCK') return { result, close: false };
+  const kind = classifyBlock(result.reason);
+  if (kind === 'hold') return { result, close: false };
+  if (kind === 'closing') return { result, close: true };
+
+  const since = parseHeldSince(task.notes) ?? now;
+  const waited = now.getTime() - since.getTime();
+  if (waited >= RECHECK_CAP_MS) return { result, close: true };
+  if (!parseHeldSince(task.notes)) {
+    await prisma.task.updateMany({ where: { id: task.id, status: 'pending' }, data: { notes: heldSinceNote(since) } });
+  }
+  return {
+    result: { decision: 'DEFER', reason: result.reason, nextActionAt: new Date(now.getTime() + recheckDelayMs(waited)) },
+    close: false,
+  };
+}
 
 /** The task is due the moment it was created: how an enrollment-time immediate step is scheduled. */
 const ENROLLMENT_SCHEDULE_TOLERANCE_MS = 60_000;
@@ -345,7 +380,8 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     sendsImmediatelyOnEnroll(taskSequence, stepInfo) && scheduledAtEnrollment(task.createdAt, task.dueDate);
 
   // Evaluate central eligibility decision (spec §11–13)
-  const eligibility = evaluateAutomationEligibility({
+  const eligibilityNow = new Date();
+  const rawEligibility = evaluateAutomationEligibility({
     tenantId: task.tenantId,
     enrollment,
     lead: task.lead,
@@ -358,9 +394,10 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     account,
     isSuppressed: Boolean(suppressed),
     senderGap,
-    now: new Date(),
+    now: eligibilityNow,
     ignoreSchedule: runNow || immediateStep,
   });
+  const { result: eligibility, close: closeTask } = await applyBlockPolicy(rawEligibility, task, eligibilityNow);
 
   // Handle decisions
   if (eligibility.decision === 'DEFER') {
@@ -401,7 +438,8 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     // a row on every recheck filled lead timelines with one line an hour. Only the first hold with
     // that reason is recorded — the enrollment still carries it (holdReason) for the table.
     const repeatedSenderHold =
-      SENDER_GAP_HOLDS.has(eligibility.reason) && enrollment?.holdReason === eligibility.reason;
+      (SENDER_GAP_HOLDS.has(eligibility.reason) || classifyBlock(rawEligibility.reason) === 'recheck') &&
+      enrollment?.holdReason === eligibility.reason;
     if (task.lead.assignedToId && !repeatedSenderHold) {
       await prisma.activity.create({
         data: {
@@ -456,6 +494,20 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
 
   if (eligibility.decision !== 'ALLOW') {
     await recordHold(enrollment?.id, eligibility.reason);
+    // Barred for good (suppressed, bounced, archived, cadence moved on, lead won or lost): this job is
+    // spent and nothing will send the step, so the task is closed with the reason rather than left
+    // pending - overdue forever, and completable into an advance with no send behind it.
+    if (closeTask) {
+      await prisma.task.updateMany({
+        where: { id: task.id, status: 'pending', lockedAt: null },
+        data: {
+          status: 'skipped',
+          runNowRequestedAt: null,
+          outcome: SEND_BLOCKED_OUTCOME,
+          notes: reasonCodeNote(eligibility.reason),
+        },
+      });
+    }
     return { status: 'skipped', reason: eligibility.reason };
   }
 
@@ -469,7 +521,8 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
   // "lock" excluded nobody and the send, the counters and the advancement could all happen twice.
   const lock = await prisma.task.updateMany({
     where: { id: task.id, status: 'pending', lockedAt: null },
-    data: { lockedAt: new Date() },
+    // A recheck's start note is spent once the step is going out.
+    data: { lockedAt: new Date(), ...(parseHeldSince(task.notes) ? { notes: null } : {}) },
   });
   if (lock.count !== 1) return { status: 'ignored', reason: 'concurrency_lock_failed' };
 

@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma';
 import { canAccessUser, canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { advanceSequence } from '@/lib/sequences/engine';
+import { SENT_OUTSIDE_OUTCOME } from '@/lib/sequences/autoSendState';
+import { cancelAutoSendJob, evaluateAutoStep, isAutomaticEmailTask, moveAutoSendJob, staleLockCutoff } from '@/lib/sequences/autoSendGuard';
 
 /**
  * One action applied to many tasks, for both the HTTP route and the chat assistant.
@@ -47,11 +49,13 @@ export interface BulkTaskActionInput {
   userId?: string;
   note?: string | null;
   outcome?: string | null;
+  /** complete: the rep sent the automatic emails from outside the CRM (lib/sequences/autoSendGuard.ts). */
+  sentOutsideCrm?: boolean;
 }
 
 export interface BulkTaskActionResult {
   updated: number;
-  failed: { taskId: string; reason: string }[];
+  failed: { taskId: string; reason: string; code?: string }[];
   /**
    * Set when the *reassignment target* failed `canAccessUser`. The caller decides the shape of the
    * refusal: the route answers 403, the tool answers prose. Nothing is mutated when this is set.
@@ -101,7 +105,7 @@ export async function applyBulkTaskAction(
   }
 
   const tasks = await loadTasks(input.taskIds);
-  const failed: { taskId: string; reason: string }[] = [];
+  const failed: { taskId: string; reason: string; code?: string }[] = [];
   const allowed: TaskWithLead[] = [];
 
   for (const taskId of input.taskIds) {
@@ -163,19 +167,34 @@ export async function applyBulkTaskAction(
         continue;
       }
 
+      // An email the CRM sends itself is completed by the send, not by a click. Refused here
+      // exactly as in PUT /api/tasks/:id, unless the rep says they sent it outside the CRM.
+      const verdict = await evaluateAutoStep(task, input.action, { sentOutsideCrm: input.sentOutsideCrm });
+      if (verdict.refusal) {
+        failed.push({ taskId: task.id, reason: verdict.refusal.error, code: verdict.refusal.code });
+        continue;
+      }
+      const automatic = verdict.automatic;
+      const sentOutside = automatic && status === 'completed';
+
       const result = await prisma.task.updateMany({
-        where: { id: task.id, status: 'pending' },
+        where: {
+          id: task.id,
+          status: 'pending',
+          ...(automatic ? { OR: [{ lockedAt: null }, { lockedAt: { lt: staleLockCutoff() } }] } : {}),
+        },
         data: {
           status,
           completedAt: status === 'completed' ? new Date() : null,
           ...(input.note ? { notes: input.note } : {}),
-          ...(input.outcome ? { outcome: input.outcome } : {}),
+          ...(sentOutside ? { outcome: SENT_OUTSIDE_OUTCOME } : input.outcome ? { outcome: input.outcome } : {}),
         },
       });
       if (result.count === 0) {
         failed.push({ taskId: task.id, reason: 'Already completed or skipped' });
         continue;
       }
+      if (automatic) await cancelAutoSendJob(task);
 
       await prisma.activity.create({
         data: {
@@ -188,8 +207,16 @@ export async function applyBulkTaskAction(
           description:
             status === 'skipped'
               ? `Skipped task (bulk): "${task.title}"`
+              : sentOutside
+              ? `Sent ${task.type} outside the CRM (bulk): "${task.title}"`
               : `Completed ${task.type} task (bulk): "${task.title}"`,
-          metadata: { outcome: input.outcome, notes: input.note, taskTitle: task.title, bulk: true },
+          metadata: {
+            outcome: sentOutside ? SENT_OUTSIDE_OUTCOME : input.outcome,
+            notes: input.note,
+            taskTitle: task.title,
+            bulk: true,
+            ...(sentOutside ? { sentOutsideCrm: true } : {}),
+          },
         },
       });
 
@@ -217,6 +244,7 @@ export async function applyBulkTaskAction(
         failed.push({ taskId: task.id, reason: 'Only pending tasks can be rescheduled' });
         continue;
       }
+      if (input.dueDate && (await isAutomaticEmailTask(task))) await moveAutoSendJob(task, input.dueDate);
       // No Activity here: `ActivityType` has no reschedule/reassign member, and the
       // Prisma audit extension already records the update in `AuditLog`. Inventing an
       // activity type would corrupt the leaderboard, which counts outreach activities.

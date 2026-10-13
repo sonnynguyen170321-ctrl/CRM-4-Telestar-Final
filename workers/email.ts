@@ -64,7 +64,7 @@ async function deferralPolicyFor(sequenceId: string | null) {
 import { classifyRecipientFailure } from '@/lib/email/recipientFailure';
 import { classifyProviderLimit } from '@/lib/email/providerLimit';
 import { blockIfBounced, findSuppression, suppressRecipient } from '@/lib/email/suppress';
-import { finalizeSequenceStep, releaseSequenceStep } from '@/lib/sequences/stepOutcome';
+import { deferSequenceStep, finalizeSequenceStep, releaseSequenceStep } from '@/lib/sequences/stepOutcome';
 import { evaluateSendBlock } from '@/lib/email/sendGate';
 // Re-exported: the worker's tests, and the reconciliation test, import the gate from here.
 export { evaluateSendBlock };
@@ -505,6 +505,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
       },
     });
     await recordSendHold(payload.sequenceStepRef, existing.tenantId, 'mailbox_hourly_cap');
+    await deferSequenceStep(payload.sequenceStepRef, resumeAt);
     await enqueueReschedule(JobType.EMAIL_SEND, payload, {
       tenantId: existing.tenantId,
       delay: Math.max(0, resumeAt.getTime() - Date.now()),
@@ -582,6 +583,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
       },
     });
     await recordSendHold(payload.sequenceStepRef, existing.tenantId, 'daily_quota_exhausted');
+    await deferSequenceStep(payload.sequenceStepRef, resumeAt);
     await enqueueReschedule(
       JobType.EMAIL_SEND,
       payload,
@@ -834,6 +836,7 @@ async function handleEmailSend(payload: EmailSendPayload) {
         existing.tenantId,
         providerLimit === 'daily' ? 'provider_daily_limit' : 'provider_hourly_limit'
       );
+      await deferSequenceStep(payload.sequenceStepRef, resumeAt);
       // This attempt's slot goes back; it was not spent.
       await releaseQuota(existing.tenantId, accountId);
       // A daily refusal means the provider has stopped this mailbox for the day, whatever our own

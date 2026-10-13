@@ -8,6 +8,7 @@ import { handleApiError } from '@/lib/api/errors';
 import { cacheGet, cacheSet, listKey, invalidateList } from '@/lib/cache';
 import { INVALID_SEND_WINDOW_MESSAGE, findInvalidSendWindows } from '@/lib/sequences/permissions';
 import { canReplyInThread } from '@/lib/sequences/threadingRules';
+import { resolveAutoComplete } from '@/lib/sequences/steps';
 import { canShare, ownedOrSharedWhere, unusableTemplateIds, withCanManage } from '@/lib/visibility';
 
 const CACHE_TTL = 60;
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
   const orderedSteps = (body.steps ?? []).map((step, idx) => ({
     order: step.order ?? idx + 1,
     channel: step.channel,
-    autoComplete: step.autoComplete ?? false,
+    autoComplete: resolveAutoComplete(step),
   }));
 
   try {
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
             delayHours: step.delayHours ?? 0,
             templateId: step.templateId ?? null,
             instructions: step.instructions,
-            autoComplete: step.autoComplete ?? false,
+            autoComplete: resolveAutoComplete(step),
             sendWindowStartMinutes: step.sendWindowStartMinutes ?? null,
             sendWindowEndMinutes: step.sendWindowEndMinutes ?? null,
             // Only an email step with an earlier email before it can be a reply.

@@ -582,14 +582,14 @@ describe('interruptions — a queued follow-up refuses on its own', () => {
     const lead = await afterFirstEmail();
     lead.emailInvalid = true;
 
-    noSecondContact(await executeStep(2), { status: 'skipped', reason: 'lead_email_invalid' });
+    noSecondContact(await executeStep(2), { status: 'deferred', reason: 'lead_email_invalid' });
   });
 
   it('stops when a suppression entry lands after the follow-up was scheduled', async () => {
     await afterFirstEmail();
     store.suppression = { id: 'sup-1', reason: 'unsubscribe' };
 
-    noSecondContact(await executeStep(2), { status: 'skipped', reason: 'recipient_suppressed' });
+    noSecondContact(await executeStep(2), { status: 'deferred', reason: 'recipient_suppressed' });
   });
 
   it('stops when the SDR takes the conversation over and the cadence is paused', async () => {
@@ -615,7 +615,9 @@ describe('interruptions — a queued follow-up refuses on its own', () => {
     const lead = await afterFirstEmail();
     lead.campaign = { id: 'camp-1', status: 'paused' };
 
-    noSecondContact(await executeStep(2), { status: 'skipped', reason: 'campaign_paused' });
+    // A paused campaign is undone by resuming it, so the step waits and looks again (6 hours) instead
+    // of being closed: closing it would end the cadence for good when the campaign came back.
+    noSecondContact(await executeStep(2), { status: 'deferred', reason: 'campaign_paused' });
   });
 
   it('holds rather than stops when the sequence has no mailbox to send from', async () => {

@@ -20,6 +20,7 @@
     "backfill:campaign-prospects": "node node_modules/tsx/dist/cli.mjs scripts/backfill-campaign-prospects.ts",
     "backfill:bounce-suppressions": "node node_modules/tsx/dist/cli.mjs scripts/backfill-bounce-suppressions.ts",
     "backfill:next-action": "node node_modules/tsx/dist/cli.mjs scripts/backfill-next-action-at.ts",
+    "sequence:autosend": "node node_modules/tsx/dist/cli.mjs scripts/sequence-email-autosend.ts",
     "build": "node scripts/build.cjs",
     "certify:collect": "node scripts/certification/collect-evidence.mjs",
     "certify:dr": "node scripts/certification/dr-drill.mjs",

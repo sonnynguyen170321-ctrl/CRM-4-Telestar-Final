@@ -12,6 +12,7 @@ import { pauseCompanyCadencesSafely } from '@/lib/sequences/companyStop';
 import { parseBody } from '@/lib/validation/core';
 import { updateLeadSchema } from '@/lib/validation/schemas';
 import { onSuppressionOrArchive } from '@/lib/contact-intelligence/events';
+import { attachEmailStepInfo } from '@/lib/sequences/autoSendState';
 
 export async function GET(
   _req: NextRequest,
@@ -112,6 +113,8 @@ export async function GET(
 
   return NextResponse.json({
     ...lead,
+    // Sequence email tasks carry what the CRM is doing with them, so the drawer and timeline can say so.
+    tasks: await attachEmailStepInfo(lead.tasks),
     icpContext: { ...icpContext, ...describeIcpContext(icpContext) },
     icpAssessments: lead.icpAssessments.map(({ rulesSnapshot, ...assessment }) => ({
       ...assessment,

@@ -12,6 +12,8 @@ import { parseBody } from '@/lib/validation/core';
 import { sendEmailSchema } from '@/lib/validation/schemas';
 import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 import { newRequestId } from '@/lib/email/idempotency';
+import { resolveComposerTask } from '@/lib/sequences/composerTask';
+import type { SequenceStepRef } from '@/lib/sequences/stepOutcome';
 
 export async function POST(req: NextRequest) {
   const userOrRes = await requireAuth();
@@ -48,6 +50,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     leadCampaignId = lead.campaignId;
+  }
+
+  // A send that belongs to a sequence task carries the step with it, so the task closes and the
+  // cadence advances once the provider confirms - never on the click (lib/sequences/composerTask.ts).
+  let stepRef: SequenceStepRef | null = null;
+  let stepSequenceId: string | null = null;
+  let stepOrder: number | null = null;
+  if (body.taskId) {
+    const composerTask = await resolveComposerTask(user, { taskId: body.taskId, leadId: body.leadId });
+    if (!composerTask.ok) {
+      return NextResponse.json(
+        { error: composerTask.error, ...(composerTask.code ? { code: composerTask.code } : {}) },
+        { status: composerTask.status }
+      );
+    }
+    if (composerTask.ref && !body.leadId) {
+      return NextResponse.json({ error: 'leadId is required to send for a sequence task' }, { status: 400 });
+    }
+    stepRef = composerTask.ref;
+    stepSequenceId = composerTask.sequenceId;
+    stepOrder = composerTask.stepOrder;
   }
 
   // Suppression gate — check recipient email/domain against suppression entries
@@ -143,6 +166,7 @@ export async function POST(req: NextRequest) {
       subject,
       body: text,
       tenantId,
+      ...(stepRef ? { sequenceId: stepSequenceId, sequenceStepOrder: stepOrder } : {}),
     });
     created = outboundMessage;
 
@@ -154,6 +178,7 @@ export async function POST(req: NextRequest) {
     await enqueueEmailSendWorkflow(
       {
         outboundMessageId: outboundMessage.id,
+        ...(stepRef ? { sequenceStepRef: stepRef } : {}),
         accountId: body.accountId,
         to: body.to,
         subject,

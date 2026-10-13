@@ -551,6 +551,7 @@ routes:
       - tests/email-composer-fixes.test.ts
       - tests/email-send-paused-mailbox.test.ts
       - tests/personalization-lab.test.ts
+      - tests/sequence-email-autosend-send.test.ts
   - path: app/api/health/route.ts
     methods: [GET]
     tests:
@@ -1282,6 +1283,7 @@ routes:
       - e2e/roles/tenant-isolation.spec.ts
       - tests/agent-object-authorization.test.ts
       - tests/email-tracking.test.ts
+      - tests/sequence-email-autosend-tasks.test.ts
       - tests/task-bulk-action.test.ts
   - path: app/api/tasks/[id]/run-now/route.ts
     methods: [POST]
@@ -1294,10 +1296,12 @@ routes:
       - e2e/roles/tenant-isolation.spec.ts
       - tests/agent-object-authorization.test.ts
       - tests/email-tracking.test.ts
+      - tests/sequence-email-autosend-tasks.test.ts
       - tests/task-bulk-action.test.ts
   - path: app/api/tasks/bulk/route.ts
     methods: [POST]
     tests:
+      - tests/sequence-email-autosend-tasks.test.ts
       - tests/task-bulk-action.test.ts
   - path: app/api/tasks/route.ts
     methods: [GET, POST]
@@ -1310,6 +1314,7 @@ routes:
       - e2e/roles/tenant-isolation.spec.ts
       - tests/agent-object-authorization.test.ts
       - tests/email-tracking.test.ts
+      - tests/sequence-email-autosend-tasks.test.ts
       - tests/task-bulk-action.test.ts
   - path: app/api/team/alerts/route.ts
     methods: [GET]

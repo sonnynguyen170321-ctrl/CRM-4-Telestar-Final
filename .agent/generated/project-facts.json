@@ -97,6 +97,7 @@
     "repair:approved-proposals",
     "report:duplicate-leads",
     "seed:telestar-icp",
+    "sequence:autosend",
     "setup:dev",
     "start",
     "sync-enrollments",
@@ -110,5 +111,5 @@
     "worker:healthcheck",
     "worker:start"
   ],
-  "scriptCount": 67
+  "scriptCount": 68
 }

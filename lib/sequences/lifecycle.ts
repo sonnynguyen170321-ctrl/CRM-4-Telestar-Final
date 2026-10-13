@@ -4,6 +4,7 @@ import { normalizePausedReason, type PausedReason } from '@/lib/automation/types
 import { rescheduleSequenceTask } from '@/lib/bullmq/rescheduleSequenceTask';
 import { computeStepDueDateForLead, createTaskForStep } from './engine';
 import { enrollmentStepTaskId } from './identity';
+import { SEND_BLOCKED_OUTCOME, SEND_FAILED_OUTCOME } from './autoSendState';
 import { occupancyKeyFor } from './occupancy';
 
 /**
@@ -316,7 +317,17 @@ async function finishResume(
   if (task.status !== 'completed') {
     await prisma.task.update({
       where: { id: taskId },
-      data: { status: 'pending', completedAt: null, lockedAt: null, dueDate },
+      data: {
+        status: 'pending',
+        completedAt: null,
+        lockedAt: null,
+        dueDate,
+        // A step given back after a refused or barred send starts clean: the failure reason belongs
+        // to the attempt that is over, not to the one this resume begins.
+        ...(task.outcome === SEND_FAILED_OUTCOME || task.outcome === SEND_BLOCKED_OUTCOME
+          ? { outcome: null, notes: null }
+          : {}),
+      },
     });
   }
 

@@ -326,7 +326,9 @@ export default function SequencesPage() {
       channel: newStepChannel,
       delayDays: newStepDelayDays,
       delayHours: newStepDelayHours,
-      instructions: `Log touchpoint details for the ${newStepChannel} outreach.`,
+      // An email step with a template sends itself and logs itself, so it carries no instructions;
+      // the placeholder text used to follow it into every task and timeline entry.
+      instructions: newStepChannel === 'email' ? '' : `Log touchpoint details for the ${newStepChannel} outreach.`,
       templateId: null,
       autoComplete: newStepChannel === 'email',
       // A follow-up email continues the conversation unless someone decides otherwise.
@@ -800,13 +802,19 @@ export default function SequencesPage() {
                             </div>
                             <span className="type-micro text-text-secondary">
                               {step.autoComplete
-                                ? 'Sends automatically — the CRM sends this email when it is due'
-                                : 'Manual — the rep gets a task and sends this email themselves'}
+                                ? 'Sends automatically — the CRM sends this email when it is due and logs it on the lead. Nothing for the rep to complete.'
+                                : 'Manual — the rep gets a task, writes the email in the composer, and the step completes once it is sent.'}
                             </span>
                           </label>
                         ) : (
                           <p className="mt-1.5 type-micro text-text-secondary">
                             Manual — the rep gets a task for this. Completing it starts the next step’s wait.
+                          </p>
+                        )}
+                        {/* A template is what an automatic step sends: offer the switch when it is off. */}
+                        {step.channel === 'email' && !step.autoComplete && step.templateId && (
+                          <p role="status" className="mt-1.5 type-micro text-text-muted">
+                            This step has a template, so the CRM can send it for you. Turn the switch on to stop it being a manual task.
                           </p>
                         )}
                         {/* Armed with nothing to send. The API refuses this on save; saying it
