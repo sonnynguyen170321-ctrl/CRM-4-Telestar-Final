@@ -121,8 +121,9 @@ export async function verifyPeople(
 
   // 2. The rules, then the employer, then the judge on whoever is still standing.
   const employerVerdicts = new Map<string, { verification: 'verified_fit' | 'needs_review' | 'rejected'; reason: string }>();
+  const employerClassification = await loadEmployerClassification(tenantId, context.employer);
   for (const r of reads) {
-    const verdict = await employerVerdictFor(tenantId, context.employer, r.candidate);
+    const verdict = employerVerdictFor(context.employer, employerClassification, r.candidate);
     if (verdict) employerVerdicts.set(r.candidate.id, verdict);
   }
   const decide = (r: Read, judge: Pick<FitJudgement, 'fit' | 'reason' | 'element'> | null): PersonVerdict =>
@@ -222,7 +223,8 @@ async function loadPeopleContext(tenantId: string, runId: string): Promise<Peopl
       personas,
       industries: strings(params?.industries).length > 0 ? strings(params?.industries) : (icpRules?.industry?.targetIndustries ?? []),
       keywords: strings(params?.keywords),
-      geos: strings(params?.geos).length > 0 ? strings(params?.geos) : (icpRules?.geography?.targetCountries ?? []),
+      // The resolved target countries, not what was typed: "Asia" or "Worldwide" is no country list.
+      geos: geo.geoGate ? geo.targetCountries : [],
       excludeKeywords: strings(params?.excludeKeywords),
     },
     employer: employerContextOf(params, runId),
@@ -250,7 +252,7 @@ function employerContextOf(params: (Partial<ResearchBuilderParams> & Record<stri
 }
 
 /** The employer's company verdict from an existing, fresh classification. Never classifies, never fetches. */
-async function employerVerdictFor(tenantId: string, employer: EmployerContext | null, candidate: ClaimedCandidate) {
+async function loadEmployerClassification(tenantId: string, employer: EmployerContext | null) {
   if (!employer) return null;
   try {
     const row = await prisma.researchDomainClassification.findFirst({
@@ -258,9 +260,22 @@ async function employerVerdictFor(tenantId: string, employer: EmployerContext | 
       select: { classificationJson: true },
     });
     const parsed = CompanyClassificationSchema.safeParse(row?.classificationJson);
-    if (!parsed.success) return null;
+    return parsed.success ? parsed.data : null;
+  } catch (error) {
+    console.error('[research] employer classification lookup failed', { error });
+    return null;
+  }
+}
+
+function employerVerdictFor(
+  employer: EmployerContext | null,
+  classification: Awaited<ReturnType<typeof loadEmployerClassification>>,
+  candidate: ClaimedCandidate
+) {
+  if (!employer || !classification) return null;
+  try {
     const result = scoreClassifiedCandidate({
-      classification: parsed.data,
+      classification,
       candidate: { name: candidate.companyName ?? employer.domain, domain: employer.domain },
       rules: employer.rules,
       policy: employer.policy,

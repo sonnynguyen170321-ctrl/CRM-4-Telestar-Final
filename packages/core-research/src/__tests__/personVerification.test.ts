@@ -153,3 +153,23 @@ describe('prompts', () => {
     expect(prompt).toContain('"persona"');
   });
 });
+
+describe('judge geography and grounding window (security review)', () => {
+  const j = { fit: 'no' as const, reason: 'wrong place', element: 'geo' as const };
+  it('a judge "no" on geography never rejects a worldwide run or an unknown location', () => {
+    expect(decidePerson({ ...base, geoGate: false, targetCountries: [], facts: facts({ country: null }), judge: j }).verification).toBe('needs_review');
+    expect(decidePerson({ ...base, facts: facts({ country: null }), judge: j })).toMatchObject({ verification: 'needs_review', reason: 'judge_doubt' });
+  });
+
+  it('a short first passage does not let an older role in passage two count as current', () => {
+    const source = { name: 'Jo Lee', url: null, text: 'Jo Lee … Experience: Chief Pilot at Old Air, 2005 - 2010' };
+    const { facts: f } = groundPerson({ currentTitle: 'Chief Pilot', confidence: 'high', evidence: [{ field: 'title', quote: 'Chief Pilot at Old Air' }] }, source);
+    expect(f?.currentTitle).toBeNull();
+  });
+
+  it('a quote on a dated or "formerly" line is past even when the quote itself carries no marker', () => {
+    const text = 'Jo Lee\nFormerly Director of Maintenance at Old Air\nSingapore';
+    const { facts: f } = groundPerson({ currentTitle: 'Director of Maintenance', confidence: 'high', evidence: [{ field: 'title', quote: 'Director of Maintenance at Old Air' }] }, { name: 'Jo Lee', url: null, text });
+    expect(f?.currentTitle).toBeNull();
+  });
+});

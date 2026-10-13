@@ -117,6 +117,13 @@ UPDATE "Opportunity" SET "contactName" = NULL, "clientOwnerName" = NULL;
 -- scripts/check-sanitize-coverage.mjs when the schema grew from 68 models to 81 — which is the
 -- point of deriving the list rather than maintaining it.
 UPDATE "ResearchCandidate" SET "emailGuess" = NULL, "emailStatus" = NULL, phone = NULL, "linkedinUrl" = NULL;
+-- A contact candidate is a person: name, role, employer, place, the profile text it was read from (sourceJson
+-- snippet), the verification facts quoted from it and the evidence ledger all re-identify them. Companies are
+-- public and keep theirs.
+UPDATE "ResearchCandidate" SET "name" = 'Prospect ' || left(id, 6), "title" = NULL, "companyName" = NULL, "location" = NULL, "country" = NULL,
+  "sourceJson" = '{}'::jsonb, "verificationJson" = NULL, "insightJson" = NULL, "matchHintsJson" = '[]'::jsonb WHERE "kind" = 'contact';
+UPDATE "ResearchEvidence" SET "sourceTitle" = NULL, "sourceSnippet" = NULL, "sourceUrl" = NULL
+  WHERE "candidateId" IN (SELECT id FROM "ResearchCandidate" WHERE "kind" = 'contact');
 UPDATE "ResearchProspect"  SET "displayName" = 'Prospect ' || left(id, 6), "linkedinUrl" = NULL;
 
 -- The normalised form of the name scrubbed above; leaving it re-identifies the row.

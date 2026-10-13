@@ -26,7 +26,8 @@ export const MAX_PERSON_JUDGE_PER_CALL = 10;
 /** Profile text shown per person. The head carries the current role; the rest is history. */
 export const PERSON_TEXT_CHARS = 1800;
 /** Current-role claims must be quoted from the head of the profile text. */
-const CURRENT_CLAIM_WINDOW = 900;
+const CURRENT_CLAIM_WINDOW = 700;
+const PASSAGE_JOINER = " … ";
 const MIN_QUOTE = 4;
 const MAX_QUOTE = 300;
 
@@ -133,7 +134,10 @@ export function groundPerson(raw: unknown, source: PersonSource): { facts: Perso
   const model = parsed.data;
   const dropped: DroppedPersonClaim[] = [];
   const text = source.text.slice(0, PERSON_TEXT_CHARS);
-  const headLimit = squash(text.slice(0, CURRENT_CLAIM_WINDOW)).length;
+  // The head is the first PASSAGE (the same window personProfile reads), not the first N characters of the
+  // joined text: a short first passage would otherwise let an older role in passage two count as current.
+  const headLimit = squash((text.split(PASSAGE_JOINER)[0] ?? "").slice(0, CURRENT_CLAIM_WINDOW)).length;
+  const lines = text.split(PASSAGE_JOINER).flatMap((passage) => passage.split(String.fromCharCode(10)));
 
   const evidence: PersonEvidenceItem[] = [];
   const positions = new Map<PersonFields, { quote: string; atHead: boolean; dated: boolean }[]>();
@@ -148,7 +152,10 @@ export function groundPerson(raw: unknown, source: PersonSource): { facts: Perso
     }
     evidence.push({ field, quote });
     const list_ = positions.get(field) ?? [];
-    list_.push({ quote, atHead: at < headLimit, dated: YEAR_RANGE.test(quote) || PAST_MARKER.test(quote) });
+    // The line the quote sits on carries the date or the "formerly" too, not only the quote itself.
+    const needle = squash(quote);
+    const line = lines.find((l) => squash(l).includes(needle)) ?? quote;
+    list_.push({ quote, atHead: at < headLimit, dated: YEAR_RANGE.test(line) || PAST_MARKER.test(line) });
     positions.set(field, list_);
   }
 
@@ -238,6 +245,9 @@ export function decidePerson(input: PersonDecisionInput): PersonVerdict {
   if (geo === "outside") return reject("person_outside_target");
   if (input.employer?.verification === "rejected") return reject(`employer_not_icp:${input.employer.reason}`);
   if (judge?.fit === "no") {
+    // The judge cannot reject on geography the rules could not settle: a worldwide or region-only run has no
+    // country list to be outside of, and an unknown location is a question, not an answer.
+    if (judge.element === "geo" && (!input.geoGate || geo !== "match")) return review("judge_doubt");
     return judge.element && !lowConfidence ? { ...shape, verification: "rejected", reason: `not_icp_fit:${judge.element}`, fitScore: SCORE.rejected } : review("judge_doubt");
   }
   if (geo === "unknown") return review("location_unknown");

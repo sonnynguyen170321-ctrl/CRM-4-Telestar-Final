@@ -58,6 +58,11 @@ async function main() {
     console.error('Usage: research-people-eval.ts --tenant <tenantId> [--run <runId>] [--json]');
     process.exit(2);
   }
+  const known = await tenantStorage.run({ tenantId: 'system', bypassRls: true }, () => prisma.tenant.findFirst({ where: { id: tenantId }, select: { id: true } }));
+  if (!known) {
+    console.error(`Unknown tenant "${tenantId}": nothing was read.`);
+    process.exit(1);
+  }
   const runId = arg('run');
   const reports = await tenantStorage.run({ tenantId, bypassRls: true }, async () => {
     const runs = await prisma.researchRun.findMany({
