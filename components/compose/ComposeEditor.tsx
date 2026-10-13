@@ -25,7 +25,7 @@ import {
 } from '@/lib/compose/html';
 import { isHtml } from '@/lib/email/sanitize';
 import { INLINE_IMAGE_TYPES, MAX_INLINE_IMAGE_BYTES, normalizeImageUrl, normalizeLinkUrl } from '@/lib/compose/urls';
-import { MERGE_FIELD_LABELS, MERGE_FIELD_NAMES } from '@/lib/compose/merge';
+import { mergePickerItems } from '@/lib/compose/merge';
 import { PickerList, useDismiss, type PickerItem } from './PickerMenu';
 import type { ComposeEditorHandle, SnippetItem } from './types';
 
@@ -72,7 +72,7 @@ function readTrigger(editor: Editor, snippetsEnabled: boolean): Trigger | null {
   const $from = selection.$from;
   if (!$from.parent.isTextblock) return null;
   const before = $from.parent.textBetween(Math.max(0, $from.parentOffset - 40), $from.parentOffset, undefined, '￼');
-  const found = /\{\{([a-zA-Z]{0,20})$/.exec(before);
+  const found = /\{\{([a-zA-Z.]{0,24})$/.exec(before);
   const slash = snippetsEnabled ? /(?:^|\s)\/([\w-]{0,30})$/.exec(before) : null;
   const kind = found ? 'variable' : slash ? 'snippet' : null;
   if (!kind) return null;
@@ -149,7 +149,7 @@ const ComposeEditor = forwardRef<ComposeEditorHandle, ComposeEditorProps>(functi
   const insertImageRef = useRef<(file: File) => Promise<void>>(async () => {});
 
   const variableItems: PickerItem[] = useMemo(
-    () => MERGE_FIELD_NAMES.map((field) => ({ id: field, label: MERGE_FIELD_LABELS[field], hint: `{{${field}}}` })),
+    () => mergePickerItems(),
     [],
   );
   const filterItems = useCallback(
@@ -164,7 +164,7 @@ const ComposeEditor = forwardRef<ComposeEditorHandle, ComposeEditorProps>(functi
     [snippets],
   );
 
-  const triggerItems = trigger ? filterItems(trigger.kind === 'variable' ? variableItems : snippetItems, trigger.query).slice(0, 20) : [];
+  const triggerItems = trigger ? filterItems(trigger.kind === 'variable' ? variableItems : snippetItems, trigger.query).slice(0, 40) : [];
   const menuItems = menu ? filterItems(menu === 'variables' ? variableItems : snippetItems, menuQuery).slice(0, 40) : [];
   const keyState = useRef({ trigger, triggerItems, activeIndex });
 
@@ -254,15 +254,17 @@ const ComposeEditor = forwardRef<ComposeEditorHandle, ComposeEditorProps>(functi
   // ── Insertion ──────────────────────────────────────────────────────────────
 
   const insertVariable = useCallback(
-    (field: string, range?: { from: number; to: number }) => {
+    (field: string, range?: { from: number; to: number }, rawText?: string) => {
       if (mode === 'rich' && editor) {
         const chain = editor.chain().focus();
         if (range) chain.deleteRange(range);
-        chain.insertContent({ type: 'mergeTag', attrs: { field, fallback: '' } }).run();
+        // A syntax snippet ({{#if}}, spintax) goes in as text; a variable as a chip.
+        if (rawText) chain.insertContent({ type: 'text', text: rawText }).run();
+        else chain.insertContent({ type: 'mergeTag', attrs: { field, fallback: '' } }).run();
         return;
       }
       const area = textareaRef.current;
-      const tag = `{{${field}}}`;
+      const tag = rawText ?? `{{${field}}}`;
       if (!area) return;
       const start = area.selectionStart ?? area.value.length;
       const end = area.selectionEnd ?? start;
@@ -297,7 +299,7 @@ const ComposeEditor = forwardRef<ComposeEditorHandle, ComposeEditorProps>(functi
   const pick = (item: PickerItem, via: 'trigger' | 'menu') => {
     const range = via === 'trigger' && trigger ? { from: trigger.from, to: trigger.to } : undefined;
     const kind = via === 'trigger' ? trigger?.kind : menu === 'variables' ? 'variable' : 'snippet';
-    if (kind === 'variable') insertVariable(item.id, range);
+    if (kind === 'variable') insertVariable(item.id, range, item.insert);
     else {
       const snippet = snippets?.find((s) => s.id === item.id);
       if (snippet) insertHtml(snippet.bodyHtml, range);

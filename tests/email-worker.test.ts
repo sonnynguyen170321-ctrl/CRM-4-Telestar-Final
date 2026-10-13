@@ -28,6 +28,13 @@ vi.mock('@/lib/email/suppress', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/email/suppress')>()),
   blockIfBounced: (...a: unknown[]) => mockBlockIfBounced(...a),
 }));
+// The render context (account, campaign name, saved AI variables, sender profile) is read from tables this
+// file's prisma mock does not model; tests/personalization-render-parity.test.ts covers it against a real database.
+vi.mock('@/lib/templates/renderContext', () => ({
+  loadRenderLead: async (_tenantId: string, lead: unknown) => lead,
+  loadRenderSender: async () => null,
+}));
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     outboundMessage: {
@@ -89,6 +96,8 @@ vi.mock('@/lib/email/EmailService', () => ({
 
 vi.mock('@/lib/templates/render', () => ({
   renderTemplate: (...args: [string]) => mockRenderTemplate(...args),
+  stripMergeGuard: (t: string) => t,
+  renderSubject: (...args: [string]) => mockRenderTemplate(...args),
 }));
 
 vi.mock('@/lib/tenant-context', () => ({
@@ -359,6 +368,20 @@ describe('handleEmailSend', () => {
     expect(sent.text).toBe('Hi Linh,\nQuick question.\n\nMei');
   });
 
+  // Security review of #293: whatever built an HTML body, the worker sanitises it before the provider.
+  it('sanitises an HTML body at the last step, whatever produced it', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockSuppressionFindFirst.mockResolvedValueOnce(null);
+    mockExecuteRaw.mockResolvedValueOnce(1);
+    mockServiceSend.mockResolvedValueOnce('provider-msg-id-sanitised');
+
+    await handleEmailSend(buildPayload({ body: '<p>Hi</p><img src="x" onerror="alert(1)"><a href="javascript:alert(1)">go</a><script>x()</script>' }));
+
+    const sent = mockServiceSend.mock.calls[0][0] as { html: string; text: string };
+    expect(sent.html).toMatch(/<p[^>]*>Hi<[/]p>/);
+    expect(sent.html).not.toMatch(/onerror|javascript:|<script/i);
+  });
+
   describe('reply in the same thread', () => {
     const parent = {
       status: 'sent',
@@ -549,7 +572,7 @@ describe('handleEmailSend', () => {
 
     await handleEmailSend(buildPayload({ body: 'Regards, {{sdrName}}' }));
 
-    expect(mockRenderTemplate).toHaveBeenCalledWith('Regards, {{sdrName}}', expect.anything(), expect.objectContaining({ firstName: 'Mei', role: 'team_lead' }));
+    expect(mockRenderTemplate).toHaveBeenCalledWith('Regards, {{sdrName}}', expect.anything(), expect.objectContaining({ firstName: 'Mei', role: 'team_lead' }), { final: true });
   });
 
   it('skips if already sent with providerMessageId', async () => {

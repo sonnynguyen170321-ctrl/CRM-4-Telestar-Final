@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import { renderTemplate } from '@/lib/templates/render';
+import { renderSubject, renderTemplate } from '@/lib/templates/render';
 import { composeEmailBody } from '@/lib/email/signature';
 
 const SDR = { firstName: 'Mei', lastName: 'Tran', role: 'sdr' };
@@ -23,7 +23,10 @@ describe('renderTemplate with hostile merge values', () => {
   });
 
   it('leaves a plain-text body and a plain subject unescaped', () => {
-    expect(renderTemplate('Hi {{company}}', { company: 'AT&T <Corp>' }, SDR)).toBe('Hi AT&T <Corp>');
+    // A plain body is still read as HTML once it holds a tag, so angle brackets in a value are escaped;
+    // an ampersand and the subject stay as written.
+    expect(renderTemplate('Hi {{company}}', { company: 'AT&T <Corp>' }, SDR)).toBe('Hi AT&T &lt;Corp&gt;');
+    expect(renderSubject('Hi {{company}}', { company: 'AT&T <Corp>' }, SDR)).toBe('Hi AT&T <Corp>');
   });
 
   it('does not let a value be expanded by a second render pass', () => {

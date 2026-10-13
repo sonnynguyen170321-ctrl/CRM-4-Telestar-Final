@@ -6,7 +6,8 @@ import { findSendableAccount } from '@/lib/email/sendableAccount';
 import { abandonOutbound, finalizeComposed, prepareComposed } from '@/lib/email/prepareComposed';
 import { canViewOwned } from '@/lib/visibility';
 import type { SessionUser } from '@/lib/auth';
-import { renderTemplate } from '@/lib/templates/render';
+import { renderSubject, renderTemplate } from '@/lib/templates/render';
+import { loadRenderLead, loadRenderSender } from '@/lib/templates/renderContext';
 import { parseBody } from '@/lib/validation/core';
 import { sendEmailSchema } from '@/lib/validation/schemas';
 import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
@@ -74,29 +75,28 @@ export async function POST(req: NextRequest) {
 
   // The From line speaks for whoever connected the mailbox, so the merge fields ({{sdrName}},
   // {{sdrTitle}}) are theirs, not the signed-in manager's.
-  const sender = (await prisma.user.findFirst({
-    where: { id: account.userId, tenantId },
-    select: { firstName: true, lastName: true, role: true },
-  })) ?? user;
+  const sender = (await loadRenderSender(tenantId, account.userId)) ?? user;
 
   let subject: string = body.subject ?? '';
   let text: string = body.text ?? body.body ?? '';
 
   // Render merge fields with real lead and user data
   if (body.leadId) {
-    const lead = await prisma.lead.findUnique({ where: { id: body.leadId } });
+    const leadRow = await prisma.lead.findUnique({ where: { id: body.leadId } });
+    // The account, campaign and saved AI variables too: the same context the preview and the workers render with.
+    const lead = leadRow ? await loadRenderLead(tenantId, leadRow) : null;
     if (lead) {
       if (body.templateId) {
         // Already checked above: only a template the sender can see (lib/visibility.ts).
         if (template && !subject.trim() && !text.trim()) {
-          subject = renderTemplate(template.subject ?? '', lead, sender);
+          subject = renderSubject(template.subject ?? '', lead, sender);
           text = renderTemplate(template.body, lead, sender);
         } else {
-          subject = renderTemplate(subject, lead, sender);
+          subject = renderSubject(subject, lead, sender);
           text = renderTemplate(text, lead, sender);
         }
       } else {
-        subject = renderTemplate(subject, lead, sender);
+        subject = renderSubject(subject, lead, sender);
         text = renderTemplate(text, lead, sender);
       }
     }

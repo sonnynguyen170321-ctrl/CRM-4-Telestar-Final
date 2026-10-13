@@ -67,10 +67,18 @@ export async function consumeAttempt(input: {
   subject: string;
   limit: number;
   windowSeconds: number;
+  /**
+   * Refuse when the counter cannot be reached, instead of letting the attempt through. For a paid
+   * action (an AI generation) an outage of the limiter must not become an unlimited bill; for a
+   * guess at a secret, failing open stays the default (see the note at the top of this file).
+   */
+  failClosed?: boolean;
 }): Promise<AttemptDecision> {
-  const { bucket, subject, limit, windowSeconds } = input;
+  const { bucket, subject, limit, windowSeconds, failClosed = false } = input;
   const redis = await getClient();
-  if (!redis) return { allowed: true, remaining: limit, retryAfterSeconds: 0 };
+  if (!redis) {
+    return failClosed ? { allowed: false, remaining: 0, retryAfterSeconds: 60 } : { allowed: true, remaining: limit, retryAfterSeconds: 0 };
+  }
 
   const key = keyFor(bucket, subject);
   try {
@@ -85,8 +93,8 @@ export async function consumeAttempt(input: {
     const ttl = await redis.ttl(key);
     return { allowed: false, remaining: 0, retryAfterSeconds: ttl > 0 ? ttl : windowSeconds };
   } catch (err) {
-    console.error('[attempt-limit] failing open:', err instanceof Error ? err.message : err);
-    return { allowed: true, remaining: limit, retryAfterSeconds: 0 };
+    console.error(`[attempt-limit] failing ${failClosed ? 'closed' : 'open'}:`, err instanceof Error ? err.message : err);
+    return failClosed ? { allowed: false, remaining: 0, retryAfterSeconds: 60 } : { allowed: true, remaining: limit, retryAfterSeconds: 0 };
   }
 }
 

@@ -25,6 +25,14 @@ vi.mock('@/lib/email/suppress', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/email/suppress')>()),
   blockIfBounced: (...a: unknown[]) => mockBlockIfBounced(...a),
 }));
+// The render context (account, campaign name, saved AI variables, sender profile) is read from tables this
+// file's prisma mock does not model; tests/personalization-render-parity.test.ts covers it against a real database.
+const mockLoadRenderSender = vi.fn(async (..._a: unknown[]) => null);
+vi.mock('@/lib/templates/renderContext', () => ({
+  loadRenderLead: async (_tenantId: string, lead: unknown) => lead,
+  loadRenderSender: (...a: unknown[]) => mockLoadRenderSender(...a),
+}));
+
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     task: {
@@ -78,6 +86,8 @@ vi.mock('@/lib/workflows/email', () => ({
 
 vi.mock('@/lib/templates/render', () => ({
   renderTemplate: (text: string) => `rendered:${text}`,
+  stripMergeGuard: (t: string) => t,
+  renderSubject: (text: string) => `rendered:${text}`,
 }));
 
 const mockPlanThread = vi.fn();
@@ -170,6 +180,18 @@ describe('handleExecuteTask', () => {
   // answered — see `lib/sequences/stepOutcome.ts` and the 2026-09-21 incident, where 228 steps
   // advanced for messages the provider had refused. What this guards is that the worker queues
   // the send *and* carries the reference that lets the outcome settle the step later.
+  // The From line and the {{sender*}} variables must be the same person. A shared sequence sender is
+  // not the lead's owner, so the sender profile comes from the mailbox's owner (security review M1).
+  it('renders the sender variables from the sending mailbox owner, not the lead owner', async () => {
+    arrangeEligible();
+    mockAccountFindFirst.mockResolvedValue({ id: 'acct-1', email: 'shared@telestar.vn', isActive: true, userId: 'mailbox-owner-9' });
+    mockLoadRenderSender.mockClear();
+
+    await handleExecuteTask({ taskId: 'task-1' });
+
+    expect(mockLoadRenderSender).toHaveBeenCalledWith(TENANT_ID, 'mailbox-owner-9');
+  });
+
   it('queues the send and carries the step reference instead of settling it', async () => {
     arrangeEligible();
 

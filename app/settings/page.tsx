@@ -40,6 +40,10 @@ function SettingsPageInner() {
   const [profileFirstName, setProfileFirstName] = useState('');
   const [profileLastName, setProfileLastName] = useState('');
   const [profileTimezone, setProfileTimezone] = useState('Asia/Ho_Chi_Minh');
+  // Sender details for the {{senderTitle}} / {{senderPhone}} / {{senderCalendarLink}} email variables.
+  const [profileJobTitle, setProfileJobTitle] = useState('');
+  const [profilePhone, setProfilePhone] = useState('');
+  const [profileCalendarLink, setProfileCalendarLink] = useState('');
   const [profileAvatarUrl, setProfileAvatarUrl] = useState('');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -81,6 +85,9 @@ function SettingsPageInner() {
           setProfileFirstName(data.firstName ?? '');
           setProfileLastName(data.lastName ?? '');
           setProfileTimezone(data.timezone ?? 'Asia/Ho_Chi_Minh');
+          setProfileJobTitle(data.jobTitle ?? '');
+          setProfilePhone(data.phone ?? '');
+          setProfileCalendarLink(data.calendarLink ?? '');
           setProfileAvatarUrl(data.avatarUrl ?? '');
         }
       })
@@ -94,7 +101,7 @@ function SettingsPageInner() {
     const res = await fetch('/api/settings', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ firstName: profileFirstName, lastName: profileLastName, timezone: profileTimezone, avatarUrl: profileAvatarUrl }),
+      body: JSON.stringify({ firstName: profileFirstName, lastName: profileLastName, timezone: profileTimezone, avatarUrl: profileAvatarUrl, jobTitle: profileJobTitle, phone: profilePhone, calendarLink: profileCalendarLink }),
     });
     setIsSavingProfile(false);
     if (res.ok) {
@@ -221,6 +228,48 @@ function SettingsPageInner() {
                   value={profileTimezone}
                   onChange={setProfileTimezone}
                   className="w-full py-1.5 text-sm"
+                />
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="profile-job-title" className="text-[10px] font-bold text-text-muted uppercase block">
+                  Job title (emails)
+                </label>
+                <input
+                  id="profile-job-title"
+                  type="text"
+                  maxLength={120}
+                  value={profileJobTitle}
+                  onChange={(e) => setProfileJobTitle(e.target.value)}
+                  placeholder="Used for {{senderTitle}}; blank uses your role"
+                  className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary font-medium focus:border-brand-red focus:outline-none"
+                />
+              </div>
+              <div className="space-y-1">
+                <label htmlFor="profile-phone" className="text-[10px] font-bold text-text-muted uppercase block">
+                  Phone (emails)
+                </label>
+                <input
+                  id="profile-phone"
+                  type="tel"
+                  maxLength={40}
+                  value={profilePhone}
+                  onChange={(e) => setProfilePhone(e.target.value)}
+                  placeholder="Used for {{senderPhone}}"
+                  className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary font-medium focus:border-brand-red focus:outline-none"
+                />
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <label htmlFor="profile-calendar-link" className="text-[10px] font-bold text-text-muted uppercase block">
+                  Calendar link (emails)
+                </label>
+                <input
+                  id="profile-calendar-link"
+                  type="url"
+                  maxLength={500}
+                  value={profileCalendarLink}
+                  onChange={(e) => setProfileCalendarLink(e.target.value)}
+                  placeholder="https://... used for {{senderCalendarLink}}"
+                  className="w-full bg-bg-main border border-card-border rounded-lg px-2.5 py-1.5 text-text-primary font-medium focus:border-brand-red focus:outline-none"
                 />
               </div>
             </div>

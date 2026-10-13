@@ -40,7 +40,7 @@ export const MergeTag = Node.create({
         getAttrs: (element) => {
           const el = element as HTMLElement;
           const field = el.getAttribute('data-merge-tag') ?? '';
-          if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(field)) return false;
+          if (!/^[a-zA-Z][a-zA-Z0-9]*(?:\.[a-zA-Z][a-zA-Z0-9]*)?$/.test(field)) return false;
           return { field, fallback: el.getAttribute('data-fallback') ?? '' };
         },
       },

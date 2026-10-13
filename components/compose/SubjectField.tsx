@@ -2,8 +2,8 @@
 
 import React, { useMemo, useRef, useState } from 'react';
 import { Braces } from 'lucide-react';
-import { findMergeTags, MERGE_FIELD_LABELS, MERGE_FIELD_NAMES } from '@/lib/compose/merge';
-import { insertMergeTag } from '@/lib/templates/insertMergeTag';
+import { findMergeTags, mergePickerItems } from '@/lib/compose/merge';
+import { insertMergeTag, insertText } from '@/lib/templates/insertMergeTag';
 import { PickerList, useDismiss, type PickerItem } from './PickerMenu';
 
 interface SubjectFieldProps {
@@ -17,7 +17,7 @@ interface SubjectFieldProps {
   label?: string;
 }
 
-const ITEMS: PickerItem[] = MERGE_FIELD_NAMES.map((field) => ({ id: field, label: MERGE_FIELD_LABELS[field], hint: `{{${field}}}` }));
+const ITEMS: PickerItem[] = mergePickerItems();
 
 /**
  * The subject line. A subject is a single line of plain text, so merge fields are not chips inside
@@ -43,16 +43,17 @@ export default function SubjectField({ id, value, onChange, missingFields = [], 
     return [...seen.values()].map((tag) => ({ ...tag, field: findMergeTags(tag.raw)[0].field }));
   }, [value]);
 
-  const pick = (field: string) => {
+  const pick = (item: PickerItem) => {
     const input = inputRef.current;
     const caret = input?.selectionStart ?? value.length;
     let start = caret;
     // Typed `{{par`: replace what was typed, not just insert after it.
     if (open === 'trigger') {
-      const typed = /\{\{[a-zA-Z]{0,20}$/.exec(value.slice(0, caret));
+      const typed = /\{\{[a-zA-Z.]{0,24}$/.exec(value.slice(0, caret));
       if (typed) start = caret - typed[0].length;
     }
-    const next = insertMergeTag(value, start, caret, field);
+    // A variable goes in as {{field}}; a syntax-help row (conditional, spintax) as its own text.
+    const next = item.insert ? insertText(value, start, caret, item.insert) : insertMergeTag(value, start, caret, item.id);
     onChange(next.value);
     setOpen(null);
     requestAnimationFrame(() => {
@@ -65,7 +66,7 @@ export default function SubjectField({ id, value, onChange, missingFields = [], 
     const next = event.target.value;
     onChange(next);
     const before = next.slice(0, event.target.selectionStart ?? next.length);
-    const typed = /\{\{([a-zA-Z]{0,20})$/.exec(before);
+    const typed = /\{\{([a-zA-Z.]{0,24})$/.exec(before);
     if (typed) { setOpen('trigger'); setQuery(typed[1]); setActive(0); } else if (open === 'trigger') setOpen(null);
   };
 
@@ -85,7 +86,7 @@ export default function SubjectField({ id, value, onChange, missingFields = [], 
             if (open !== 'trigger' || items.length === 0) return;
             if (event.key === 'ArrowDown') { event.preventDefault(); setActive((i) => (i + 1) % items.length); }
             if (event.key === 'ArrowUp') { event.preventDefault(); setActive((i) => (i - 1 + items.length) % items.length); }
-            if (event.key === 'Enter' || event.key === 'Tab') { event.preventDefault(); pick(items[Math.min(active, items.length - 1)].id); }
+            if (event.key === 'Enter' || event.key === 'Tab') { event.preventDefault(); pick(items[Math.min(active, items.length - 1)]); }
           }}
           className="flex-1 rounded-lg border border-card-border bg-bg-main px-2.5 py-1.5 text-xs font-medium text-text-primary focus:border-brand-red focus:outline-none"
         />
@@ -118,11 +119,11 @@ export default function SubjectField({ id, value, onChange, missingFields = [], 
       )}
 
       {open && (
-        <div className="absolute right-0 top-9 z-30 w-64 rounded-lg border border-card-border bg-card-bg shadow-xl">
+        <div className="absolute right-0 top-9 z-30 w-72 rounded-lg border border-card-border bg-card-bg shadow-xl">
           <PickerList
             items={items}
             activeIndex={Math.min(active, Math.max(0, items.length - 1))}
-            onPick={(item) => pick(item.id)}
+            onPick={(item) => pick(item)}
             onHover={setActive}
             label="Variables"
             listId={`${id}-variables`}

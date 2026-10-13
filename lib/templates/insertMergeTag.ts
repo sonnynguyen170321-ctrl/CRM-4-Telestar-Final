@@ -9,9 +9,18 @@ export function insertMergeTag(
   selectionEnd: number | null,
   field: string,
 ): { value: string; cursor: number } {
+  return insertText(value, selectionStart, selectionEnd, `{{${field}}}`);
+}
+
+/** Put `text` (a tag or a syntax snippet) at the cursor, replacing any selection. */
+export function insertText(
+  value: string,
+  selectionStart: number | null,
+  selectionEnd: number | null,
+  tag: string,
+): { value: string; cursor: number } {
   const clamp = (n: number | null) => Math.min(Math.max(n ?? value.length, 0), value.length);
   const start = clamp(selectionStart);
   const end = Math.max(start, clamp(selectionEnd));
-  const tag = `{{${field}}}`;
   return { value: value.slice(0, start) + tag + value.slice(end), cursor: start + tag.length };
 }

@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 222   mutating: 139   mutating without a test: 19
+# routes: 222   mutating: 140   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -116,6 +116,10 @@ routes:
       - tests/ai-route-cross-tenant-red-team.test.ts
       - tests/enrich-lead-route-upgrade.test.ts
       - tests/enrichment-never-invents.test.ts
+  - path: app/api/ai/lead-variables/route.ts
+    methods: [GET, POST, PUT]
+    tests:
+      - tests/personalization-lab.test.ts
   - path: app/api/ai/memory/route.ts
     methods: [DELETE, GET, POST]
     tests: []
@@ -535,6 +539,7 @@ routes:
     methods: [GET, POST]
     tests:
       - tests/compose-routes.test.ts
+      - tests/personalization-lab.test.ts
   - path: app/api/email/providers/route.ts
     methods: [GET]
     tests:
@@ -545,6 +550,7 @@ routes:
       - tests/compose-routes.test.ts
       - tests/email-composer-fixes.test.ts
       - tests/email-send-paused-mailbox.test.ts
+      - tests/personalization-lab.test.ts
   - path: app/api/health/route.ts
     methods: [GET]
     tests:
@@ -1240,6 +1246,7 @@ routes:
   - path: app/api/settings/route.ts
     methods: [GET, PUT]
     tests:
+      - tests/personalization-lab.test.ts
       - tests/user-timezone-default.test.ts
   - path: app/api/snippets/[id]/route.ts
     methods: [DELETE, PATCH]
@@ -1400,18 +1407,22 @@ routes:
     methods: [DELETE, GET, POST]
     tests:
       - tests/email-tracking.test.ts
+      - tests/personalization-lab.test.ts
   - path: app/api/templates/[id]/attachments/[attachmentId]/route.ts
     methods: [DELETE]
     tests:
       - tests/email-tracking.test.ts
+      - tests/personalization-lab.test.ts
   - path: app/api/templates/[id]/attachments/route.ts
     methods: [GET, POST]
     tests:
       - tests/email-tracking.test.ts
+      - tests/personalization-lab.test.ts
   - path: app/api/templates/[id]/route.ts
     methods: [DELETE, GET, PUT]
     tests:
       - tests/email-tracking.test.ts
+      - tests/personalization-lab.test.ts
   - path: app/api/templates/analytics/route.ts
     methods: [GET]
     tests: []
@@ -1419,6 +1430,7 @@ routes:
     methods: [GET, POST]
     tests:
       - tests/email-tracking.test.ts
+      - tests/personalization-lab.test.ts
   - path: app/api/unsubscribe/route.ts
     methods: [GET, POST]
     tests:

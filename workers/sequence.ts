@@ -20,7 +20,8 @@ import { blockIfBounced, findSuppression } from '@/lib/email/suppress';
 import { sendsImmediatelyOnEnroll } from '@/lib/sequences/rules';
 import { resolveSendingMailbox, sequenceSenderGap } from '@/lib/sequences/sender';
 import { enrollmentStepTaskId } from '@/lib/sequences/identity';
-import { renderTemplate } from '@/lib/templates/render';
+import { renderSubject, renderTemplate } from '@/lib/templates/render';
+import { loadRenderLead, loadRenderSender } from '@/lib/templates/renderContext';
 import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
 import { evaluateAutomationEligibility } from '@/lib/automation/eligibility';
 import { getApprovedStepCopy } from '@/lib/sequences/stepCopy';
@@ -482,6 +483,13 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     // approved copy exists: the approval already decided what this prospect receives.
     const approved = await getApprovedStepCopy(expectedEnrollmentId, task.sequenceStep);
 
+    // One render context for the lead and the sender, the same one the composer preview builds, so the
+    // cadence sends what the rep saw.
+    const renderLead = await loadRenderLead(task.tenantId, task.lead);
+    // The sender is whoever owns the mailbox the mail leaves from (resolveSendingMailbox above), which a
+    // shared sequence sender makes someone other than the lead's owner: From and {{sender*}} must agree.
+    const renderSender = (account ? await loadRenderSender(task.tenantId, account.userId) : null) ?? task.lead.assignedTo;
+
     // Deterministic A/B variant selection (spec §42)
     let subject: string;
     let body: string;
@@ -490,8 +498,8 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
     const variantB = template.abVariants?.find((v) => v.version === 'B');
 
     if (approved) {
-      subject = renderTemplate(approved.subject ?? template.subject ?? '', task.lead, task.lead.assignedTo);
-      body = renderTemplate(approved.body, task.lead, task.lead.assignedTo);
+      subject = renderSubject(approved.subject ?? template.subject ?? '', renderLead, renderSender);
+      body = renderTemplate(approved.body, renderLead, renderSender);
     } else if (variantA && variantB) {
       const seed = buildJitterSeed({
         tenantId: task.tenantId,
@@ -502,12 +510,12 @@ export async function handleExecuteTask(payload: SequenceExecuteTaskPayload) {
       const choice = deterministicOffset(seed, 2);
       const selected = choice === 0 ? variantA : variantB;
 
-      subject = renderTemplate(selected.subject ?? template.subject ?? '', task.lead, task.lead.assignedTo);
-      body = renderTemplate(selected.body ?? template.body, task.lead, task.lead.assignedTo);
+      subject = renderSubject(selected.subject ?? template.subject ?? '', renderLead, renderSender);
+      body = renderTemplate(selected.body ?? template.body, renderLead, renderSender);
       selectedVariantId = selected.id;
     } else {
-      subject = renderTemplate(template.subject ?? '', task.lead, task.lead.assignedTo);
-      body = renderTemplate(template.body, task.lead, task.lead.assignedTo);
+      subject = renderSubject(template.subject ?? '', renderLead, renderSender);
+      body = renderTemplate(template.body, renderLead, renderSender);
     }
 
     // Re-check ownership at the send-intent boundary. The validation near the top of this handler

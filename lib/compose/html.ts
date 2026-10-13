@@ -55,9 +55,9 @@ const CHIP_FALLBACK_RE = /\bdata-fallback="([^"]*)"/i;
 export function unchipifyMergeTags(html: string): string {
   return html.replace(CHIP_RE, (whole, field: string) => {
     const name = unescapeAttr(field);
-    if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(name)) return '';
+    if (!/^[a-zA-Z][a-zA-Z0-9]*(?:\.[a-zA-Z][a-zA-Z0-9]*)?$/.test(name)) return '';
     const fallbackMatch = whole.match(CHIP_FALLBACK_RE);
-    const fallback = fallbackMatch ? unescapeAttr(fallbackMatch[1]).replace(/[}|\r\n]/g, ' ').trim() : '';
+    const fallback = fallbackMatch ? unescapeAttr(fallbackMatch[1]).replace(/[}\r\n]/g, ' ').trim() : '';
     return fallback ? `{{${name}|${fallback}}}` : `{{${name}}}`;
   });
 }

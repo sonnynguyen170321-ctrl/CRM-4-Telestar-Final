@@ -23,6 +23,8 @@ import SubjectField from '@/components/compose/SubjectField';
 import { useSnippets } from '@/components/compose/useComposeData';
 import { blockRemoteImages, hasRemoteImages, hasUnsupportedHtml } from '@/lib/compose/html';
 import { bodySnippet, bodyToText } from '@/lib/compose/snippet';
+import { renderTemplate, type RenderLead, type RenderSdr } from '@/lib/templates/render';
+import { MERGE_FIELD_GROUPS, MERGE_FIELD_LABELS, findMergeTags } from '@/lib/compose/merge';
 
 interface Template {
   id: string;
@@ -46,9 +48,9 @@ interface AbTestVariant {
   body: string | null;
   sentCount: number;
   replyCount: number;
+  /** Counted from the messages actually sent with this variant (GET /api/templates/[id]/ab-test). */
+  stats?: { sent: number; opened: number; replied: number };
 }
-
-const MERGE_FIELDS = ['firstName', 'lastName', 'company', 'title', 'email', 'phone', 'sdrName', 'sdrTitle'];
 
 /** A mailbox the preview can sign with — the caller's own, from GET /api/email/accounts. */
 interface PreviewMailbox {
@@ -57,16 +59,39 @@ interface PreviewMailbox {
   sendPausedAt?: string | null;
 }
 
-const PREVIEW_DATA: Record<string, string> = {
+// The preview renders with the same function the send path uses, on a sample lead. The AI lines are
+// samples only; a real lead's are generated from research in the composer.
+const SAMPLE_LEAD: RenderLead = {
+  id: 'sample-lead',
   firstName: 'Sarah',
   lastName: 'Chen',
   company: 'Acme Corp',
   title: 'VP Operations',
   email: 'sarah.chen@acme.com',
   phone: '+1 555-019-2834',
-  sdrName: 'Minh Tran',
-  sdrTitle: 'Senior SDR',
+  linkedIn: 'https://www.linkedin.com/in/sarah-chen-sample',
+  timezone: 'Asia/Singapore',
+  account: { website: 'https://acme.example', domain: 'acme.example', industry: 'Logistics', country: 'Singapore', size: 240 },
+  campaign: { name: 'Q4 outreach' },
+  aiVariables: {
+    icebreaker: 'Sample icebreaker based on your research.',
+    painPoint: 'Sample pain point.',
+    valueProp: 'Sample value proposition.',
+    companySummary: 'Sample company summary.',
+    whyNow: 'Sample timely reason.',
+    personalLine: 'Sample personal line.',
+  },
 };
+const SAMPLE_SDR: RenderSdr = { firstName: 'Minh', lastName: 'Tran', role: 'sdr', phone: '+84 90 000 0000', calendarLink: 'https://cal.example/minh' };
+
+/** The variables a variant's copy uses, so a rep can see which personalization went with which result. */
+function variablesUsed(...texts: Array<string | null | undefined>): string[] {
+  return [...new Set(findMergeTags(texts.filter(Boolean).join(' ')).map((tag) => tag.field))];
+}
+
+function pct(part: number, whole: number): string {
+  return whole > 0 ? `${Math.round((part / whole) * 100)}%` : '-';
+}
 
 export default function TemplatesPage() {
   const { showToast } = useToast();
@@ -356,13 +381,7 @@ export default function TemplatesPage() {
     }
   };
 
-  const applyMergeFields = (text: string) => {
-    let result = text;
-    Object.entries(PREVIEW_DATA).forEach(([key, value]) => {
-      result = result.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g'), value);
-    });
-    return result;
-  };
+  const applyMergeFields = (text: string) => renderTemplate(text, SAMPLE_LEAD, SAMPLE_SDR);
 
   const getPreviewText = () => applyMergeFields(body);
 
@@ -656,9 +675,23 @@ export default function TemplatesPage() {
                               <p className="text-[10px] text-text-muted line-clamp-2">
                                 <span className="font-semibold">Body:</span> {bodySnippet(v.body, 200) || '(none)'}
                               </p>
-                              <p className="text-[9px] text-text-muted">
-                                Sent: {v.sentCount} | Replies: {v.replyCount}
-                              </p>
+                              {v.stats ? (
+                                <p className="text-[9px] text-text-muted">
+                                  Sent {v.stats.sent} | Opened {v.stats.opened} ({pct(v.stats.opened, v.stats.sent)}) | Replied {v.stats.replied} ({pct(v.stats.replied, v.stats.sent)})
+                                </p>
+                              ) : (
+                                <p className="text-[9px] text-text-muted">
+                                  Sent: {v.sentCount} | Replies: {v.replyCount}
+                                </p>
+                              )}
+                              {variablesUsed(v.subject, v.body).length > 0 && (
+                                <p className="flex flex-wrap items-center gap-1 text-[9px] text-text-muted">
+                                  Uses
+                                  {variablesUsed(v.subject, v.body).map((field) => (
+                                    <span key={field} className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">{field}</span>
+                                  ))}
+                                </p>
+                              )}
                             </div>
                           ))}
                         </div>
@@ -671,20 +704,21 @@ export default function TemplatesPage() {
                           Message Body
                         </label>
                         <div className={`flex flex-wrap gap-1 justify-end ${channel === 'email' ? 'hidden' : ''}`}>
-                          <span className="text-[9px] font-mono text-text-muted mr-1 mt-1">
-                            Insert:
-                          </span>
-                          {MERGE_FIELDS.map((f) => (
-                            <button
-                              key={f}
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleInsertMergeField(f)}
-                              className="px-1.5 py-0.5 border border-card-border bg-bg-main hover:bg-card-border text-[9px] font-semibold text-text-secondary rounded transition-colors"
-                            >
-                              {f}
-                            </button>
-                          ))}
+                          <select
+                            aria-label="Insert a variable"
+                            value=""
+                            onChange={(e) => { if (e.target.value) handleInsertMergeField(e.target.value); }}
+                            className="px-1.5 py-0.5 border border-card-border bg-bg-main text-[9px] font-semibold text-text-secondary rounded"
+                          >
+                            <option value="">Insert variable...</option>
+                            {MERGE_FIELD_GROUPS.map((group) => (
+                              <optgroup key={group.id} label={group.label}>
+                                {group.fields.map((f) => (
+                                  <option key={f} value={f}>{MERGE_FIELD_LABELS[f]}</option>
+                                ))}
+                              </optgroup>
+                            ))}
+                          </select>
                         </div>
                       </div>
 

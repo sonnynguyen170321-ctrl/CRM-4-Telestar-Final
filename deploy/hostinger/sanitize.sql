@@ -10,7 +10,8 @@
 BEGIN;
 
 -- People
-UPDATE "User"     SET email = 'user-' || id || '@example.invalid', "firstName" = 'User', "lastName" = left(id, 6), password = 'sanitized';
+UPDATE "User"     SET email = 'user-' || id || '@example.invalid', "firstName" = 'User', "lastName" = left(id, 6), password = 'sanitized',
+                      phone = NULL, "calendarLink" = NULL;
 UPDATE "Contact"  SET email = CASE WHEN email IS NULL THEN NULL ELSE 'contact-' || id || '@example.invalid' END,
                       "normalizedEmail" = CASE WHEN "normalizedEmail" IS NULL THEN NULL ELSE 'contact-' || id || '@example.invalid' END,
                       "alternateEmail" = NULL, "alternateEmailValidation" = NULL,
@@ -23,6 +24,8 @@ UPDATE "Lead"     SET email = CASE WHEN email IS NULL THEN NULL ELSE 'lead-' || 
 UPDATE "LeadPoolItem" SET email = CASE WHEN email IS NULL THEN NULL ELSE 'pool-' || id || '@example.invalid' END,
                       phone = NULL, "firstName" = 'Pool', "lastName" = left(id, 6);
 UPDATE "Account"  SET "companyPhone" = NULL;
+-- AI research and merge variables written about named people (hooks, drafts, ai.* lines).
+UPDATE "LeadAiInsight" SET "hooksJson" = NULL, "draftJson" = NULL, "variablesJson" = NULL;
 UPDATE "Client"   SET "contactEmail" = CASE WHEN "contactEmail" IS NULL THEN NULL ELSE 'client-' || id || '@example.invalid' END;
 UPDATE "Meeting"  SET "prospectEmail" = 'meeting-' || id || '@example.invalid', "clientOwnerEmail" = NULL;
 UPDATE "Opportunity" SET "contactEmail" = NULL, "contactPhone" = NULL, "clientOwnerEmail" = NULL;

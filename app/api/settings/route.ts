@@ -22,6 +22,9 @@ export async function GET() {
     email: profile.email,
     timezone: profile.timezone ?? 'Asia/Ho_Chi_Minh',
     avatarUrl: profile.avatarUrl ?? null,
+    jobTitle: profile.jobTitle ?? '',
+    phone: profile.phone ?? '',
+    calendarLink: profile.calendarLink ?? '',
     role: profile.role,
   });
 }
@@ -35,12 +38,18 @@ export async function PUT(req: NextRequest) {
   let lastName: string | undefined;
   let timezone: string | undefined;
   let avatarUrl: string | undefined;
+  let jobTitle: string | undefined;
+  let phone: string | undefined;
+  let calendarLink: string | undefined;
   try {
     const body = await req.json();
     firstName = typeof body.firstName === 'string' ? body.firstName.trim() : undefined;
     lastName = typeof body.lastName === 'string' ? body.lastName.trim() : undefined;
     timezone = typeof body.timezone === 'string' ? body.timezone.trim() : undefined;
     avatarUrl = typeof body.avatarUrl === 'string' ? body.avatarUrl.trim() : undefined;
+    jobTitle = typeof body.jobTitle === 'string' ? body.jobTitle.trim() : undefined;
+    phone = typeof body.phone === 'string' ? body.phone.trim() : undefined;
+    calendarLink = typeof body.calendarLink === 'string' ? body.calendarLink.trim() : undefined;
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
@@ -60,6 +69,28 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'avatarUrl too long' }, { status: 400 });
   }
 
+  // These three go into outgoing email text ({{senderTitle}}, {{senderPhone}}, {{senderCalendarLink}}),
+  // so they are single-line and bounded, and the link must be a plain http(s) URL: no javascript: or
+  // data: link can reach a prospect's inbox through a merge field.
+  if (jobTitle !== undefined && (jobTitle.length > 120 || /[\r\n]/.test(jobTitle))) {
+    return NextResponse.json({ error: 'jobTitle must be a single line of 120 characters or fewer' }, { status: 400 });
+  }
+  if (phone !== undefined && (phone.length > 40 || !/^[0-9+()\-.\s]*$/.test(phone))) {
+    return NextResponse.json({ error: 'phone may contain digits, spaces and + ( ) - . only, up to 40 characters' }, { status: 400 });
+  }
+  if (calendarLink !== undefined && calendarLink !== '') {
+    let valid = calendarLink.length <= 500 && !/\s/.test(calendarLink);
+    if (valid) {
+      try {
+        const url = new URL(calendarLink);
+        valid = url.protocol === 'https:' || url.protocol === 'http:';
+      } catch {
+        valid = false;
+      }
+    }
+    if (!valid) return NextResponse.json({ error: 'calendarLink must be an http(s) URL of 500 characters or fewer' }, { status: 400 });
+  }
+
   try {
     const updated = await prisma.user.update({
       where: { id: user.id },
@@ -69,6 +100,10 @@ export async function PUT(req: NextRequest) {
         ...(timezone !== undefined && { timezone }),
         // Empty string clears the avatar (stored as NULL).
         ...(avatarUrl !== undefined && { avatarUrl: avatarUrl || null }),
+        // Empty strings clear the optional sender details.
+        ...(jobTitle !== undefined && { jobTitle: jobTitle || null }),
+        ...(phone !== undefined && { phone: phone || null }),
+        ...(calendarLink !== undefined && { calendarLink: calendarLink || null }),
       },
     });
 
@@ -79,6 +114,9 @@ export async function PUT(req: NextRequest) {
       email: updated.email,
       timezone: updated.timezone ?? 'Asia/Ho_Chi_Minh',
       avatarUrl: updated.avatarUrl ?? null,
+      jobTitle: updated.jobTitle ?? '',
+      phone: updated.phone ?? '',
+      calendarLink: updated.calendarLink ?? '',
       role: updated.role,
     });
   } catch (err) {
