@@ -20,6 +20,8 @@ import { ChecklistPanel, ScheduleMenu, TestSendButton, TrackingToggles, usePrefl
 import { useDraftAutosave } from '@/components/compose/useDraftAutosave';
 import { followOutbound } from '@/lib/compose/followOutbound';
 import { UNDO_DELAY_SECONDS } from '@/lib/email/sendControls';
+import { AiRewriteMenu, AiRewritePreview, useAiRewrite } from '@/components/compose/AiRewrite';
+import ContentScorePanel from '@/components/compose/ContentScorePanel';
 
 interface Task { id: string; type: string; title: string; description: string; dueDate: string; status: string; leadId: string; sequenceId?: string | null; sequenceStep?: number | null; }
 
@@ -88,6 +90,7 @@ export default function MailComposerModal({ lead, onClose, task, onSent, initial
   }, [mailboxes, accountId]);
 
   const ai = useAiVariables(lead.id);
+  const rewrite = useAiRewrite(body, setBody);
   const clientMissing = useMissingValues(lead, subject, body, ai.loaded ? ai.saved : null);
   // Company data, the sender and the lead's local time are known to the server only: when the draft
   // uses one, the server render runs in the background so its "no value" warnings show without opening the preview.
@@ -430,15 +433,18 @@ ${body}`;
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-text-muted">Message</span>
-              <button
-                type="button"
-                aria-pressed={previewOn}
-                onClick={() => setPreviewOn((on) => !on)}
-                className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold focus-ring ${previewOn ? 'border-brand-red/30 bg-brand-red/10 text-brand-red' : 'border-card-border text-text-secondary hover:text-text-primary'}`}
-              >
-                {previewOn ? <EyeOff className="h-3.5 w-3.5" aria-hidden="true" /> : <Eye className="h-3.5 w-3.5" aria-hidden="true" />}
-                Preview as {lead.firstName || 'this lead'}
-              </button>
+              <div className="flex items-center gap-2">
+                <AiRewriteMenu state={rewrite} disabled={previewOn || sending || isHtmlBlank(body)} />
+                <button
+                  type="button"
+                  aria-pressed={previewOn}
+                  onClick={() => setPreviewOn((on) => !on)}
+                  className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold focus-ring ${previewOn ? 'border-brand-red/30 bg-brand-red/10 text-brand-red' : 'border-card-border text-text-secondary hover:text-text-primary'}`}
+                >
+                  {previewOn ? <EyeOff className="h-3.5 w-3.5" aria-hidden="true" /> : <Eye className="h-3.5 w-3.5" aria-hidden="true" />}
+                  Preview as {lead.firstName || 'this lead'}
+                </button>
+              </div>
             </div>
             {/* Kept mounted while previewing so the draft, caret and undo history survive. */}
             <div className={previewOn ? 'hidden' : ''}>
@@ -452,6 +458,7 @@ ${body}`;
                 missingFields={missing.filter((m) => m.where !== 'subject').map((m) => m.field)}
               />
             </div>
+            {!previewOn && <AiRewritePreview state={rewrite} body={body} />}
             {previewOn && (
               <PreviewPane preview={preview} loading={previewLoading} error={previewError} signatureHtml={account?.signaturePreview} to={lead.email} />
             )}
@@ -460,6 +467,7 @@ ${body}`;
             )}
           </div>
 
+          {!previewOn && <ContentScorePanel subject={subject} body={body} />}
           <MissingValuesPanel lead={lead} missing={missing} onAddFallback={addFallback} />
           <AiVariablesPanel ai={ai} leadFirstName={lead.firstName} defaultOpen={usesAiVariables} />
           {!previewOn && account && <SignatureBlock html={account.signaturePreview} mailboxEmail={account.email} onNavigate={onClose} />}
