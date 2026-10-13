@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { Prisma } from '@prisma/client';
 
-import { getLeadWhereScope, requireAuth, requireInteractiveUser } from '@/lib/auth';
+import { getLeadWhereScope, getVisibleUserIds, requireAuth, requireInteractiveUser } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { findAccentInsensitiveIds, LEAD_SEARCH_COLUMNS } from '@/lib/search/accentSearch';
 import { consumeAttempt } from '@/lib/security/attemptLimit';
@@ -43,12 +43,20 @@ export async function GET(req: NextRequest) {
   }
 
   const roleScope = (await getLeadWhereScope(user)) as Prisma.LeadWhereInput;
-  const searchIds = await findAccentInsensitiveIds('Lead', LEAD_SEARCH_COLUMNS, query.text, tenantId);
-  const phoneClauses: Prisma.LeadWhereInput[] = query.phoneNeedles.flatMap((digits) => [
-    { normalizedPhone: { contains: digits } },
-    { contact: { is: { normalizedPhone: { contains: digits } } } },
-  ]);
-  const match: Prisma.LeadWhereInput[] = [...(searchIds && searchIds.length > 0 ? [{ id: { in: searchIds } }] : []), ...phoneClauses];
+  // A number-shaped query is a phone search on the normalized number and nothing else: the accent
+  // pre-filter would scan the whole tenant (capped, unordered by scope) for a few digits. A text query
+  // uses it, with the rep's own leads ranked first so the cap cannot crowd them out.
+  let match: Prisma.LeadWhereInput[];
+  if (query.phoneOnly) {
+    match = query.phoneNeedles.flatMap((digits) => [
+      { normalizedPhone: { contains: digits } },
+      { contact: { is: { normalizedPhone: { contains: digits } } } },
+    ]);
+  } else {
+    const visible = (await getVisibleUserIds(user)) ?? [];
+    const searchIds = await findAccentInsensitiveIds('Lead', LEAD_SEARCH_COLUMNS, query.text, tenantId, { preferAssignedTo: visible });
+    match = searchIds && searchIds.length > 0 ? [{ id: { in: searchIds } }] : [];
+  }
   if (match.length === 0) return NextResponse.json({ targets: [] }, { headers: NO_STORE });
 
   const rows = await prisma.lead.findMany({

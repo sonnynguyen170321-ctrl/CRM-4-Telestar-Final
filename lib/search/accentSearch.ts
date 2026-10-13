@@ -18,11 +18,28 @@ import { splitSearchTerms, getTitleSynonyms } from './terms';
  * Every term must match at least one column, matching the AND-per-term semantics of
  * `buildTermClauses`.
  */
+/**
+ * Escapes the LIKE metacharacters so a typed "%" or "_" matches itself instead of everything.
+ * PostgreSQL's default escape character is the backslash.
+ */
+export function escapeLikePattern(term: string): string {
+  return term.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+export type AccentSearchOptions = {
+  /**
+   * Leads assigned to these users sort first when the 5000-row cap bites, so a broad query cannot crowd
+   * the caller's own matches out of the result. Only meaningful for the Lead table.
+   */
+  preferAssignedTo?: readonly string[];
+};
+
 export async function findAccentInsensitiveIds(
   table: 'Lead' | 'LeadPoolItem',
   columns: readonly string[],
   search: string | undefined,
-  tenantId?: string
+  tenantId?: string,
+  options: AccentSearchOptions = {}
 ): Promise<string[] | null> {
   const terms = splitSearchTerms(search);
   if (terms.length === 0) return null;
@@ -33,7 +50,7 @@ export async function findAccentInsensitiveIds(
   const hasTitle = columns.includes('title');
 
   const perTerm = terms.map((term) => {
-    const pattern = `%${term}%`;
+    const pattern = `%${escapeLikePattern(term)}%`;
     const termSynonyms = getTitleSynonyms(term);
 
     const anyColumn = Prisma.join(
@@ -42,7 +59,7 @@ export async function findAccentInsensitiveIds(
         if (col === 'title' && termSynonyms.length > 0) {
           const synClauses = termSynonyms.map(
             (syn) =>
-              Prisma.sql`immutable_unaccent(lower(coalesce("title", ''))) LIKE immutable_unaccent(lower(${`%${syn}%`}))`
+              Prisma.sql`immutable_unaccent(lower(coalesce("title", ''))) LIKE immutable_unaccent(lower(${`%${escapeLikePattern(syn)}%`}))`
           );
           return Prisma.sql`(${baseClause} OR ${Prisma.join(synClauses, ' OR ')})`;
         }
@@ -58,7 +75,7 @@ export async function findAccentInsensitiveIds(
   if (fullSynonyms.length > 0 && hasTitle && terms.length > 1) {
     const synClauses = fullSynonyms.map(
       (syn) =>
-        Prisma.sql`immutable_unaccent(lower(coalesce("title", ''))) LIKE immutable_unaccent(lower(${`%${syn}%`}))`
+        Prisma.sql`immutable_unaccent(lower(coalesce("title", ''))) LIKE immutable_unaccent(lower(${`%${escapeLikePattern(syn)}%`}))`
     );
     where = Prisma.sql`((${where}) OR (${Prisma.join(synClauses, ' OR ')}))`;
   }
@@ -77,7 +94,16 @@ export async function findAccentInsensitiveIds(
   // Built once. Writing it into both arms of the branch below would let a future edit reach one
   // and not the other, and the two would then differ only under RLS — the hardest place to
   // notice.
-  const statement = Prisma.sql`SELECT "id" FROM ${tableRef} WHERE ${tenantClause}${where} LIMIT 5000`;
+  // A stable order before the cap: without one, which 5000 rows survive is arbitrary. The caller's own
+  // leads (when known) come first, then the most recently touched.
+  const preferred = options.preferAssignedTo ?? [];
+  const order =
+    table === 'Lead'
+      ? preferred.length > 0
+        ? Prisma.sql`ORDER BY ("assignedToId" = ANY(${[...preferred]}::text[])) DESC, "updatedAt" DESC, "id"`
+        : Prisma.sql`ORDER BY "updatedAt" DESC, "id"`
+      : Prisma.sql`ORDER BY "id"`;
+  const statement = Prisma.sql`SELECT "id" FROM ${tableRef} WHERE ${tenantClause}${where} ${order} LIMIT 5000`;
 
   const rows = tenantId
     ? await withTenantRaw(tenantId, (db) => db.$queryRaw<Array<{ id: string }>>(statement))

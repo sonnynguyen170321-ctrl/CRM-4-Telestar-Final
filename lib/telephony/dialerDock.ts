@@ -2,7 +2,7 @@ import type { DialTarget } from './dialerTargets';
 
 /**
  * The docked dialer's open/closed state, as a small store any page can drive without a provider tree:
- * the lead drawer's Call button, the top bar button and Alt+D all call into it, and the one dock mounted
+ * the lead drawer's Call button, the top bar button and Alt+Shift+D all call into it, and the one dock mounted
  * by `ClientLayoutAddons` listens. Client-safe and framework-free so the transitions are unit-tested.
  *
  * Each request carries a `seq` so the dock can tell "the same target again" from "a new request", and a
@@ -40,7 +40,7 @@ export type DockStore = {
   open(options?: OpenOptions): void;
   close(): void;
   setCollapsed(collapsed: boolean): void;
-  /** Alt+D: open when closed, otherwise fold or unfold. */
+  /** Alt+Shift+D: open when closed, otherwise fold or unfold. */
   toggle(): void;
   subscribe(listener: () => void): () => void;
 };
@@ -95,7 +95,15 @@ export function isDialerHiddenPath(pathname: string | null): boolean {
   return pathname === '/login' || (pathname?.startsWith('/client-reports/public') ?? false);
 }
 
-/** True for Alt+D with no other modifier; kept apart so the shortcut is unit-tested. */
+/** True for Alt+Shift+D with no other modifier (plain Alt+D belongs to the browser's address bar). */
 export function isDialerShortcut(event: Pick<KeyboardEvent, 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey' | 'code' | 'key'>): boolean {
-  return event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && (event.code === 'KeyD' || event.key.toLowerCase() === 'd');
+  return event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && (event.code === 'KeyD' || event.key.toLowerCase() === 'd');
+}
+
+/** Whether a keystroke's target is somewhere the rep is typing; shortcuts stay out of it. */
+export function isTypingTarget(target: { tagName?: string; isContentEditable?: boolean } | null | undefined): boolean {
+  if (!target) return false;
+  if (target.isContentEditable) return true;
+  const tag = (target.tagName ?? '').toUpperCase();
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
 }

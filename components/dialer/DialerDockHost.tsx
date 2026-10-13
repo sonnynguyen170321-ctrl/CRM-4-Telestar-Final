@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 
-import { dialerDock, isDialerHiddenPath, isDialerShortcut } from '@/lib/telephony/dialerDock';
+import { dialerDock, isDialerHiddenPath, isDialerShortcut, isTypingTarget } from '@/lib/telephony/dialerDock';
 
 import { useDialerDock } from './useDialerDock';
 import { useDialerStatus } from './useDialerStatus';
@@ -18,7 +18,7 @@ function ActiveHost() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (!isDialerShortcut(event) || status !== 'enabled') return;
+      if (!isDialerShortcut(event) || status !== 'enabled' || isTypingTarget(event.target as HTMLElement | null)) return;
       event.preventDefault();
       dialerDock.toggle();
     };

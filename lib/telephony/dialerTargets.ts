@@ -24,6 +24,8 @@ export type TargetQuery = {
   text: string;
   /** Digit strings to look for in stored phone numbers; empty when the text is not number-shaped. */
   phoneNeedles: string[];
+  /** Number-shaped (digits, +, spaces, brackets, dashes only): searched as a phone, never as a name. */
+  phoneOnly: boolean;
 };
 
 /**
@@ -37,12 +39,14 @@ export function parseTargetQuery(raw: string | null | undefined): TargetQuery | 
   const phoneShaped = /^[+\d(][\d\s().+-]*$/.test(text);
   const digits = text.replace(/\D/g, '');
   const needles = new Set<string>();
-  if (phoneShaped && digits.length >= PHONE_MIN_DIGITS) {
+  if (phoneShaped) {
+    // Two digits would match half the book; a number-shaped query needs at least three.
+    if (digits.length < PHONE_MIN_DIGITS) return null;
     needles.add(digits);
     const trimmed = digits.replace(/^0+/, '');
     if (trimmed.length >= PHONE_MIN_DIGITS) needles.add(trimmed);
   }
-  return { text, phoneNeedles: [...needles] };
+  return { text, phoneNeedles: [...needles], phoneOnly: phoneShaped };
 }
 
 export function buildTargetsUrl(raw: string): string | null {

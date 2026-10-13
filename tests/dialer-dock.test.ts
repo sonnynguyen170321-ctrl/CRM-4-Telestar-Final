@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createDialerDock, isDialerHiddenPath, isDialerShortcut } from '@/lib/telephony/dialerDock';
+import { createDialerDock, isDialerHiddenPath, isDialerShortcut, isTypingTarget } from '@/lib/telephony/dialerDock';
 import { fetchCallerIds, searchTargets } from '@/lib/telephony/dialerClient';
 import { requestCall } from '@/lib/telephony/softphoneFlow';
 import { targetFromLead } from '@/lib/telephony/dialerTargets';
@@ -47,14 +47,23 @@ describe('dialer dock store', () => {
   });
 });
 
-describe('Alt+D and hidden pages', () => {
-  const key = (over: Partial<Parameters<typeof isDialerShortcut>[0]>) => ({ altKey: true, ctrlKey: false, metaKey: false, shiftKey: false, code: 'KeyD', key: 'd', ...over });
-  it('matches only a bare Alt+D', () => {
+describe('Alt+Shift+D and hidden pages', () => {
+  const key = (over: Partial<Parameters<typeof isDialerShortcut>[0]>) => ({ altKey: true, shiftKey: true, ctrlKey: false, metaKey: false, code: 'KeyD', key: 'd', ...over });
+  it('matches only Alt+Shift+D', () => {
     expect(isDialerShortcut(key({}))).toBe(true);
     expect(isDialerShortcut(key({ altKey: false }))).toBe(false);
+    expect(isDialerShortcut(key({ shiftKey: false }))).toBe(false); // plain Alt+D is the address bar
     expect(isDialerShortcut(key({ ctrlKey: true }))).toBe(false);
     expect(isDialerShortcut(key({ metaKey: true }))).toBe(false);
     expect(isDialerShortcut(key({ code: 'KeyK', key: 'k' }))).toBe(false);
+  });
+  it('stays out of inputs, selects, textareas and editors', () => {
+    expect(isTypingTarget({ tagName: 'INPUT' })).toBe(true);
+    expect(isTypingTarget({ tagName: 'textarea' })).toBe(true);
+    expect(isTypingTarget({ tagName: 'SELECT' })).toBe(true);
+    expect(isTypingTarget({ tagName: 'DIV', isContentEditable: true })).toBe(true);
+    expect(isTypingTarget({ tagName: 'BODY' })).toBe(false);
+    expect(isTypingTarget(null)).toBe(false);
   });
   it('is hidden on login and the public client-report link only', () => {
     expect(isDialerHiddenPath('/login')).toBe(true);

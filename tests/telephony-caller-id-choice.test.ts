@@ -14,8 +14,9 @@ import { fromClientState, issueCallToken, verifyCallToken } from '@/lib/telephon
 import { FakeTelephonyProvider } from '@/lib/telephony/fake';
 import { setTelephonyProviderForTests } from '@/lib/telephony/index';
 import { POST } from '@/app/api/telephony/telnyx/webhook/route';
+import { ensureFinalActivity } from '@/lib/telephony/applyEvent';
 import { createTestTenant } from './helpers/testTenant';
-import { buildDialerWorld, clientStateFor, deleteEventsWithPrefix, eventBody, inTenant, makeCall, makeSigner, reload, type DialerWorld } from './helpers/telephonyFixture';
+import { activitiesFor, buildDialerWorld, clientStateFor, deleteEventsWithPrefix, eventBody, inTenant, makeCall, makeSigner, reload, type DialerWorld } from './helpers/telephonyFixture';
 
 /**
  * The caller ID a rep chooses (floating dialer): the token carries it, the call row holds it, and the
@@ -165,5 +166,19 @@ describe('a parked call with a chosen caller ID', () => {
     const call = await makeCall(world);
     await post(call, clientStateFor(call));
     expect(transfers()[0].command).toMatchObject({ from: th.e164 });
+  });
+});
+
+describe('the call timeline shows the caller ID used', () => {
+  it('writes fromE164 into the call activity and its description', async () => {
+    const chosen = await makeNumber();
+    const call = await makeCall(world, { status: 'completed', fromE164: chosen.e164 });
+    await inTenant(world.tenantId, () => prisma.call.update({ where: { id: call.id }, data: { endedAt: new Date(), billedDurationSec: 62 } }));
+
+    expect(await inTenant(world.tenantId, () => ensureFinalActivity(call.id, world.tenantId))).toBe('written');
+
+    const [activity] = await activitiesFor(world.tenantId, call.id);
+    expect(activity.description).toBe(`Call completed (1m 02s) from ${chosen.e164}`);
+    expect(activity.metadata).toMatchObject({ fromE164: chosen.e164, toE164: '+66812345678' });
   });
 });

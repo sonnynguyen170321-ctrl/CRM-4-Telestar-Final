@@ -215,3 +215,31 @@ describe('GET /api/telephony/caller-ids', () => {
     expect((await list(null)).response.status).toBe(401);
   });
 });
+
+describe('GET /api/telephony/targets under a broad query', () => {
+  it('still returns the rep’s own match when more than 5000 leads in the company match the text', async () => {
+    const peerId = users.peer.id;
+    const rows = Array.from({ length: 5100 }, (_, i) => ({
+      tenantId,
+      firstName: 'Crowd',
+      lastName: `Member${i}`,
+      email: `crowd.${i}.${randomUUID()}@acme.test`,
+      company: 'Crowdco',
+      campaignId,
+      assignedToId: peerId,
+    }));
+    await inTenant(() => prisma.lead.createMany({ data: rows }));
+    // The rep's lead is the oldest, so an unordered or recency-only cap would drop it.
+    const mine = await makeLead(tenantId, campaignId, users.rep.id, { firstName: 'Crowd', lastName: 'Mine', company: 'Crowdco' });
+    await inTenant(() => prisma.$executeRaw`UPDATE "Lead" SET "updatedAt" = now() - interval '2 years' WHERE id = ${mine}`);
+
+    const { body } = await search(users.rep, 'crowd');
+    expect(body.targets.map((t: { leadId: string }) => t.leadId)).toEqual([mine]);
+  }, 60_000);
+
+  it('answers a two-digit number-shaped query with nothing, and searches digits only as a phone', async () => {
+    await makeLead(tenantId, campaignId, users.rep.id, { firstName: 'Eighty', lastName: 'Four', phone: '+84948200638', normalizedPhone: '+84948200638' });
+    expect((await search(users.rep, '84')).body.targets).toEqual([]);
+    expect((await search(users.rep, '84948')).body.targets).toHaveLength(1);
+  });
+});

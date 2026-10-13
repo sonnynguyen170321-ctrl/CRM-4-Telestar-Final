@@ -346,8 +346,8 @@ export default function Topbar({ currentRole, onRoleChange, onNewAction }: Topba
           <button
             type="button"
             onClick={() => dialerDock.toggle()}
-            aria-label="Open dialer (Alt+D)"
-            title="Dialer (Alt+D)"
+            aria-label="Open dialer (Alt+Shift+D)"
+            title="Dialer (Alt+Shift+D)"
             className="p-2 text-text-secondary hover:text-text-primary hover:bg-card-border/30 rounded-lg transition-colors duration-150 focus-ring"
           >
             <Phone className="w-4 h-4" aria-hidden="true" />

@@ -37,16 +37,23 @@ describe('parseTargetQuery', () => {
   });
 
   it('keeps a name as text with no phone needles', () => {
-    expect(parseTargetQuery('  Nguyễn Hải ')).toEqual({ text: 'Nguyễn Hải', phoneNeedles: [] });
+    expect(parseTargetQuery('  Nguyễn Hải ')).toEqual({ text: 'Nguyễn Hải', phoneNeedles: [], phoneOnly: false });
   });
 
-  it('turns a number into digits, plus the digits without a leading zero', () => {
-    expect(parseTargetQuery('0948 200 638')).toEqual({ text: '0948 200 638', phoneNeedles: ['0948200638', '948200638'] });
-    expect(parseTargetQuery('+84 948')).toEqual({ text: '+84 948', phoneNeedles: ['84948'] });
+  it('turns a number into digits, plus the digits without a leading zero, and marks it phone-only', () => {
+    expect(parseTargetQuery('0948 200 638')).toEqual({ text: '0948 200 638', phoneNeedles: ['0948200638', '948200638'], phoneOnly: true });
+    expect(parseTargetQuery('+84 948')).toEqual({ text: '+84 948', phoneNeedles: ['84948'], phoneOnly: true });
+  });
+
+  it('needs three digits for a phone search', () => {
+    expect(parseTargetQuery('84')).toBeNull();
+    expect(parseTargetQuery('+8')).toBeNull();
+    expect(parseTargetQuery('(0 4)')).toBeNull();
+    expect(parseTargetQuery('849')).not.toBeNull();
   });
 
   it('does not treat two digits, or a name with digits, as a phone', () => {
-    expect(parseTargetQuery('12')?.phoneNeedles).toEqual([]);
+    expect(parseTargetQuery('12')).toBeNull();
     expect(parseTargetQuery('acme 2024')?.phoneNeedles).toEqual([]);
   });
 

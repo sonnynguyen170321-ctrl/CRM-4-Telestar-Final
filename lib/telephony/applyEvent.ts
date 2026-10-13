@@ -239,7 +239,7 @@ export async function ensureFinalActivity(callId: string, tenantId: string): Pro
         leadId: call.leadId,
         type: 'call_made',
         channel: 'phone',
-        description: describeFinal(call.status, call.billedDurationSec),
+        description: describeFinal(call.status, call.billedDurationSec) + (call.fromE164 ? ` from ${call.fromE164}` : ''),
         metadata: {
           callId: call.id,
           direction: call.direction,
@@ -247,6 +247,9 @@ export async function ensureFinalActivity(callId: string, tenantId: string): Pro
           durationSec: call.billedDurationSec ?? 0,
           hangupCause: call.hangupCause,
           contactId: call.contactId,
+          // Which company number the lead saw, so a chosen caller ID is auditable from the timeline.
+          fromE164: call.fromE164,
+          toE164: call.toE164,
         },
         createdAt: at,
       },
