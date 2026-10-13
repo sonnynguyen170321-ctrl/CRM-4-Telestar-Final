@@ -23,7 +23,7 @@ import { isHtml } from '@/lib/email/sanitize';
 import { composeEmailBody } from '@/lib/email/signature';
 import { buildReferences, cleanMessageId, normalizeMessageId, replySubject, stripReplyPrefix } from '@/lib/sequences/threadingRules';
 import { nextSendAttemptAt } from '@/lib/email/sendWindow';
-import { msUntilDue, resolveTracking } from '@/lib/email/sendControls';
+import { SCHEDULE_FIRE_TOLERANCE_MS, msUntilDue, resolveTracking } from '@/lib/email/sendControls';
 import { businessDayPolicyFor } from '@/lib/sequences/rules';
 
 /**
@@ -287,7 +287,7 @@ async function notifySendFailure(args: {
 }
 
 async function handleEmailSend(payload: EmailSendPayload) {
-  const { outboundMessageId, accountId, to, subject, body, leadId } = payload;
+  const { outboundMessageId } = payload;
 
   const existing = await prisma.outboundMessage.findUnique({
     where: { id: outboundMessageId },
@@ -295,8 +295,20 @@ async function handleEmailSend(payload: EmailSendPayload) {
   });
   if (!existing) throw new Error(`OutboundMessage not found: ${outboundMessageId}`);
 
+  // What goes out is what the row says now. For a message written in the composer the row is the
+  // truth (it can be revived or edited after a job was queued); a stale job's copy of the subject,
+  // body and recipient must never win. Sequence sends keep their payload, as before.
+  const fromRow = Boolean(existing.composedById);
+  const accountId = fromRow ? existing.accountId : payload.accountId;
+  const to = fromRow ? existing.to : payload.to;
+  const subject = fromRow ? existing.subject ?? payload.subject : payload.subject;
+  const body = fromRow ? existing.body ?? payload.body : payload.body;
+  const leadId = fromRow ? existing.leadId : payload.leadId;
+
   // ── Taken back by the rep (undo send / cancelled schedule) ────────────────
   if (existing.status === OUTBOUND_STATUS.CANCELLED) {
+    // Defensively: a cancelled message must not leave a cadence step waiting on it.
+    if (payload.sequenceStepRef) await releaseSequenceStep(payload.sequenceStepRef, 'the message was cancelled');
     return { skipped: true, reason: 'cancelled' };
   }
 
@@ -396,7 +408,12 @@ async function handleEmailSend(payload: EmailSendPayload) {
   // single-statement CAS the campaign-membership and task-completion paths use — it is
   // safe on the Neon HTTP driver, which has no interactive transactions.
   const claim = await prisma.outboundMessage.updateMany({
-    where: { id: outboundMessageId, status: { in: [...CLAIMABLE_STATUSES] } },
+    where: {
+      id: outboundMessageId,
+      status: { in: [...CLAIMABLE_STATUSES] },
+      // Never claimed before its time, whatever woke this job (the guard above reads the row once; this decides).
+      AND: [{ OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date(Date.now() + SCHEDULE_FIRE_TOLERANCE_MS) } }] }],
+    },
     data: {
       status: OUTBOUND_STATUS.SENDING,
       claimedAt: new Date(),

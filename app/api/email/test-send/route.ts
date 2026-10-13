@@ -48,6 +48,9 @@ export async function POST(req: NextRequest) {
   if (!lead || !(await canAccessLead(user, lead))) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
   const account = await findSendableAccount(user, tenantId, input.accountId);
   if (!account) return NextResponse.json({ error: 'Email account not found' }, { status: 404 });
+  // Only for a mailbox the caller may use, so an arbitrary id cannot burn someone else's allowance.
+  const mailboxLimited = await composeRateLimit('testSendMailbox', account.id);
+  if (mailboxLimited) return mailboxLimited;
   const refusal = mailboxRefusal(account);
   if (refusal) return NextResponse.json({ error: refusal.error, code: refusal.code }, { status: refusal.status });
 

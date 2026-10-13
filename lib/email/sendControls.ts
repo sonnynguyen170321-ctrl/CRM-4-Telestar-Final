@@ -41,6 +41,14 @@ export function resolveSendTiming(input: {
   return { ok: true, timing: { kind: 'now', delayMs: 0, scheduledFor: null } };
 }
 
+/**
+ * A cadence step is sent now: it cannot be taken back from the composer (cancel / undo are for
+ * one-off emails), so offering a delay or a schedule would be a fake undo.
+ */
+export function forceImmediateForSequenceStep(timing: SendTiming, isSequenceStep: boolean): SendTiming {
+  return isSequenceStep ? { kind: 'now', delayMs: 0, scheduledFor: null } : timing;
+}
+
 /** How long a job that woke up too early must wait (ms), or 0 when it is due. */
 export function msUntilDue(scheduledFor: Date | null | undefined, now: Date = new Date()): number {
   if (!scheduledFor) return 0;

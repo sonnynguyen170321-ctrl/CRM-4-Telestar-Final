@@ -3,7 +3,7 @@ import { vi, describe, it, expect } from 'vitest';
 
 vi.mock('@/auth', () => ({ auth: vi.fn(), handlers: {}, signIn: vi.fn(), signOut: vi.fn() }));
 
-import { buildSchedulePicks, msUntilDue, resolveSendTiming, resolveTracking } from '@/lib/email/sendControls';
+import { buildSchedulePicks, forceImmediateForSequenceStep, msUntilDue, resolveSendTiming, resolveTracking } from '@/lib/email/sendControls';
 import { buildChecklist } from '@/lib/email/preflight';
 import { describeDelivery } from '@/lib/inbox/deliveryStatus';
 import { outboundPhase } from '@/lib/email/composedSend';
@@ -108,5 +108,14 @@ describe('wording', () => {
     expect(outboundPhase('sent', null, null)).toBe('sent');
     expect(outboundPhase('cancelled', null, null)).toBe('cancelled');
     expect(outboundPhase('permanently_failed', 'x', null)).toBe('failed');
+  });
+});
+
+describe('forceImmediateForSequenceStep', () => {
+  it('a cadence step is never delayed or scheduled: it cannot be taken back, so no fake undo (L3)', () => {
+    const scheduled = { kind: 'scheduled' as const, delayMs: 3600_000, scheduledFor: new Date(Date.now() + 3600_000) };
+    expect(forceImmediateForSequenceStep(scheduled, true)).toEqual({ kind: 'now', delayMs: 0, scheduledFor: null });
+    expect(forceImmediateForSequenceStep({ kind: 'undo', delayMs: 10_000, scheduledFor: null }, true).kind).toBe('now');
+    expect(forceImmediateForSequenceStep(scheduled, false)).toBe(scheduled);
   });
 });

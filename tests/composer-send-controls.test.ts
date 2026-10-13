@@ -17,6 +17,7 @@ const session = { current: null as unknown };
 const mockEnqueue = vi.fn().mockResolvedValue('job-1');
 const mockReschedule = vi.fn().mockResolvedValue('job-2');
 const mockRemove = vi.fn().mockResolvedValue(true);
+const mockRelease = vi.fn().mockResolvedValue(undefined);
 const mockSend = vi.fn().mockResolvedValue({ providerMessageId: 'pm-1' });
 
 vi.mock('@/auth', () => ({ auth: vi.fn(), handlers: {}, signIn: vi.fn(), signOut: vi.fn() }));
@@ -29,6 +30,10 @@ vi.mock('@/lib/bullmq/enqueue', async (importOriginal) => ({
   enqueue: (...a: unknown[]) => mockEnqueue(...a),
   enqueueReschedule: (...a: unknown[]) => mockReschedule(...a),
   removeQueuedJob: (...a: unknown[]) => mockRemove(...a),
+}));
+vi.mock('@/lib/sequences/stepOutcome', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/sequences/stepOutcome')>()),
+  releaseSequenceStep: (...a: unknown[]) => mockRelease(...a),
 }));
 vi.mock('@/lib/email/EmailService', () => ({
   EmailService: { fromAccount: vi.fn().mockResolvedValue({ send: (...a: unknown[]) => mockSend(...a) }) },
@@ -206,9 +211,10 @@ describe('schedule send', () => {
     as(b.sdr);
     expect((await cancel(json('/x', 'POST'), idParams(outboundMessageId))).status).toBe(404);
     expect((await rowOf(outboundMessageId)).status).toBe('pending');
-    // Someone who may open the lead (a director) can.
+    // Author only: even someone who may open the lead (a director) cannot take it back.
     as(a.director);
-    expect((await cancel(json('/x', 'POST'), idParams(outboundMessageId))).status).toBe(200);
+    expect((await cancel(json('/x', 'POST'), idParams(outboundMessageId))).status).toBe(404);
+    expect((await rowOf(outboundMessageId)).status).toBe('pending');
   });
 
   it('never lets a sequence message be cancelled from here', async () => {
@@ -265,30 +271,70 @@ describe('undo send', () => {
     expect(results.map((r) => r.status)).toEqual([200, 200]);
   });
 
-  it('writing the undone email again under the same key revives the message with the new content', async () => {
+  it('a manual-key replay of an undone email is refused, never resurrected (M1)', async () => {
     const requestId = randomUUID();
     const first = await sendOk({ delaySeconds: 10, clientRequestId: requestId });
     await cancel(json('/x', 'POST'), idParams(first.outboundMessageId));
+    mockEnqueue.mockClear();
     as(a.sdr);
-    const res = await send(json('/api/email/send', 'POST', sendBody({ clientRequestId: requestId, delaySeconds: 10, subject: 'Fixed subject' })));
-    expect(res.status).toBe(200);
-    const again = await res.json();
-    expect(again.outboundMessageId).toBe(first.outboundMessageId);
-    const row = await rowOf(first.outboundMessageId);
-    expect(row.status).toBe('pending');
-    expect(row.subject).toBe('Fixed subject');
-    expect(row.cancelledAt).toBeNull();
+    const res = await send(json('/api/email/send', 'POST', sendBody({ clientRequestId: requestId, delaySeconds: 10, subject: 'Replay' })));
+    expect(res.status).toBe(409);
+    expect((await res.json()).code).toBe('cancelled');
+    expect((await rowOf(first.outboundMessageId)).status).toBe('cancelled');
+    expect(mockEnqueue).not.toHaveBeenCalled();
   });
 
-  it('refuses to revive someone else\'s cancelled message', async () => {
-    const requestId = randomUUID();
-    const first = await sendOk({ delaySeconds: 10, clientRequestId: requestId });
-    await cancel(json('/x', 'POST'), idParams(first.outboundMessageId));
-    // The same key can only collide with the same lead, tenant and account; a different author is refused.
-    await inA(() => prisma.outboundMessage.update({ where: { id: first.outboundMessageId }, data: { composedById: a.otherSdr.id } }));
-    as(a.sdr);
-    const res = await send(json('/api/email/send', 'POST', sendBody({ clientRequestId: requestId })));
-    expect(res.status).toBe(409);
+  describe('a plain email task is the one key that may revive an undone send', () => {
+    const mkTask = () =>
+      inA(() => prisma.task.create({ data: { tenantId: a.tenantId, leadId: a.leadId, userId: a.sdr.id, type: 'email', title: 'Write', dueDate: new Date() } }));
+
+    it('revives with the new content when the request matches the row', async () => {
+      const task = await mkTask();
+      const first = await sendOk({ delaySeconds: 10, taskId: task.id });
+      await cancel(json('/x', 'POST'), idParams(first.outboundMessageId));
+      as(a.sdr);
+      const res = await send(json('/api/email/send', 'POST', sendBody({ taskId: task.id, delaySeconds: 10, subject: 'Fixed subject' })));
+      expect(res.status).toBe(200);
+      const row = await rowOf(first.outboundMessageId);
+      expect(row).toMatchObject({ status: 'pending', subject: 'Fixed subject', cancelledAt: null });
+    });
+
+    it('refuses when the recipient, lead or mailbox differs from the cancelled row (L2)', async () => {
+      const task = await mkTask();
+      const first = await sendOk({ delaySeconds: 10, taskId: task.id });
+      await cancel(json('/x', 'POST'), idParams(first.outboundMessageId));
+      as(a.sdr);
+      const res = await send(json('/api/email/send', 'POST', sendBody({ taskId: task.id, to: 'someone.else@acme.test', delaySeconds: 10 })));
+      expect(res.status).toBe(409);
+      expect((await rowOf(first.outboundMessageId)).status).toBe('cancelled');
+    });
+
+    it('refuses to revive someone else cancelled message', async () => {
+      const task = await mkTask();
+      const first = await sendOk({ delaySeconds: 10, taskId: task.id });
+      await cancel(json('/x', 'POST'), idParams(first.outboundMessageId));
+      await inA(() => prisma.outboundMessage.update({ where: { id: first.outboundMessageId }, data: { composedById: a.otherSdr.id } }));
+      as(a.sdr);
+      const res = await send(json('/api/email/send', 'POST', sendBody({ taskId: task.id })));
+      expect(res.status).toBe(409);
+    });
+  });
+
+  it('reschedule enqueues the new job before removing the old one, and rolls the row back if it cannot enqueue (L5)', async () => {
+    const at = hoursAhead(3);
+    const { outboundMessageId } = await sendOk({ scheduledFor: at });
+    mockReschedule.mockClear();
+    mockRemove.mockClear();
+    const next = hoursAhead(5);
+    await schedule(json('/x', 'POST', { scheduledFor: next }), idParams(outboundMessageId));
+    expect(mockReschedule.mock.invocationCallOrder[0]).toBeLessThan(mockRemove.mock.invocationCallOrder[0]);
+
+    mockReschedule.mockRejectedValueOnce(new Error('redis down'));
+    mockRemove.mockClear();
+    const res = await schedule(json('/x', 'POST', { scheduledFor: hoursAhead(7) }), idParams(outboundMessageId));
+    expect(res.status).toBe(500);
+    expect((await rowOf(outboundMessageId)).scheduledFor?.toISOString()).toBe(next);
+    expect(mockRemove).not.toHaveBeenCalled();
   });
 });
 
@@ -595,5 +641,85 @@ describe('inbox reply uses the same controls', () => {
     expect(row.scheduledFor?.toISOString()).toBe(at);
     expect(row.composedById).toBe(a.sdr.id);
     expect(mockReschedule).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('hardening review follow-ups', () => {
+  it('the inbox reply route never revives an undone reply (M1)', async () => {
+    as(a.sdr);
+    const requestId = randomUUID();
+    const post = (extra: Record<string, unknown> = {}) =>
+      reply(
+        json(`/api/inbox/threads/${a.leadId}-intro/reply`, 'POST', { leadId: a.leadId, body: '<p>Thanks</p>', subject: 'Intro', delaySeconds: 10, clientRequestId: requestId, ...extra }),
+        idParams(`${a.leadId}-intro`),
+      );
+    const first = await post();
+    expect(first.status).toBe(200);
+    const id = (await first.json()).outboundMessage.id as string;
+    await cancel(json('/x', 'POST'), idParams(id));
+    const replay = await post({ body: '<p>Replayed</p>' });
+    expect(replay.status).toBe(409);
+    expect((await replay.json()).code).toBe('cancelled');
+    expect((await rowOf(id)).status).toBe('cancelled');
+  });
+
+  it('the worker sends the row current subject and body, not a stale job copy (L1)', async () => {
+    process.env.EMAIL_SEND_DRY_RUN = 'false';
+    const row = await inA(() =>
+      prisma.outboundMessage.create({
+        data: { tenantId: a.tenantId, leadId: a.leadId, accountId: a.accountId, to: a.leadEmail, subject: 'Fresh subject', body: '<p>Fresh body</p>', idempotencyKey: `w-${randomUUID()}`, composedById: a.sdr.id },
+      }),
+    );
+    await runWorker({ ...emailSendPayloadFor(row), subject: 'Stale subject', body: '<p>Stale body</p>' });
+    const sent = mockSend.mock.calls[0][0];
+    expect(sent.subject).toBe('Fresh subject');
+    expect(sent.html).toContain('Fresh body');
+    expect(sent.html).not.toContain('Stale');
+  });
+
+  it('a cancelled message releases its sequence step if one is attached (L3)', async () => {
+    const row = await inA(() =>
+      prisma.outboundMessage.create({
+        data: { tenantId: a.tenantId, leadId: a.leadId, accountId: a.accountId, to: a.leadEmail, subject: 's', body: 'b', idempotencyKey: `w-${randomUUID()}`, status: 'cancelled' },
+      }),
+    );
+    const ref = { taskId: 't1', leadId: a.leadId, actorUserId: a.sdr.id, sequenceId: 'seq', sequenceStep: 1, abVariantId: null };
+    const result = await runWorker({ ...emailSendPayloadFor(row), sequenceStepRef: ref });
+    expect(result).toMatchObject({ skipped: true, reason: 'cancelled' });
+    expect(mockRelease).toHaveBeenCalledWith(ref, expect.any(String));
+  });
+
+  it('test send is also limited per mailbox (L6)', async () => {
+    process.env.EMAIL_SEND_DRY_RUN = 'false';
+    const counts = new Map<string, number>([[`attempts:compose-testSendMailbox:${a.accountId}`, 20]]);
+    __setAttemptLimitRedis({
+      incr: async (k) => { const n = (counts.get(k) ?? 0) + 1; counts.set(k, n); return n; },
+      expire: async () => 1, ttl: async () => 600, del: async () => 1,
+    });
+    as(a.sdr);
+    const res = await testSend(json('/api/email/test-send', 'POST', { leadId: a.leadId, accountId: a.accountId, subject: 's', body: '<p>b</p>' }));
+    expect(res.status).toBe(429);
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it('a user keeps at most 200 drafts: saving a new one prunes the oldest (L7)', async () => {
+    const lead2 = await inA(() => prisma.lead.create({ data: { tenantId: a.tenantId, firstName: 'Cap', lastName: 'T', email: `cap.${randomUUID()}@acme.test`, company: 'Acme', assignedToId: a.sdr.id, campaignId: a.campaignId } }));
+    await inA(async () => {
+      await prisma.emailDraft.deleteMany({ where: { userId: a.sdr.id } });
+      await prisma.emailDraft.createMany({
+        data: Array.from({ length: 200 }, (_, i) => ({
+          tenantId: a.tenantId, userId: a.sdr.id, scopeKey: `lead:old-${i}`, subject: 's', bodyHtml: '<p>x</p>',
+          updatedAt: new Date(Date.now() - (1000 - i) * 60_000),
+        })),
+      });
+    });
+    as(a.sdr);
+    const res = await draftPut(json('/api/email/drafts', 'PUT', { leadId: lead2.id, subject: 'new', bodyHtml: '<p>new</p>' }));
+    expect(res.status).toBe(200);
+    const keys = await inA(() => prisma.emailDraft.findMany({ where: { userId: a.sdr.id }, select: { scopeKey: true } }));
+    expect(keys).toHaveLength(200);
+    expect(keys.map((k) => k.scopeKey)).toContain(`lead:${lead2.id}`);
+    expect(keys.map((k) => k.scopeKey)).not.toContain('lead:old-0');
+    await inA(() => prisma.emailDraft.deleteMany({ where: { userId: a.sdr.id } }));
   });
 });

@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { inboxScope, threadSubjectKey } from '@/lib/inbox/scope';
 import type { SessionUser } from '@/lib/auth';
 import { createOutboundMessage, emailSendPayloadFor, enqueueTimedEmailSend } from '@/lib/workflows/email';
-import { clearDraft, resolveComposerSendOptions, reviveCancelled } from '@/lib/email/composedSend';
+import { clearDraft, resolveComposerSendOptions } from '@/lib/email/composedSend';
 import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
 import { newRequestId } from '@/lib/email/idempotency';
 import { mailboxRefusal, recipientRefusal } from '@/lib/email/sendGate';
@@ -156,33 +156,26 @@ export async function POST(
       trackClicks,
     });
 
-    // Undone, then written again under the same key: the author's to revive (see the send route).
-    let row = outbound;
-    let revived = false;
-    if (row.status === OUTBOUND_STATUS.CANCELLED && row.composedById === user.id) {
-      const back = await reviveCancelled(user.tenantId, user.id, row.id, {
-        subject: replySubject, body, cc: prepared.value.cc, bcc: prepared.value.bcc,
-        scheduledFor: timing.scheduledFor, trackOpens, trackClicks,
-      });
-      if (!back) return NextResponse.json({ error: 'This reply was cancelled. Start a new one.', code: 'cancelled' }, { status: 409 });
-      row = back;
-      revived = true;
-    }
 
     // An idempotency hit returns the row first written under this key. It must be this reply on
     // this lead; anything else is refused rather than sent with this request's content.
     if (outbound.leadId !== lead.id || outbound.tenantId !== user.tenantId || outbound.accountId !== account.id) {
       return NextResponse.json({ error: 'Duplicate request' }, { status: 409 });
     }
+    // An undone reply stays undone: a replayed request must not resurrect it. The composer mints a
+    // new request id after an undo.
+    if (outbound.status === OUTBOUND_STATUS.CANCELLED) {
+      return NextResponse.json({ error: 'This reply was cancelled. Start a new one.', code: 'cancelled' }, { status: 409 });
+    }
 
     // A failure here makes the reply terminal: one the rep was told failed must not be swept up and
     // sent later without its attachments.
-    const attachFailure = await finalizeComposed(user.tenantId, user.id, revived ? { ...row, createdAt: undefined } : outbound, startedAt, prepared.value);
+    const attachFailure = await finalizeComposed(user.tenantId, user.id, outbound, startedAt, prepared.value);
     if (attachFailure) return attachFailure;
 
     // 4. Enqueue email send workflow
     try {
-      await enqueueTimedEmailSend(emailSendPayloadFor(row), user.tenantId, timing);
+      await enqueueTimedEmailSend(emailSendPayloadFor(outbound), user.tenantId, timing);
     } catch (enqueueError) {
       if (outbound.createdAt.getTime() >= startedAt) {
         await abandonOutbound(user.tenantId, outbound.id, 'Not sent: it could not be queued').catch(() => undefined);

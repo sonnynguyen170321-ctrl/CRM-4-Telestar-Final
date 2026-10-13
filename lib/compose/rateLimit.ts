@@ -16,6 +16,8 @@ export const COMPOSE_LIMITS = {
   checklist: { limit: 120, windowSeconds: 10 * 60 },
   // A test send is a real email from a real mailbox: few, and per user.
   testSend: { limit: 10, windowSeconds: 10 * 60 },
+  // ...and per mailbox, so several reps cannot together spend one mailbox's reputation on tests.
+  testSendMailbox: { limit: 20, windowSeconds: 60 * 60 },
 } as const;
 
 export async function composeRateLimit(bucket: keyof typeof COMPOSE_LIMITS, userId: string): Promise<NextResponse | null> {

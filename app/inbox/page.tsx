@@ -441,6 +441,8 @@ export default function InboxPage() {
     const drop = (t: Thread): Thread => ({ ...t, messages: t.messages.filter((m) => m.id !== msg.id) });
     setThreads((prev) => prev.map(drop));
     setSelectedThread((prev) => (prev ? drop(prev) : prev));
+    // A fresh key: the undone reply stays cancelled, and the next send is a new one.
+    replyRequestIdRef.current = crypto.randomUUID();
     if (!msg.scheduledFor && isHtmlBlank(replyBody)) { setReplyBody(msg.bodyHtml || msg.body || ''); replyDraft.markSent(); }
     showToast(msg.scheduledFor ? 'Scheduled reply cancelled' : 'Send cancelled. Your reply is back in the box.', 'success');
   };

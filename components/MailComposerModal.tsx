@@ -77,6 +77,7 @@ export default function MailComposerModal({ lead, onClose, task, onSent, initial
   const [trackClicks, setTrackClicks] = useState(false);
   const [undo, setUndo] = useState<{ id: string; left: number } | null>(null);
   const draftRestoredRef = useRef(false);
+  const isSequenceStep = Boolean(task?.sequenceId);
 
   const { mailboxes, loading: mailboxesLoading } = useMailboxes();
   const { snippets, createSnippet } = useSnippets();
@@ -322,7 +323,8 @@ ${body}`;
           clientRequestId: requestIdRef.current,
           trackOpens,
           trackClicks,
-          ...(scheduleAt ? { scheduledFor: scheduleAt.toISOString() } : { delaySeconds: UNDO_DELAY_SECONDS }),
+          // A cadence step cannot be taken back, so it goes at once: no schedule, no undo window.
+          ...(isSequenceStep ? {} : scheduleAt ? { scheduledFor: scheduleAt.toISOString() } : { delaySeconds: UNDO_DELAY_SECONDS }),
           ...(cc.length ? { cc } : {}),
           ...(bcc.length ? { bcc } : {}),
           ...(attachments.length ? { attachmentIds: attachments.map((a) => a.id) } : {}),
@@ -486,7 +488,7 @@ ${body}`;
             <div className="flex items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-3">
                 <p className="text-xs text-text-muted">Ctrl+Enter to send{draft.savedAt ? ' - draft saved' : ''}</p>
-                <ScheduleMenu value={scheduleAt} onChange={setScheduleAt} leadTimezone={lead.timezone} disabled={sending} />
+                {!isSequenceStep && <ScheduleMenu value={scheduleAt} onChange={setScheduleAt} leadTimezone={lead.timezone} disabled={sending} />}
                 <TrackingToggles opens={trackOpens} clicks={trackClicks} onChange={(t) => { setTrackOpens(t.opens); setTrackClicks(t.clicks); }} disabled={sending} />
                 <TestSendButton disabled={!canSend} onSend={sendTest} />
               </div>
@@ -498,7 +500,7 @@ ${body}`;
                 <button type="submit" disabled={!account || Boolean(account.sendPausedAt) || !canSend}
                   className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 active:scale-95 focus-ring">
                   {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Send className="w-3.5 h-3.5" aria-hidden="true" />}
-                  <span>{sending ? 'Sending…' : scheduleAt ? 'Schedule' : missing.length > 0 ? 'Send anyway' : 'Send Email'}</span>
+                  <span>{sending ? 'Sending…' : scheduleAt && !isSequenceStep ? 'Schedule' : missing.length > 0 ? 'Send anyway' : 'Send Email'}</span>
                 </button>
               </div>
             </div>

@@ -10,7 +10,6 @@
  */
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { canAccessLead } from '@/lib/auth';
 import type { SessionUser } from '@/lib/auth';
 import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
 import { resolveSendTiming, type SendTiming } from '@/lib/email/sendControls';
@@ -65,12 +64,8 @@ async function loadComposed(user: SessionUser, id: string) {
   const row = await prisma.outboundMessage.findFirst({ where: { id, tenantId: user.tenantId } });
   // Not found, not forbidden: a message that is not yours does not exist as far as you can tell.
   if (!row || !row.composedById || row.sequenceId) return null;
-  if (row.composedById === user.id) return row;
-  const lead = await prisma.lead.findFirst({
-    where: { id: row.leadId, tenantId: user.tenantId },
-    select: { assignedToId: true, campaignId: true, tenantId: true },
-  });
-  return lead && (await canAccessLead(user, lead)) ? row : null;
+  // Author only: a manager who can open the lead still cannot take back a colleague's email.
+  return row.composedById === user.id ? row : null;
 }
 
 const NOT_FOUND = { ok: false as const, status: 404, error: 'Message not found', code: 'not_found' };
@@ -115,9 +110,21 @@ export async function rescheduleComposed(user: SessionUser, id: string, schedule
     data: { scheduledFor: timing.timing.scheduledFor, errorMessage: null },
   });
   if (moved.count !== 1) return { ok: false, status: 409, code: 'too_late', error: 'It is no longer waiting to be sent.' };
+  // The new job first, the old one after: a failure must never leave a pending row with no job.
   const payload = emailSendPayloadFor(row);
-  await removeTimedEmailSend(payload, row.tenantId, row.scheduledFor);
-  await enqueueTimedEmailSend(payload, row.tenantId, timing.timing);
+  try {
+    await enqueueTimedEmailSend(payload, row.tenantId, timing.timing);
+  } catch (err) {
+    console.error('[compose] could not queue the new send time, keeping the old one:', err);
+    await prisma.outboundMessage.updateMany({
+      where: { id, tenantId: row.tenantId, status: OUTBOUND_STATUS.PENDING, scheduledFor: timing.timing.scheduledFor },
+      data: { scheduledFor: row.scheduledFor },
+    });
+    return { ok: false, status: 500, code: 'queue_failed', error: 'The new time could not be saved. The email keeps its old time.' };
+  }
+  if (row.scheduledFor?.getTime() !== timing.timing.scheduledFor.getTime()) {
+    await removeTimedEmailSend(payload, row.tenantId, row.scheduledFor);
+  }
   return { ok: true, scheduledFor: timing.timing.scheduledFor };
 }
 

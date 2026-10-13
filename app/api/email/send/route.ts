@@ -13,6 +13,7 @@ import { sendEmailSchema } from '@/lib/validation/schemas';
 import { createOutboundMessage, emailSendPayloadFor, enqueueTimedEmailSend } from '@/lib/workflows/email';
 import { clearDraft, resolveComposerSendOptions, reviveCancelled } from '@/lib/email/composedSend';
 import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
+import { forceImmediateForSequenceStep } from '@/lib/email/sendControls';
 import { newRequestId } from '@/lib/email/idempotency';
 import { resolveComposerTask } from '@/lib/sequences/composerTask';
 import type { SequenceStepRef } from '@/lib/sequences/stepOutcome';
@@ -152,7 +153,9 @@ export async function POST(req: NextRequest) {
   // Schedule / undo window / tracking (lib/email/composedSend.ts); tracking not named takes the tenant default.
   const options = await resolveComposerSendOptions(tenantId, body);
   if (!options.ok) return options.response;
-  const { timing, trackOpens, trackClicks } = options.value;
+  const { trackOpens, trackClicks } = options.value;
+  // A cadence step cannot be taken back from the composer, so it is never delayed or scheduled.
+  const timing = forceImmediateForSequenceStep(options.value.timing, Boolean(stepRef));
 
   const startedAt = Date.now();
   let created: Awaited<ReturnType<typeof createOutboundMessage>> | null = null;
@@ -186,6 +189,13 @@ export async function POST(req: NextRequest) {
     let row = outboundMessage;
     let revived = false;
     if (row.status === OUTBOUND_STATUS.CANCELLED) {
+      // Only a task key may be revived (the composer re-sends the same task after an undo). A
+      // manual key is a one-shot request id: a replayed POST must not resurrect an undone email.
+      // And only for the same recipient, lead and mailbox the cancelled row had.
+      const sameRequest = row.to === body.to && row.leadId === (body.leadId ?? 'unknown') && row.accountId === body.accountId;
+      if (!body.taskId || !sameRequest) {
+        return NextResponse.json({ error: 'This email was cancelled. Start a new one.', code: 'cancelled' }, { status: 409 });
+      }
       const back = await reviveCancelled(tenantId, user.id, row.id, {
         subject, body: text, cc: prepared.value.cc, bcc: prepared.value.bcc,
         scheduledFor: timing.scheduledFor, trackOpens, trackClicks,

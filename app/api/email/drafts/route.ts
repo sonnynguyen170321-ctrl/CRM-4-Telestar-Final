@@ -14,6 +14,9 @@ import { id, longText } from '@/lib/validation/core';
  * tenant, so a colleague's draft is invisible, not forbidden. Deleted when the email is queued
  * (the send routes) or discarded (DELETE).
  */
+/** Drafts one user may keep; saving a new one past this prunes the least recently edited. */
+export const MAX_DRAFTS_PER_USER = 200;
+
 const scopeOf = (leadId: string, threadId?: string | null) => (threadId ? `thread:${threadId}` : `lead:${leadId}`);
 
 const putSchema = z.object({
@@ -92,6 +95,19 @@ export async function PUT(req: NextRequest) {
     bcc: input.bcc ?? [],
     attachmentIds: input.attachmentIds ?? [],
   };
+  const existing = await prisma.emailDraft.findFirst({ where: { tenantId, userId: user.id, scopeKey }, select: { id: true } });
+  if (!existing) {
+    const count = await prisma.emailDraft.count({ where: { tenantId, userId: user.id } });
+    if (count >= MAX_DRAFTS_PER_USER) {
+      const stale = await prisma.emailDraft.findMany({
+        where: { tenantId, userId: user.id },
+        orderBy: { updatedAt: 'asc' },
+        take: count - MAX_DRAFTS_PER_USER + 1,
+        select: { id: true },
+      });
+      await prisma.emailDraft.deleteMany({ where: { tenantId, userId: user.id, id: { in: stale.map((d) => d.id) } } });
+    }
+  }
   const saved = await prisma.emailDraft.upsert({
     where: { tenantId_userId_scopeKey: { tenantId, userId: user.id, scopeKey } },
     create: { ...data, tenantId, userId: user.id, scopeKey },
