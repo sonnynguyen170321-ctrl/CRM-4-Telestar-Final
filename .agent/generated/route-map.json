@@ -38,6 +38,7 @@
     "/login",
     "/meetings",
     "/opportunities",
+    "/privacy",
     "/research",
     "/sequences",
     "/sequences/performance",
@@ -45,7 +46,8 @@
     "/settings/telephony",
     "/team",
     "/team/campaigns/[id]/members",
-    "/templates"
+    "/templates",
+    "/terms"
   ],
   "apiRoutes": [
     "/api/activities",
@@ -281,6 +283,6 @@
     "/api/work-orders",
     "/api/work-orders/[id]/dispatch"
   ],
-  "pageCount": 39,
+  "pageCount": 41,
   "apiRouteCount": 232
 }

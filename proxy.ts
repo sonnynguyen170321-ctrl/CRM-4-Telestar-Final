@@ -70,8 +70,12 @@ export const proxy = auth(function handler(req: NextRequest & { auth: { user?: u
 //
 // api/email/oauth is excluded because external OAuth providers redirect back with
 // authorization codes without an active session cookie.
+//
+// privacy and terms are excluded because Google will not publish the OAuth app without a public
+// privacy policy and terms link, and their readers have no account. Exactly those two paths:
+// static pages that read nothing, and `privacy$` keeps `/privacy-anything` behind sign-in.
 export const config = {
   matcher: [
-    '/((?!api/auth|api/cron|api/health|api/csp-report|api/unsubscribe|api/t/|api/email/oauth|api/telephony/telnyx/webhook$|api/telephony/telnyx/webhook/|api/client-reports/public|client-reports/public|login|_next/static|_next/image|favicon\\.ico|.*\\.png$).*)',
+    '/((?!api/auth|api/cron|api/health|api/csp-report|api/unsubscribe|api/t/|api/email/oauth|api/telephony/telnyx/webhook$|api/telephony/telnyx/webhook/|api/client-reports/public|client-reports/public|login|privacy$|terms$|_next/static|_next/image|favicon\\.ico|.*\\.png$).*)',
   ],
 };

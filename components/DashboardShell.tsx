@@ -68,6 +68,12 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   // client shows them our tooling and invites clicks into pages they cannot open.
   const isPublicShareLink = pathname?.startsWith('/client-reports/public') ?? false;
 
+  // The legal pages are read by people with no account — Google's OAuth reviewers among them,
+  // often on a phone — so they skip the desktop gate as well as the chrome.
+  if (pathname === '/privacy' || pathname === '/terms') {
+    return <>{children}</>;
+  }
+
   if (pathname === '/login' || isPublicShareLink) {
     return <DesktopOnlyGate>{children}</DesktopOnlyGate>;
   }
