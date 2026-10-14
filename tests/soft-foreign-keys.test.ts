@@ -136,6 +136,15 @@ const SOFT_FOREIGN_KEYS = new Set([
   'Attachment.uploadedById',
   // Who attached a sending mailbox — an audit stamp, soft like every other *ById here.
   'SequenceSender.addedById',
+  // A composer draft's context. Soft on purpose: a draft whose lead, mailbox or inbox thread is gone
+  // is restored without that context rather than blocking the delete, and nothing is sent from a draft
+  // without the send route re-checking the lead, mailbox and recipient (app/api/email/send).
+  'EmailDraft.accountId',
+  'EmailDraft.leadId',
+  'EmailDraft.threadId',
+  // Who composed a one-off email — an authorship stamp, soft like every other *ById here. Checked
+  // against the session for undo/cancel/reschedule/status (lib/email/composedSend.ts).
+  'OutboundMessage.composedById',
   'Task.sequenceId',
 ]);
 
