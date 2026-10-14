@@ -10,7 +10,7 @@ import type { SendEmailOptions, SendReceipt, SendThreading } from '@/lib/email/E
 import { effectiveDryRun, isGlobalEmailPaused, isCanaryRecipientAllowed } from '@/lib/emailSafety';
 import { generateUnsubscribeToken, buildUnsubscribeHeaders } from '@/lib/email/unsubscribe';
 import { renderSubject, renderTemplate, stripMergeGuard } from '@/lib/templates/render';
-import { sanitizeComposeHtml } from '@/lib/compose/html';
+import { composeHtmlShapeProblem, sanitizeComposeHtml } from '@/lib/compose/html';
 import { loadRenderLead, loadRenderSender } from '@/lib/templates/renderContext';
 import {
   CLAIMABLE_STATUSES,
@@ -480,6 +480,20 @@ async function handleEmailSend(payload: EmailSendPayload) {
       await releaseSequenceStep(payload.sequenceStepRef, refusal.toLowerCase());
     }
     return { skipped: true, reason: suppressed ? 'suppressed' : 'bounced_earlier' };
+  }
+
+  // A body too large or too deeply nested for the sanitiser can never be made safe to send, so it
+  // ends here, terminally, before any quota is reserved. Rendering only fills escaped values and
+  // picks among options, so it cannot make a body that passes this deeper or larger.
+  const shapeProblem = isHtml(body) ? composeHtmlShapeProblem(body) : null;
+  if (shapeProblem) {
+    const refusal = `Not sent: ${shapeProblem}`;
+    await prisma.outboundMessage.update({
+      where: { id: outboundMessageId },
+      data: { status: OUTBOUND_STATUS.PERMANENTLY_FAILED, errorMessage: refusal },
+    });
+    if (payload.sequenceStepRef) await releaseSequenceStep(payload.sequenceStepRef, refusal.toLowerCase());
+    return { skipped: true, reason: 'body_too_complex' };
   }
 
   // Deliverability preflight — runs BEFORE quota reservation so a blocked send

@@ -63,6 +63,7 @@
     "/api/ai/attention",
     "/api/ai/briefing",
     "/api/ai/chat",
+    "/api/ai/compose-rewrite",
     "/api/ai/console",
     "/api/ai/daily-briefing",
     "/api/ai/draft-outcome",
@@ -281,5 +282,5 @@
     "/api/work-orders/[id]/dispatch"
   ],
   "pageCount": 39,
-  "apiRouteCount": 231
+  "apiRouteCount": 232
 }

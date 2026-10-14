@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 231   mutating: 146   mutating without a test: 19
+# routes: 232   mutating: 147   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -95,6 +95,11 @@ routes:
       - e2e/journeys/telestar-ai-chat.spec.ts
       - tests/agent-routing.test.ts
       - tests/ai-chat-route.test.ts
+  - path: app/api/ai/compose-rewrite/route.ts
+    methods: [POST]
+    tests:
+      - tests/compose-ai-rewrite-security.test.ts
+      - tests/compose-ai-rewrite.test.ts
   - path: app/api/ai/console/route.ts
     methods: [GET]
     tests: []
@@ -577,6 +582,7 @@ routes:
       - tests/email-send-paused-mailbox.test.ts
       - tests/personalization-lab.test.ts
       - tests/sequence-email-autosend-send.test.ts
+      - tests/soft-foreign-keys.test.ts
   - path: app/api/email/test-send/route.ts
     methods: [POST]
     tests:

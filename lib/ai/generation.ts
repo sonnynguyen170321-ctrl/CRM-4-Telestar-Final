@@ -51,6 +51,8 @@ export interface GenerateStructuredInput extends GenerationAttribution {
   /** A specific approved model, or omitted to let the router choose. */
   modelId?: ModelId;
   maxOutputTokens?: number;
+  /** Per provider attempt; the gateway's default (60s) when omitted. An interactive caller wants less. */
+  timeoutMs?: number;
   /** Routing hints — complexity, latency sensitivity, capability requirements. */
   criteria?: Omit<RoutingCriteria, 'task' | 'preferredModel'>;
 }
@@ -130,6 +132,7 @@ export async function generateStructured<T>(
       responseFormatJson: true,
       maxTokens: input.maxOutputTokens ?? 1200,
       temperature: 0.4,
+      ...(input.timeoutMs ? { timeoutMs: input.timeoutMs } : {}),
       operation: input.operation,
       leadId: input.leadId ?? undefined,
       workOrderId: input.workOrderId ?? undefined,

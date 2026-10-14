@@ -10,7 +10,7 @@ import { effectiveDryRun, isCanaryRecipientAllowed, isGlobalEmailPaused } from '
 import { renderSubject, renderTemplate } from '@/lib/templates/render';
 import { loadRenderLead, loadRenderSender } from '@/lib/templates/renderContext';
 import { isHtml } from '@/lib/email/sanitize';
-import { sanitizeComposeHtml, unchipifyMergeTags } from '@/lib/compose/html';
+import { composeHtmlShapeProblem, sanitizeComposeHtml, unchipifyMergeTags } from '@/lib/compose/html';
 import { composeEmailBody } from '@/lib/email/signature';
 import { composeRateLimit } from '@/lib/compose/rateLimit';
 import { composeAttachmentIds } from '@/lib/validation/schemas';
@@ -67,7 +67,12 @@ export async function POST(req: NextRequest) {
   const renderLead = await loadRenderLead(tenantId, lead);
   const subject = renderSubject(unchipifyMergeTags(input.subject), renderLead, sender, { final: true });
   let body = renderTemplate(unchipifyMergeTags(input.body), renderLead, sender, { final: true });
-  if (isHtml(body)) body = sanitizeComposeHtml(body);
+  if (isHtml(body)) {
+    // HTML too large or too deep to sanitise is refused, never sent unsanitised.
+    const problem = composeHtmlShapeProblem(body);
+    if (problem) return NextResponse.json({ error: problem, code: 'body_too_complex' }, { status: 413 });
+    body = sanitizeComposeHtml(body);
+  }
 
   if (dryRun) return NextResponse.json({ success: true, dryRun: true, to });
 

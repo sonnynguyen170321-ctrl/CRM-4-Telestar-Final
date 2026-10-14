@@ -28,6 +28,7 @@ import { SignatureBlock } from '@/components/compose/ComposeParts';
 import { useMailboxes, useSnippets } from '@/components/compose/useComposeData';
 import type { ComposeAttachment } from '@/components/compose/types';
 import { ScheduleMenu } from '@/components/compose/SendControls';
+import { AiRewriteMenu, AiRewritePreview, useAiRewrite } from '@/components/compose/AiRewrite';
 import ScheduledEmailActions from '@/components/compose/ScheduledEmailActions';
 import { useDraftAutosave } from '@/components/compose/useDraftAutosave';
 import { UNDO_DELAY_SECONDS } from '@/lib/email/sendControls';
@@ -110,6 +111,8 @@ export default function InboxPage() {
   // Reply box states
   const [replyBody, setReplyBody] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
+  const replyRewrite = useAiRewrite(replyBody, setReplyBody);
+  const resetReplyRewrite = replyRewrite.reset;
   // Copies and files for the reply being written; cleared when it is queued.
   const [replyCc, setReplyCc] = useState<string[]>([]);
   const [replyBcc, setReplyBcc] = useState<string[]>([]);
@@ -421,7 +424,8 @@ export default function InboxPage() {
   // A different thread starts with an empty reply box (the old text would otherwise be saved into it).
   useEffect(() => {
     setReplyBody(''); setReplyCc([]); setReplyBcc([]); setReplyAttachments([]); setReplyScheduleAt(null);
-  }, [selectedThreadId]);
+    resetReplyRewrite();
+  }, [selectedThreadId, resetReplyRewrite]);
   const restoredReply = replyDraft.restored;
   useEffect(() => {
     if (!restoredReply) return;
@@ -1159,11 +1163,13 @@ export default function InboxPage() {
                     snippets={replySnippets}
                     onCreateSnippet={(html) => void saveReplySnippet(html)}
                   />
+                  <AiRewritePreview state={replyRewrite} body={replyBody} />
 
                   {replyMailbox && <SignatureBlock html={replyMailbox.signaturePreview} mailboxEmail={replyMailbox.email} />}
                   <AttachmentBar attachments={replyAttachments} onChange={setReplyAttachments} disabled={sendingReply} />
 
                   <div className="flex items-center justify-end gap-2">
+                    <AiRewriteMenu state={replyRewrite} disabled={sendingReply || isHtmlBlank(replyBody)} opensUp />
                     <ScheduleMenu value={replyScheduleAt} onChange={setReplyScheduleAt} leadTimezone={null} disabled={sendingReply} />
                     <button
                       type="submit"
