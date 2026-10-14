@@ -15,7 +15,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { isHtml } from '@/lib/email/sanitize';
-import { isHtmlBlank, sanitizeComposeHtml } from '@/lib/compose/html';
+import { composeHtmlShapeProblem, isHtmlBlank, sanitizeComposeHtml } from '@/lib/compose/html';
 import { normalizeCopyRecipients } from '@/lib/compose/recipients';
 import { recipientRefusal } from '@/lib/email/sendGate';
 import { blockIfBounced } from '@/lib/email/suppress';
@@ -88,6 +88,9 @@ export async function prepareComposed(input: {
   let body = input.body;
   let inlineImages: InlineImage[] = [];
   if (isHtml(body)) {
+    // HTML too large or too deep to sanitise is refused, never queued unsanitised.
+    const problem = composeHtmlShapeProblem(body);
+    if (problem) return fail(413, problem, 'body_too_complex');
     body = sanitizeComposeHtml(body);
     if (isHtmlBlank(body)) return fail(400, 'Body cannot be empty');
     const inline = inlineImagesForBody(body);

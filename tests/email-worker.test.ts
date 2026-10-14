@@ -382,6 +382,22 @@ describe('handleEmailSend', () => {
     expect(sent.html).not.toMatch(/onerror|javascript:|<script/i);
   });
 
+  // Re-review of the composer rewrite: 12k nested divs overflowed the sanitiser's stack. A body the
+  // sanitiser cannot process can never be made safe to send, so it ends, terminally, unsent.
+  it('refuses, terminally and without the provider, a body too deeply nested to sanitise', async () => {
+    mockOutboundFindUnique.mockResolvedValueOnce(mockOutboundMessage());
+    mockSuppressionFindFirst.mockResolvedValueOnce(null);
+    // No quota mock: the refusal comes before quota is reserved.
+
+    const result = await handleEmailSend(buildPayload({ body: `<p>Hi</p>${'<div>'.repeat(12_000)}` }));
+
+    expect(result).toEqual({ skipped: true, reason: 'body_too_complex' });
+    expect(mockServiceSend).not.toHaveBeenCalled();
+    expect(mockOutboundUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      data: { status: 'permanently_failed', errorMessage: expect.stringMatching(/nested/i) },
+    }));
+  });
+
   describe('reply in the same thread', () => {
     const parent = {
       status: 'sent',

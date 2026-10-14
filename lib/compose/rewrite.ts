@@ -24,7 +24,7 @@
  * Pure, client and server.
  */
 import { isHtml } from '@/lib/email/sanitize';
-import { plainTextToHtml, sanitizeComposeDetailed, stripImages } from './html';
+import { composeHtmlShapeProblem, htmlToPlainText, plainTextToHtml, sanitizeComposeDetailed, stripImages } from './html';
 
 export const REWRITE_ACTIONS = [
   { id: 'shorten', label: 'Shorten' },
@@ -65,7 +65,7 @@ export function rewriteInputProblem(text: string): string | null {
   for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) === 123 /* { */) braces++;
   if (braces > MAX_REWRITE_BRACES) return 'This draft has more template syntax than can be rewritten safely. Rewrite it in parts.';
   if ((text.match(/<img\b/gi) ?? []).length > MAX_REWRITE_IMAGES) return 'This draft has too many images to rewrite.';
-  return null;
+  return composeHtmlShapeProblem(text);
 }
 
 interface TemplateScan {
@@ -252,6 +252,30 @@ function bareUrls(text: string): string[] {
   });
 }
 
+// The first class excludes `|`, so the spintax alternative cannot backtrack across it.
+const TEMPLATE_IN_RUN = /\{\{|\[\[T\d|\{[^{}\s|]{0,300}\|/;
+const TOKEN_TEXT = /\{\{[^}]{0,300}\}\}|\[\[T\d{1,6}\]\]|\{[^{}\s|]{0,300}\|[^{}\s]{0,300}\}/g;
+const ADDRESS_SHAPED = /[/=&#?]|\.[a-z]{2,}/i;
+
+/**
+ * A merge token glued to an address written as text, with no scheme to catch it:
+ * `evil.com/?e={{email}}` becomes a working link in most mail clients once the token is filled in.
+ * Every whitespace-delimited run of the answer that holds template syntax, and is address-shaped once
+ * the tokens are taken out (a `/ = & # ?` or a `.tld`, trailing punctuation aside), must appear
+ * exactly in the draft.
+ */
+function tokenInAddressRun(outputText: string, draftText: string): RestoreResult | null {
+  const draftRuns = new Set(draftText.split(/\s+/));
+  for (const run of outputText.split(/\s+/)) {
+    if (!TEMPLATE_IN_RUN.test(run) || draftRuns.has(run)) continue;
+    const rest = run.replace(TOKEN_TEXT, 'X');
+    let end = rest.length;
+    while (end > 0 && TRAILING_PUNCTUATION.includes(rest[end - 1])) end--;
+    if (ADDRESS_SHAPED.test(rest.slice(0, end))) return TOKEN_IN_LINK;
+  }
+  return null;
+}
+
 /**
  * The checks a rewrite passes before the rep sees it. For an HTML draft the text returned is the
  * sanitised HTML whose links were inspected, so nothing can change between the check and the use.
@@ -261,18 +285,20 @@ export function validateRewrite(input: string, original: ProtectedText, output: 
   if (!draftIsHtml) {
     const restored = restoreTokens(output, original);
     if (!restored.ok) return restored;
-    return unknownAddress(bareUrls(restored.text), new Set(bareUrls(input))) ?? restored;
+    return unknownAddress(bareUrls(restored.text), new Set(bareUrls(input))) ?? tokenInAddressRun(restored.text, input) ?? restored;
   }
 
   // Any image in the answer is the model's own: the draft's images are placeholders until now.
   const restored = restoreTokens(stripImages(output), original);
   if (!restored.ok) return restored;
-  const result = sanitizeComposeDetailed(restored.text);
+  // The answer is unreviewed: positioning styles go too, so it cannot lay an overlay over the message.
+  const result = sanitizeComposeDetailed(restored.text, { unreviewed: true });
   const draft = sanitizeComposeDetailed(input);
   const refused =
     unknownAddress(result.hrefs, new Set(draft.hrefs)) ??
     unknownAddress(result.srcs, new Set(draft.srcs)) ??
-    unknownAddress(bareUrls(result.html.replace(/<[^<>]{0,4000}>/g, ' ')), new Set([...draft.hrefs, ...bareUrls(input)]));
+    unknownAddress(bareUrls(result.html.replace(/<[^<>]{0,4000}>/g, ' ')), new Set([...draft.hrefs, ...bareUrls(input)])) ??
+    tokenInAddressRun(htmlToPlainText(result.html), htmlToPlainText(input));
   if (refused) return refused;
   if (result.images !== draft.images) {
     return { ok: false, reason: 'images_changed', message: 'The rewrite lost or changed an image in your draft, so it was not used. Try again.' };

@@ -13,7 +13,7 @@
  *
  * Pure, client and server.
  */
-import { htmlToPlainText, unchipifyMergeTags } from './html';
+import { readHtml, unchipifyMergeTags } from './html';
 import { findMergeTags } from './merge';
 import { isHtml } from '@/lib/email/sanitize';
 
@@ -108,10 +108,10 @@ export function syllableCount(word: string): number {
 
 /**
  * The text a reader actually reads: merge tags as one word, the first spintax option, both sides of
- * a conditional (the syntax itself dropped), markup gone.
+ * a conditional (the syntax itself dropped). Takes text already out of the markup.
  */
-function readableText(body: string): string {
-  let text = isHtml(body) ? htmlToPlainText(body) : body;
+function readableText(plain: string): string {
+  let text = plain;
   // Bounded repetitions: an unbounded `[^}]*` rescans to the end from every `{{` that never closes.
   text = text.replace(/\{\{\s{0,20}(?:#if\b[^}]{0,300}|else|\/if)\s{0,20}\}\}/g, ' ');
   text = text.replace(/\{\{\s{0,20}([a-zA-Z][\w.]{0,100})\s{0,20}(?:\|[^}]{0,300})?\}\}/g, (_w, field: string) => field.replace(/\./g, ''));
@@ -127,35 +127,6 @@ function countTerm(haystack: string, term: string): number {
 }
 
 const BARE_URL = /\b(?:https?:\/\/|www\.)\S+/gi;
-const ANCHOR_OPEN = /<a\b/gi;
-const ANCHOR_CLOSE = /<\/a>/gi;
-
-/**
- * Links: anchors with an href, plus addresses written as text outside them. A forward scan: the
- * regexes this replaced (`<a[^>]*href`, `<a[\s\S]*?</a>`) rescanned from every `<a`, which made 60 KB
- * of `<a ` take seconds. A missing `>` or `</a>` ends the scan rather than being sought again.
- */
-function countLinks(body: string): number {
-  if (!isHtml(body)) return (body.match(BARE_URL) ?? []).length;
-  let anchors = 0;
-  let outside = '';
-  let i = 0;
-  for (;;) {
-    ANCHOR_OPEN.lastIndex = i;
-    const open = ANCHOR_OPEN.exec(body);
-    if (!open) break;
-    const gt = body.indexOf('>', open.index);
-    if (gt === -1) break;
-    if (/\bhref\s*=/i.test(body.slice(open.index, gt))) anchors++;
-    outside += `${body.slice(i, open.index)} `;
-    ANCHOR_CLOSE.lastIndex = gt + 1;
-    const close = ANCHOR_CLOSE.exec(body);
-    if (!close) { i = body.length; break; }
-    i = close.index + close[0].length;
-  }
-  outside += body.slice(i);
-  return anchors + (htmlToPlainText(outside).match(BARE_URL) ?? []).length;
-}
 
 function isShouting(subject: string): boolean {
   const letters = subject.replace(/\{\{[^}]{0,300}\}\}/g, '').replace(/[^\p{L}]/gu, '');
@@ -191,7 +162,9 @@ function gradeOf(words: string[], sentences: number): number | null {
 export function measureContent(input: { subject: string; body: string }): { language: ContentLanguage; metrics: ContentMetrics } {
   const body = unchipifyMergeTags((input.body ?? '').slice(0, MAX_SCORED_BODY_CHARS));
   const subject = unchipifyMergeTags((input.subject ?? '').slice(0, MAX_SCORED_SUBJECT_CHARS)).trim();
-  const text = readableText(body);
+  // One parse gives the text, the links and the images (readHtml); plain text needs none.
+  const parts = isHtml(body) ? readHtml(body) : null;
+  const text = readableText(parts ? parts.text : body);
   const words = wordsOf(text);
   const language = detectLanguage(text);
   // Only the last mark of a run ("?!") is followed by a space or the end: the same count as
@@ -205,8 +178,9 @@ export function measureContent(input: { subject: string; body: string }): { lang
       words: words.length,
       sentences,
       readingGrade: language === 'en' ? gradeOf(words, sentences) : null,
-      links: countLinks(body),
-      images: (body.match(/<img\b/gi) ?? []).length,
+      // Links with an href, plus addresses written as text outside them.
+      links: parts ? parts.links + (parts.textOutsideLinks.match(BARE_URL) ?? []).length : (body.match(BARE_URL) ?? []).length,
+      images: parts ? parts.images : 0,
       questions: (text.match(/\?+/g) ?? []).length,
       spamWords: SPAM_TERMS.filter((term) => countTerm(both, term) > 0),
       variables: [...new Set(findMergeTags(`${subject}\n${body}`).map((tag) => tag.field))],

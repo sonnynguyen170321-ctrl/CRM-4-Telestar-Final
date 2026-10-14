@@ -8,7 +8,7 @@ import { findSendableAccount } from '@/lib/email/sendableAccount';
 import { buildMergeContext, renderSubject, renderTemplate } from '@/lib/templates/render';
 import { loadRenderLead, loadRenderSender } from '@/lib/templates/renderContext';
 import { findMissingMergeValues } from '@/lib/compose/merge';
-import { plainTextToHtml, sanitizeComposeHtml, unchipifyMergeTags } from '@/lib/compose/html';
+import { composeHtmlShapeProblem, plainTextToHtml, sanitizeComposeHtml, unchipifyMergeTags } from '@/lib/compose/html';
 import { isHtml } from '@/lib/email/sanitize';
 import { id, longText } from '@/lib/validation/core';
 import { composeRateLimit } from '@/lib/compose/rateLimit';
@@ -76,6 +76,9 @@ async function preview(user: SessionUser, input: z.infer<typeof previewSchema>) 
 
   const rawBody = unchipifyMergeTags(body);
   const rendered = renderTemplate(rawBody, renderLead, sender, { now, final: true });
+  // HTML too large or too deep to sanitise is refused with the reason, not a 500.
+  const problem = isHtml(rendered) ? composeHtmlShapeProblem(rendered) : null;
+  if (problem) return NextResponse.json({ error: problem, code: 'body_too_complex' }, { status: 413 });
   return NextResponse.json({
     subject: renderSubject(subject, renderLead, sender, { now, final: true }),
     // Always HTML for display; sanitised here as well as on send.

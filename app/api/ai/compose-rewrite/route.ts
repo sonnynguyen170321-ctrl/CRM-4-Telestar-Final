@@ -12,7 +12,7 @@ import {
   rewriteRequestSchema,
   withDeadline,
 } from '@/lib/ai/composeRewrite';
-import { htmlToPlainText, plainTextToHtml, unchipifyMergeTags } from '@/lib/compose/html';
+import { ComposeHtmlTooComplexError, htmlToPlainText, plainTextToHtml, unchipifyMergeTags } from '@/lib/compose/html';
 import { MAX_REWRITE_TEXT_CHARS, protectTokens, rewriteInputProblem, sameTemplateTokens, validateRewrite } from '@/lib/compose/rewrite';
 import { isHtml } from '@/lib/email/sanitize';
 
@@ -126,6 +126,10 @@ export async function POST(req: NextRequest) {
     // `format` is the draft's, so the preview never guesses from the text (a plain draft can read like markup).
     return NextResponse.json({ success: true, action, body: rewritten, kept, format: draftIsHtml ? 'html' : 'text' });
   } catch (error: unknown) {
+    // The draft passed the shape check before the call, so this is the model's answer being too large or deep.
+    if (error instanceof ComposeHtmlTooComplexError) {
+      return refused(422, 'too_complex', 'The rewrite came back too complex to check, so it was not used. Try again.');
+    }
     // The error's name only: a provider or parser message could quote the draft.
     console.error('[ai/compose-rewrite] failed:', error instanceof Error ? error.name : typeof error);
     return NextResponse.json({ success: false, error: 'Could not rewrite the draft' }, { status: 500 });

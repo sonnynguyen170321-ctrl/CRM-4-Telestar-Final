@@ -24,6 +24,8 @@ const toneOf = (score: number) => (score >= 80 ? 'text-green-600' : score >= 60 
  * Collapsed to one line until opened, so it informs without crowding the draft.
  */
 export default function ContentScorePanel({ subject, body }: { subject: string; body: string }) {
+  // Scored from the debounced draft only: `draft` changes once typing has paused for
+  // SCORE_DEBOUNCE_MS, so a keystroke never runs the score (which parses the body once).
   const draft = useDebounced(useMemo(() => ({ subject, body }), [subject, body]), SCORE_DEBOUNCE_MS);
   const result = useMemo(() => scoreContent(draft), [draft]);
   const { metrics: m } = result;
