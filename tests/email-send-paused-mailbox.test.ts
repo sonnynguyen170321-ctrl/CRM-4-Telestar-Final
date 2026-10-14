@@ -43,12 +43,19 @@ vi.mock('@/lib/prisma', () => ({
     emailAccount: { findFirst: (...a: unknown[]) => mockAccountFindFirst(...a) },
     template: { findUnique: vi.fn().mockResolvedValue(null) },
     user: { findFirst: vi.fn().mockResolvedValue(null) },
+    tenant: { findUnique: vi.fn().mockResolvedValue(null) },
+    emailDraft: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
   },
 }));
-vi.mock('@/lib/email/idempotency', () => ({ newRequestId: () => 'req-1' }));
+vi.mock('@/lib/email/idempotency', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/email/idempotency')>()),
+  newRequestId: () => 'req-1',
+}));
 vi.mock('@/lib/workflows/email', () => ({
   createOutboundMessage: (...a: unknown[]) => mockCreateOutbound(...a),
   enqueueEmailSendWorkflow: (...a: unknown[]) => mockEnqueueSend(...a),
+  enqueueTimedEmailSend: (payload: unknown, tenantId: unknown) => mockEnqueueSend(payload, tenantId),
+  emailSendPayloadFor: (row: { id: string; accountId: string; to: string }) => ({ outboundMessageId: row.id, accountId: row.accountId, to: row.to }),
 }));
 
 const { POST } = await import('@/app/api/email/send/route');

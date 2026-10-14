@@ -7,7 +7,7 @@
 # `tests/route-coverage.test.ts` fails when a mutating route has neither a test nor a written
 # `reason`. Add the reason by hand; regeneration keeps it.
 #
-# routes: 224   mutating: 140   mutating without a test: 19
+# routes: 231   mutating: 146   mutating without a test: 19
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -519,6 +519,10 @@ routes:
     methods: [POST]
     tests:
       - tests/compose-routes.test.ts
+  - path: app/api/email/drafts/route.ts
+    methods: [DELETE, GET, PUT]
+    tests:
+      - tests/composer-send-controls.test.ts
   - path: app/api/email/oauth/google/callback/route.ts
     methods: [GET]
     tests:
@@ -535,6 +539,22 @@ routes:
     methods: [GET]
     tests:
       - tests/email-oauth.test.ts
+  - path: app/api/email/outbound/[id]/cancel/route.ts
+    methods: [POST]
+    tests:
+      - tests/composer-send-controls.test.ts
+  - path: app/api/email/outbound/[id]/schedule/route.ts
+    methods: [POST]
+    tests:
+      - tests/composer-send-controls.test.ts
+  - path: app/api/email/outbound/[id]/status/route.ts
+    methods: [GET]
+    tests:
+      - tests/composer-send-controls.test.ts
+  - path: app/api/email/preflight/route.ts
+    methods: [POST]
+    tests:
+      - tests/composer-send-controls.test.ts
   - path: app/api/email/preview/route.ts
     methods: [GET, POST]
     tests:
@@ -544,14 +564,23 @@ routes:
     methods: [GET]
     tests:
       - tests/email-oauth.test.ts
+  - path: app/api/email/send-defaults/route.ts
+    methods: [GET, PUT]
+    tests:
+      - tests/composer-send-controls.test.ts
   - path: app/api/email/send/route.ts
     methods: [POST]
     tests:
       - tests/compose-routes.test.ts
+      - tests/composer-send-controls.test.ts
       - tests/email-composer-fixes.test.ts
       - tests/email-send-paused-mailbox.test.ts
       - tests/personalization-lab.test.ts
       - tests/sequence-email-autosend-send.test.ts
+  - path: app/api/email/test-send/route.ts
+    methods: [POST]
+    tests:
+      - tests/composer-send-controls.test.ts
   - path: app/api/health/route.ts
     methods: [GET]
     tests:
@@ -657,6 +686,7 @@ routes:
     tests:
       - e2e/roles/inbox-mailbox-scope.spec.ts
       - tests/compose-routes.test.ts
+      - tests/composer-send-controls.test.ts
       - tests/email-composer-fixes.test.ts
       - tests/inbox-mailbox-scope.test.ts
       - tests/inbox-reply-authorization.test.ts
@@ -666,6 +696,7 @@ routes:
     tests:
       - e2e/roles/inbox-mailbox-scope.spec.ts
       - tests/compose-routes.test.ts
+      - tests/composer-send-controls.test.ts
       - tests/email-composer-fixes.test.ts
       - tests/inbox-reply-authorization.test.ts
   - path: app/api/inbox/views/route.ts

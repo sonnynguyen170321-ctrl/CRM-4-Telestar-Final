@@ -23,6 +23,7 @@ import { useToast } from '@/context/ToastContext';
 import { useAppContext } from '@/context/AppContext';
 import { readApiError } from '@/lib/api/client';
 import MailComposerModal from '@/components/MailComposerModal';
+import ScheduledEmailActions from '@/components/compose/ScheduledEmailActions';
 import MeetingBookingModal from '@/components/meetings/MeetingBookingModal';
 import MeetingOutcomeModal from '@/components/meetings/MeetingOutcomeModal';
 import MeetingStatusBadge from '@/components/meetings/MeetingStatusBadge';
@@ -613,6 +614,8 @@ function LeadDetailPanelBody({
       channel?: string;
       recordingCallId?: string;
       emailBody?: string;
+      /** A queued one-off email waiting for its time: the timeline offers Cancel and Edit time. */
+      scheduledEmail?: { id: string; scheduledFor: string };
     }
 
     const list: TimelineItem[] = [];
@@ -689,17 +692,20 @@ function LeadDetailPanelBody({
 
     if (lead && (lead as any).outboundMessages) {
       ((lead as any).outboundMessages as any[]).forEach((m) => {
+        const waiting = m.status === 'pending' && Boolean(m.scheduledFor);
         list.push({
           id: m.id,
-          date: m.sentAt || m.createdAt,
+          date: waiting ? m.scheduledFor : m.sentAt || m.createdAt,
           type: 'activity',
-          title:
-            m.status === 'sent' && m.sequenceId && m.sequenceStepOrder != null
+          title: waiting
+            ? `Scheduled Email: ${m.subject || '— no subject —'}`
+            : m.status === 'sent' && m.sequenceId && m.sequenceStepOrder != null
               ? `Email sent — Step ${m.sequenceStepOrder} of ${stepSequenceName.get(m.sequenceId) ?? 'a sequence'}: ${m.subject || '— no subject —'}`
               : `Outbound Email: ${m.subject || '— no subject —'}`,
-          description: `To: ${m.to} · Status: ${m.status.toUpperCase()}${
-            m.errorMessage ? ` · Error: ${m.errorMessage}` : ''
-          }`,
+          description: waiting
+            ? `To: ${m.to} · Scheduled for ${new Date(m.scheduledFor).toLocaleString()}`
+            : `To: ${m.to} · Status: ${m.status.toUpperCase()}${m.errorMessage ? ` · Error: ${m.errorMessage}` : ''}`,
+          scheduledEmail: waiting && m.composedById ? { id: m.id, scheduledFor: m.scheduledFor } : undefined,
           emailBody: m.body || undefined,
           channel: 'email',
         });
@@ -2048,6 +2054,14 @@ function LeadDetailPanelBody({
                           <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-line">
                             {item.description}
                           </p>
+                          {item.scheduledEmail && (
+                            <ScheduledEmailActions
+                              outboundMessageId={item.scheduledEmail.id}
+                              scheduledFor={item.scheduledEmail.scheduledFor}
+                              leadTimezone={lead.timezone}
+                              onChanged={() => reloadLead()}
+                            />
+                          )}
                           {item.emailBody && <EmailBodyView body={item.emailBody} className="mt-2" />}
                           {item.recordingCallId && <CallRecordingPlayer callId={item.recordingCallId} />}
                         </div>

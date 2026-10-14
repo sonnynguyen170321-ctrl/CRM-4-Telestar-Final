@@ -425,6 +425,7 @@ model User {
   sequences                Sequence[]
   templates                Template[]
   snippets                 Snippet[]
+  emailDrafts              EmailDraft[]
   approvedStepCopies       SequenceStepCopy[]
   draftedSequences         SequenceDraftRecord[]
   campaignSdrs             CampaignSdr[]
@@ -1461,6 +1462,20 @@ model OutboundMessage {
   repliedAt         DateTime?
   bouncedAt         DateTime?
   bounceType        String? // hard | soft — set by workers/sync.ts handleApplyBounce
+  /// Composer send controls. The worker never sends before this time (and re-queues itself for it
+  /// when a job fires early); null is "as soon as it is picked up". Set for a scheduled send only -
+  /// the 10 s undo window is a job delay, not a schedule.
+  scheduledFor      DateTime?
+  /// When the rep took it back (undo send / cancel a scheduled send). Status is `cancelled`.
+  cancelledAt       DateTime?
+  /// Who wrote it in the composer or the inbox reply box. A plain id like inReplyToInboundId: the
+  /// status, cancel and reschedule routes answer to this user (or to whoever may open the lead).
+  /// Null for sequence sends, which are not the composer's to take back.
+  composedById      String?
+  /// Per-email tracking, decided in the composer from the tenant default. Null means "decided by
+  /// the sequence" (or untracked for a one-off written before the column existed).
+  trackOpens        Boolean?
+  trackClicks       Boolean?
   tenantId          String
   tenant            Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt         DateTime     @default(now())
@@ -1470,6 +1485,8 @@ model OutboundMessage {
   @@index([accountId])
   @@index([status])
   @@index([idempotencyKey])
+  // The composer's own scheduled / queued messages (status poll, Scheduled list).
+  @@index([tenantId, composedById, status])
   // Deleting a Template or an AbTestVariant sets these to NULL on every matching row. Without
   // an index that is a full scan of this table, which is one of the largest in the schema, on
   // an action a user can take from the UI. Measured 2026-08-23: 72 foreign keys in this schema
@@ -2554,6 +2571,12 @@ model Tenant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// The composer's per-email tracking defaults (a rep can still switch either off or on for one
+  /// email). Off by default: a pixel and rewritten links are deliverability signals.
+  defaultTrackOpens  Boolean @default(false)
+  defaultTrackClicks Boolean @default(false)
+
+  emailDrafts              EmailDraft[]
   users                    User[]
   clients                  Client[]
   campaigns                Campaign[]
@@ -3389,6 +3412,34 @@ model Snippet {
 
   @@index([tenantId, isShared])
   @@index([ownerUserId])
+}
+
+/// An unsent email being written, saved as the rep types (debounced) and restored when the composer
+/// or the inbox reply box is opened again. One per (user, thing being replied to / written to), so
+/// it is a place, not a history. Owner-only: every read and write names the session user.
+model EmailDraft {
+  id            String   @id @default(cuid())
+  /// "lead:<leadId>" for the lead composer, "thread:<threadKey>" for an inbox reply.
+  scopeKey      String
+  userId        String
+  user          User     @relation(fields: [userId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  leadId        String?
+  threadId      String?
+  accountId     String?
+  subject       String   @default("")
+  bodyHtml      String   @default("") @db.Text
+  cc            String[] @default([])
+  bcc           String[] @default([])
+  /// Uploaded composer attachments (Attachment.id). Re-checked on restore: one that was swept or
+  /// sent is dropped, never trusted.
+  attachmentIds String[] @default([])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, scopeKey])
+  @@index([userId, updatedAt])
 }
 
 model InboundMessage {

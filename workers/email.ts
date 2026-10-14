@@ -23,6 +23,7 @@ import { isHtml } from '@/lib/email/sanitize';
 import { composeEmailBody } from '@/lib/email/signature';
 import { buildReferences, cleanMessageId, normalizeMessageId, replySubject, stripReplyPrefix } from '@/lib/sequences/threadingRules';
 import { nextSendAttemptAt } from '@/lib/email/sendWindow';
+import { SCHEDULE_FIRE_TOLERANCE_MS, msUntilDue, resolveTracking } from '@/lib/email/sendControls';
 import { businessDayPolicyFor } from '@/lib/sequences/rules';
 
 /**
@@ -286,13 +287,46 @@ async function notifySendFailure(args: {
 }
 
 async function handleEmailSend(payload: EmailSendPayload) {
-  const { outboundMessageId, accountId, to, subject, body, leadId } = payload;
+  const { outboundMessageId } = payload;
 
   const existing = await prisma.outboundMessage.findUnique({
     where: { id: outboundMessageId },
     include: { lead: { select: { campaignId: true, assignedToId: true, timezone: true } } },
   });
   if (!existing) throw new Error(`OutboundMessage not found: ${outboundMessageId}`);
+
+  // What goes out is what the row says now. For a message written in the composer the row is the
+  // truth (it can be revived or edited after a job was queued); a stale job's copy of the subject,
+  // body and recipient must never win. Sequence sends keep their payload, as before.
+  const fromRow = Boolean(existing.composedById);
+  const accountId = fromRow ? existing.accountId : payload.accountId;
+  const to = fromRow ? existing.to : payload.to;
+  const subject = fromRow ? existing.subject ?? payload.subject : payload.subject;
+  const body = fromRow ? existing.body ?? payload.body : payload.body;
+  const leadId = fromRow ? existing.leadId : payload.leadId;
+
+  // ── Taken back by the rep (undo send / cancelled schedule) ────────────────
+  if (existing.status === OUTBOUND_STATUS.CANCELLED) {
+    // Defensively: a cancelled message must not leave a cadence step waiting on it.
+    if (payload.sequenceStepRef) await releaseSequenceStep(payload.sequenceStepRef, 'the message was cancelled');
+    return { skipped: true, reason: 'cancelled' };
+  }
+
+  // ── Not yet due ───────────────────────────────────────────────────────────
+  // A scheduled message is never sent before its time, whatever woke this job (an old job for a
+  // time the rep moved, or the redrive sweep). Re-queue for the current time and stand down; the
+  // reschedule key is derived from that time, so repeated early wake-ups collapse into one job.
+  if (existing.status === OUTBOUND_STATUS.PENDING) {
+    const wait = msUntilDue(existing.scheduledFor);
+    if (wait > 0 && existing.scheduledFor) {
+      await enqueueReschedule(JobType.EMAIL_SEND, payload, {
+        tenantId: existing.tenantId,
+        delay: wait,
+        discriminator: `sched:${existing.scheduledFor.toISOString()}`,
+      });
+      return { skipped: true, reason: 'not_yet_due', dueAt: existing.scheduledFor };
+    }
+  }
 
   // ── Terminal and ambiguous states are never sent again ────────────────────
   // A row is only re-sendable from `pending` or `failed`. Everything else either
@@ -374,7 +408,12 @@ async function handleEmailSend(payload: EmailSendPayload) {
   // single-statement CAS the campaign-membership and task-completion paths use — it is
   // safe on the Neon HTTP driver, which has no interactive transactions.
   const claim = await prisma.outboundMessage.updateMany({
-    where: { id: outboundMessageId, status: { in: [...CLAIMABLE_STATUSES] } },
+    where: {
+      id: outboundMessageId,
+      status: { in: [...CLAIMABLE_STATUSES] },
+      // Never claimed before its time, whatever woke this job (the guard above reads the row once; this decides).
+      AND: [{ OR: [{ scheduledFor: null }, { scheduledFor: { lte: new Date(Date.now() + SCHEDULE_FIRE_TOLERANCE_MS) } }] }],
+    },
     data: {
       status: OUTBOUND_STATUS.SENDING,
       claimedAt: new Date(),
@@ -762,18 +801,24 @@ async function handleEmailSend(payload: EmailSendPayload) {
 
     // Open and click tracking, only for a sequence that opted in (both off by default — a pixel and
     // rewritten links are deliverability signals). The unsubscribe link is never rewritten.
-    if (existing.sequenceId && !trackingConfigured()) {
+    // A one-off written in the composer carries its own decision on the row (per-email toggle,
+    // defaulted from the tenant setting); it wins over the cadence (lib/email/sendControls.ts).
+    const composerDecided = existing.trackOpens === true || existing.trackClicks === true;
+    if ((existing.sequenceId || composerDecided) && !trackingConfigured()) {
       // A send must never fail because tracking cannot sign links; it goes out untracked.
       console.warn('[email] tracking skipped: no TRACKING_SECRET / AUTH_SECRET in this process', { outboundMessageId });
-    } else if (existing.sequenceId) {
-      const tracking = await prisma.sequence.findFirst({
-        where: { id: existing.sequenceId, tenantId: existing.tenantId },
-        select: { trackOpens: true, trackClicks: true },
-      });
-      if (tracking?.trackClicks) {
+    } else if (existing.sequenceId || composerDecided) {
+      const sequenceFlags = existing.sequenceId
+        ? await prisma.sequence.findFirst({
+            where: { id: existing.sequenceId, tenantId: existing.tenantId },
+            select: { trackOpens: true, trackClicks: true },
+          })
+        : null;
+      const tracking = resolveTracking(existing, sequenceFlags);
+      if (tracking.clicks) {
         htmlPayload = rewriteLinksForTracking(htmlPayload, baseUrl, existing.tenantId, outboundMessageId);
       }
-      if (tracking?.trackOpens) {
+      if (tracking.opens) {
         htmlPayload = `${htmlPayload}${openPixelHtml(baseUrl, existing.tenantId, outboundMessageId)}`;
         openTracked = true;
       }

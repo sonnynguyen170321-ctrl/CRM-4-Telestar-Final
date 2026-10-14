@@ -81,14 +81,20 @@ export async function GET(req: NextRequest) {
         tenantId: user.tenantId,
         AND: [scope.outbound],
         ...(accountId ? { accountId } : {}),
-        status: {
-          in: [
-            OUTBOUND_STATUS.SENT,
-            OUTBOUND_STATUS.FAILED,
-            OUTBOUND_STATUS.RECONCILIATION_REQUIRED,
-            OUTBOUND_STATUS.PERMANENTLY_FAILED,
-          ],
-        },
+        OR: [
+          {
+            status: {
+              in: [
+                OUTBOUND_STATUS.SENT,
+                OUTBOUND_STATUS.FAILED,
+                OUTBOUND_STATUS.RECONCILIATION_REQUIRED,
+                OUTBOUND_STATUS.PERMANENTLY_FAILED,
+              ],
+            },
+          },
+          // A send scheduled for later is news: it shows as "Scheduled for ..." with Cancel / Edit time.
+          { status: OUTBOUND_STATUS.PENDING, scheduledFor: { gt: new Date() } },
+        ],
       },
       include: {
         lead: {
@@ -148,7 +154,10 @@ export async function GET(req: NextRequest) {
         // rather than showing it indistinguishably from one that arrived.
         deliveryStatus: msg.status,
         // Plain words only (lib/inbox/deliveryStatus.ts): the raw errorMessage can carry a provider's answer.
-        deliveryError: msg.status === OUTBOUND_STATUS.SENT ? null : describeDelivery(msg.status, msg.errorMessage)?.detail ?? null,
+        deliveryError: msg.status === OUTBOUND_STATUS.SENT ? null : describeDelivery(msg.status, msg.errorMessage, msg.scheduledFor)?.detail ?? null,
+        scheduledFor: msg.scheduledFor,
+        // Whether the viewer wrote it: the Cancel / Edit time controls are theirs.
+        canManageSchedule: msg.composedById === user.id,
       })),
     ];
 

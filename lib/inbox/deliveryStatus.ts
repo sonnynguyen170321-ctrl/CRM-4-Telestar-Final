@@ -44,7 +44,9 @@ export function plainReason(status: string, raw: string | null | undefined): str
 /** The wording for one outgoing message, or null for a message that is not ours (an inbound one). */
 export function describeDelivery(
   status: string | null | undefined,
-  error: string | null | undefined
+  error: string | null | undefined,
+  /** When the message is scheduled to go out; a pending message with a future time is "Scheduled". */
+  scheduledFor?: Date | string | null
 ): DeliveryDisplay | null {
   if (!status) return null;
   const rawReason = (error ?? '').trim() || null;
@@ -53,7 +55,13 @@ export function describeDelivery(
   switch (status) {
     case 'sent':
       return { label: 'Sent', tone: 'ok', detail: null };
+    case 'cancelled':
+      return { label: 'Cancelled', tone: 'warn', detail: 'You cancelled this email before it was sent.' };
     case 'pending': {
+      const due = scheduledFor ? new Date(scheduledFor) : null;
+      if (due && !Number.isNaN(due.getTime()) && due.getTime() > Date.now() && !rawReason) {
+        return { label: 'Scheduled', tone: 'pending', detail: `Scheduled for ${due.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}.` };
+      }
       // A pending message with a reason was held back, not forgotten: a sending limit, with a time.
       const deferred = rawReason ? DEFERRED.exec(rawReason) : null;
       if (deferred) {

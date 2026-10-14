@@ -13,7 +13,7 @@
 # `tests/route-authorization.test.ts` fails when a mutating route has neither a guard nor a
 # hand-written `reason`. Reasons survive regeneration; they are the only part a human owns.
 #
-# routes: 224   mutating: 140   mutating with neither guard nor reason: 37
+# routes: 231   mutating: 146   mutating with neither guard nor reason: 37
 routes:
   - path: app/api/activities/route.ts
     methods: [GET, POST]
@@ -319,6 +319,10 @@ routes:
     methods: [POST]
     guards: []
     reason: Creates a row owned by the session user in the session tenant and nothing else; only that user can attach it to a message (resolveComposeAttachments filters on uploadedById), type and size are checked by the server, and unsent uploads are swept after a day.
+  - path: app/api/email/drafts/route.ts
+    methods: [DELETE, GET, PUT]
+    guards:
+      - canAccessLead
   - path: app/api/email/oauth/google/callback/route.ts
     methods: [GET]
     guards: []
@@ -331,6 +335,22 @@ routes:
   - path: app/api/email/oauth/microsoft/route.ts
     methods: [GET]
     guards: []
+  - path: app/api/email/outbound/[id]/cancel/route.ts
+    methods: [POST]
+    guards: []
+    reason: Author only. lib/email/composedSend.ts loadComposed reads the message inside the session tenant and returns it only when composedById is the session user and it is not a sequence message; anyone else, a manager included, gets a 404.
+  - path: app/api/email/outbound/[id]/schedule/route.ts
+    methods: [POST]
+    guards: []
+    reason: Author only. lib/email/composedSend.ts loadComposed reads the message inside the session tenant and returns it only when composedById is the session user and it is not a sequence message; anyone else, a manager included, gets a 404.
+  - path: app/api/email/outbound/[id]/status/route.ts
+    methods: [GET]
+    guards: []
+    reason: Author only. lib/email/composedSend.ts loadComposed reads the message inside the session tenant and returns it only when composedById is the session user and it is not a sequence message; anyone else, a manager included, gets a 404.
+  - path: app/api/email/preflight/route.ts
+    methods: [POST]
+    guards:
+      - canAccessLead
   - path: app/api/email/preview/route.ts
     methods: [GET, POST]
     guards:
@@ -338,7 +358,15 @@ routes:
   - path: app/api/email/providers/route.ts
     methods: [GET]
     guards: []
+  - path: app/api/email/send-defaults/route.ts
+    methods: [GET, PUT]
+    guards: []
+    reason: A tenant-wide setting, not a record owned by anyone. It reads and writes only the session tenant row (never an id from the request), and PUT needs requireRole('floor_manager') so reps cannot change the tracking default for the company.
   - path: app/api/email/send/route.ts
+    methods: [POST]
+    guards:
+      - canAccessLead
+  - path: app/api/email/test-send/route.ts
     methods: [POST]
     guards:
       - canAccessLead
@@ -797,6 +825,7 @@ routes:
     methods: [GET]
     guards:
       - getLeadWhereScope
+      - getVisibleUserIds
   - path: app/api/telephony/telnyx/webhook/route.ts
     methods: [POST]
     guards: []

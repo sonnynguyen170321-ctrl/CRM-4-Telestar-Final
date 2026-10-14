@@ -27,6 +27,10 @@ import AttachmentBar from '@/components/compose/AttachmentBar';
 import { SignatureBlock } from '@/components/compose/ComposeParts';
 import { useMailboxes, useSnippets } from '@/components/compose/useComposeData';
 import type { ComposeAttachment } from '@/components/compose/types';
+import { ScheduleMenu } from '@/components/compose/SendControls';
+import ScheduledEmailActions from '@/components/compose/ScheduledEmailActions';
+import { useDraftAutosave } from '@/components/compose/useDraftAutosave';
+import { UNDO_DELAY_SECONDS } from '@/lib/email/sendControls';
 import { isHtmlBlank, plainTextToHtml } from '@/lib/compose/html';
 import { bodySnippet, bodyToText } from '@/lib/compose/snippet';
 
@@ -51,6 +55,9 @@ interface Message {
   /** Outbound only: where the send stands (queued, sent, failed, ...) and why, when it did not go. */
   deliveryStatus?: string | null;
   deliveryError?: string | null;
+  /** Outbound only: when a scheduled send goes out, and whether the viewer wrote it (Cancel / Edit time are theirs). */
+  scheduledFor?: string | null;
+  canManageSchedule?: boolean;
 }
 
 interface Thread {
@@ -108,6 +115,8 @@ export default function InboxPage() {
   const [replyBcc, setReplyBcc] = useState<string[]>([]);
   const [showReplyCopies, setShowReplyCopies] = useState(false);
   const [replyAttachments, setReplyAttachments] = useState<ComposeAttachment[]>([]);
+  // Send later: null sends now (after the 10 s undo window).
+  const [replyScheduleAt, setReplyScheduleAt] = useState<Date | null>(null);
   const { mailboxes } = useMailboxes();
   const { snippets: replySnippets, createSnippet } = useSnippets();
   // One id per reply being written. A retried click (double tap, flaky network) reuses it, so the
@@ -262,7 +271,7 @@ export default function InboxPage() {
   // After a reply is queued, look at its real state a few times and show it: sent, deferred by a
   // sending limit, or failed with the reason. Silent: no list spinner, no change of selection.
   const watchDelivery = async (outboundId: string) => {
-    for (const waitMs of [3_000, 8_000, 20_000]) {
+    for (const waitMs of [4_000, 8_000, 20_000, 30_000]) {
       await new Promise((resolve) => setTimeout(resolve, waitMs));
       try {
         const res = await fetch(`/api/inbox?${inboxQuery(folder, inboxOwnerId, mailboxFilter)}`);
@@ -309,6 +318,7 @@ export default function InboxPage() {
           subject: selectedThread.subject,
           leadId: selectedThread.lead?.id,
           clientRequestId: replyRequestIdRef.current,
+          ...(replyScheduleAt ? { scheduledFor: replyScheduleAt.toISOString() } : { delaySeconds: UNDO_DELAY_SECONDS }),
           ...(replyCc.length ? { cc: replyCc } : {}),
           ...(replyBcc.length ? { bcc: replyBcc } : {}),
           ...(replyAttachments.length ? { attachmentIds: replyAttachments.map((a) => a.id) } : {}),
@@ -319,11 +329,13 @@ export default function InboxPage() {
         const data = await res.json();
         // Queued, not sent: a worker sends it. The message below shows its real state, and a
         // failure is toasted when it happens.
-        showToast('Reply queued', 'success');
+        showToast(data.sendAt ? `Reply scheduled for ${new Date(data.sendAt).toLocaleString()}` : 'Reply queued. You can undo it for a few seconds.', 'success');
+        replyDraft.markSent();
+        setReplyScheduleAt(null);
         const dropped = (data.droppedCopies ?? []) as Array<{ address: string; reason: string }>;
         if (dropped.length > 0) showToast(`Not copied: ${dropped.map((d) => `${d.address} (${d.reason})`).join(', ')}`, 'warning');
         replyRequestIdRef.current = crypto.randomUUID();
-        void watchDelivery(data.outboundMessage.id);
+        if (!data.sendAt) void watchDelivery(data.outboundMessage.id);
         
         // Clear editor
         setReplyBody('');
@@ -398,6 +410,42 @@ export default function InboxPage() {
     const wrote = latestInbound?.to?.toLowerCase();
     return wrote ? mailboxes.find((m) => m.email.toLowerCase() === wrote) ?? null : null;
   }, [selectedThread, mailboxes]);
+
+  // Autosave of the reply being written, per thread; restored when the thread is opened again.
+  const replyDraft = useDraftAutosave(
+    { leadId: selectedThread?.lead?.id ?? '', threadId: selectedThread?.id },
+    { subject: selectedThread?.subject ?? '', bodyHtml: replyBody, cc: replyCc, bcc: replyBcc, accountId: replyMailbox?.id ?? '', attachments: replyAttachments },
+    Boolean(selectedThread?.lead) && !isHtmlBlank(replyBody) && !sendingReply,
+  );
+  const selectedThreadId = selectedThread?.id;
+  // A different thread starts with an empty reply box (the old text would otherwise be saved into it).
+  useEffect(() => {
+    setReplyBody(''); setReplyCc([]); setReplyBcc([]); setReplyAttachments([]); setReplyScheduleAt(null);
+  }, [selectedThreadId]);
+  const restoredReply = replyDraft.restored;
+  useEffect(() => {
+    if (!restoredReply) return;
+    setReplyBody(restoredReply.bodyHtml);
+    setReplyCc(restoredReply.cc);
+    setReplyBcc(restoredReply.bcc);
+    setReplyAttachments(restoredReply.attachments);
+    if (restoredReply.cc.length || restoredReply.bcc.length) setShowReplyCopies(true);
+  }, [restoredReply]);
+
+  // Undo a reply still in its window, or take back a scheduled one: the message leaves the thread and,
+  // for an undo, its text returns to the reply box.
+  const takeBack = async (msg: Message) => {
+    const res = await fetch(`/api/email/outbound/${encodeURIComponent(msg.id)}/cancel`, { method: 'POST' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(data.error || 'It could not be taken back', 'error'); return; }
+    const drop = (t: Thread): Thread => ({ ...t, messages: t.messages.filter((m) => m.id !== msg.id) });
+    setThreads((prev) => prev.map(drop));
+    setSelectedThread((prev) => (prev ? drop(prev) : prev));
+    // A fresh key: the undone reply stays cancelled, and the next send is a new one.
+    replyRequestIdRef.current = crypto.randomUUID();
+    if (!msg.scheduledFor && isHtmlBlank(replyBody)) { setReplyBody(msg.bodyHtml || msg.body || ''); replyDraft.markSent(); }
+    showToast(msg.scheduledFor ? 'Scheduled reply cancelled' : 'Send cancelled. Your reply is back in the box.', 'success');
+  };
 
   const [classFilter, setClassFilter] = useState<'all' | 'needs_attention' | 'C' | 'D' | 'B' | 'A'>('all');
 
@@ -817,7 +865,7 @@ export default function InboxPage() {
                         {/* Where an outgoing message stands, and why it did not go */}
                         {isOutbound && (() => {
                           // The server already put the reason in plain words (deliveryError); the label and tone come from the status.
-                          const base = describeDelivery(msg.deliveryStatus, null);
+                          const base = describeDelivery(msg.deliveryStatus, null, msg.scheduledFor);
                           if (!base) return null;
                           const shown = { ...base, detail: msg.deliveryError ?? base.detail };
                           const tone =
@@ -835,6 +883,31 @@ export default function InboxPage() {
                             </div>
                           );
                         })()}
+
+                        {isOutbound && msg.canManageSchedule && msg.deliveryStatus === 'pending' && (
+                          msg.scheduledFor ? (
+                            <ScheduledEmailActions
+                              outboundMessageId={msg.id}
+                              scheduledFor={msg.scheduledFor}
+                              leadTimezone={null}
+                              onChanged={(change) => {
+                                if (change.kind === 'cancelled') {
+                                  const drop = (t: Thread): Thread => ({ ...t, messages: t.messages.filter((m) => m.id !== msg.id) });
+                                  setThreads((prev) => prev.map(drop));
+                                  setSelectedThread((prev) => (prev ? drop(prev) : prev));
+                                } else {
+                                  const move = (t: Thread): Thread => ({ ...t, messages: t.messages.map((m) => (m.id === msg.id ? { ...m, scheduledFor: change.scheduledFor } : m)) });
+                                  setThreads((prev) => prev.map(move));
+                                  setSelectedThread((prev) => (prev ? move(prev) : prev));
+                                }
+                              }}
+                            />
+                          ) : (
+                            <button type="button" onClick={() => void takeBack(msg)} className="self-end rounded-lg border border-card-border px-2 py-1 text-xs font-semibold text-brand-orange-text hover:bg-card-border/30">
+                              Undo send
+                            </button>
+                          )
+                        )}
 
                         {/* AI Reply Classification Banner */}
                         {!isOutbound && msg.replyClass && (
@@ -1090,7 +1163,8 @@ export default function InboxPage() {
                   {replyMailbox && <SignatureBlock html={replyMailbox.signaturePreview} mailboxEmail={replyMailbox.email} />}
                   <AttachmentBar attachments={replyAttachments} onChange={setReplyAttachments} disabled={sendingReply} />
 
-                  <div className="flex justify-end gap-2">
+                  <div className="flex items-center justify-end gap-2">
+                    <ScheduleMenu value={replyScheduleAt} onChange={setReplyScheduleAt} leadTimezone={null} disabled={sendingReply} />
                     <button
                       type="submit"
                       disabled={sendingReply || isHtmlBlank(replyBody) || Boolean(replyMailbox?.sendPausedAt)}
@@ -1104,7 +1178,7 @@ export default function InboxPage() {
                       ) : (
                         <>
                           <Send className="w-3.5 h-3.5" />
-                          <span>Send Reply</span>
+                          <span>{replyScheduleAt ? 'Schedule Reply' : 'Send Reply'}</span>
                           <span className="hidden text-xs font-normal opacity-80 xl:inline">Ctrl+Enter</span>
                         </>
                       )}

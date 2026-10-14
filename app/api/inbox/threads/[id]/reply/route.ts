@@ -4,13 +4,16 @@ import { getVisibleUserIds, requireAuth } from '@/lib/auth';
 import { z } from 'zod';
 import { inboxScope, threadSubjectKey } from '@/lib/inbox/scope';
 import type { SessionUser } from '@/lib/auth';
-import { createOutboundMessage, enqueueEmailSendWorkflow } from '@/lib/workflows/email';
+import { createOutboundMessage, emailSendPayloadFor, enqueueTimedEmailSend } from '@/lib/workflows/email';
+import { clearDraft, resolveComposerSendOptions } from '@/lib/email/composedSend';
+import { OUTBOUND_STATUS } from '@/lib/email/idempotency';
 import { newRequestId } from '@/lib/email/idempotency';
 import { mailboxRefusal, recipientRefusal } from '@/lib/email/sendGate';
-import { composeAttachmentIds, copyRecipientList } from '@/lib/validation/schemas';
+import { composeAttachmentIds, copyRecipientList, sendControlFields } from '@/lib/validation/schemas';
 import { abandonOutbound, finalizeComposed, prepareComposed } from '@/lib/email/prepareComposed';
 
 const replySchema = z.object({
+  ...sendControlFields,
   body: z.string().trim().min(1, 'Reply body is required').max(100_000),
   subject: z.string().max(998).optional().default(''),
   leadId: z.string().min(1, 'Lead ID is required').max(64),
@@ -44,6 +47,9 @@ export async function POST(
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid reply' }, { status: 400 });
     }
     const { body: rawBody, subject, leadId, clientRequestId, cc, bcc, attachmentIds } = parsed.data;
+    const options = await resolveComposerSendOptions(user.tenantId, parsed.data);
+    if (!options.ok) return options.response;
+    const { timing, trackOpens, trackClicks } = options.value;
 
     // 1. Fetch Lead details — scoped to the caller's tenant.
     const lead = await prisma.lead.findFirst({
@@ -144,12 +150,22 @@ export async function POST(
       // The prospect's message in the open thread: the worker puts its Message-ID in
       // In-Reply-To / References so the reply lands in their thread.
       inReplyToInboundId: latest.id,
+      scheduledFor: timing.scheduledFor,
+      composedById: user.id,
+      trackOpens,
+      trackClicks,
     });
+
 
     // An idempotency hit returns the row first written under this key. It must be this reply on
     // this lead; anything else is refused rather than sent with this request's content.
     if (outbound.leadId !== lead.id || outbound.tenantId !== user.tenantId || outbound.accountId !== account.id) {
       return NextResponse.json({ error: 'Duplicate request' }, { status: 409 });
+    }
+    // An undone reply stays undone: a replayed request must not resurrect it. The composer mints a
+    // new request id after an undo.
+    if (outbound.status === OUTBOUND_STATUS.CANCELLED) {
+      return NextResponse.json({ error: 'This reply was cancelled. Start a new one.', code: 'cancelled' }, { status: 409 });
     }
 
     // A failure here makes the reply terminal: one the rep was told failed must not be swept up and
@@ -159,17 +175,7 @@ export async function POST(
 
     // 4. Enqueue email send workflow
     try {
-      await enqueueEmailSendWorkflow(
-        {
-          outboundMessageId: outbound.id,
-          accountId: account.id,
-          to: lead.email,
-          subject: replySubject,
-          body,
-          leadId: lead.id,
-        },
-        user.tenantId!
-      );
+      await enqueueTimedEmailSend(emailSendPayloadFor(outbound), user.tenantId, timing);
     } catch (enqueueError) {
       if (outbound.createdAt.getTime() >= startedAt) {
         await abandonOutbound(user.tenantId, outbound.id, 'Not sent: it could not be queued').catch(() => undefined);
@@ -177,8 +183,12 @@ export async function POST(
       throw enqueueError;
     }
 
+    await clearDraft(user.tenantId, user.id, `thread:${threadKey}`);
+
     return NextResponse.json({
       success: true,
+      sendAt: timing.kind === 'scheduled' ? timing.scheduledFor : null,
+      undoSeconds: timing.kind === 'undo' ? Math.round(timing.delayMs / 1000) : 0,
       // Queued, not sent: the worker sends it. `status` is the row's state now; the Sent folder
       // shows how it ends (sent, deferred, failed, bounced).
       message: 'Reply queued',
@@ -194,6 +204,8 @@ export async function POST(
         subject: outbound.subject,
         body: outbound.body,
         date: outbound.createdAt,
+        scheduledFor: timing.scheduledFor,
+        canManageSchedule: true,
       },
     });
   } catch (error) {

@@ -87,6 +87,9 @@ UPDATE "OutboundMessage" SET subject = '[sanitized]';
 -- Carbon and blind copies are other people's addresses.
 UPDATE "OutboundMessage" SET cc = '{}', bcc = '{}';
 
+-- An unsent draft is text a rep was still writing, with the same names and copies as a sent email.
+UPDATE "EmailDraft" SET subject = '', "bodyHtml" = '', cc = '{}', bcc = '{}', "attachmentIds" = '{}';
+
 -- Copy rendered for one contact — merge fields already substituted, so this is personal data.
 -- The reusable Template and AbTestVariant it was rendered from are exempt and kept.
 UPDATE "SequenceStepCopy" SET subject = '[sanitized]', body = '[sanitized]';

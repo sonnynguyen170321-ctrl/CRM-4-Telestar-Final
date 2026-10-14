@@ -185,6 +185,48 @@ export async function enqueueReschedule<T extends JobType>(
 }
 
 /**
+ * The dedupe key an enqueue / enqueueReschedule of this payload used, so a caller can find the
+ * job again later (to cancel it). Same derivation as the enqueue paths; the discriminator is the one
+ * passed to enqueueReschedule, absent for a plain enqueue.
+ */
+export function dedupeKeyFor(
+  jobType: JobType,
+  tenantId: string,
+  payload: Record<string, unknown>,
+  discriminator?: string,
+): string {
+  const base = buildDedupeKey(tenantId, jobType, payload);
+  return discriminator ? crypto.createHash('sha256').update(`${base}:${discriminator}`).digest('hex') : base;
+}
+
+/**
+ * Take a job that has not started off its queue. Returns true when a waiting / delayed job was
+ * removed; false when there was none, or it is already running (an active job cannot be recalled -
+ * the caller's database compare-and-set is what decides whether it still sends).
+ *
+ * Best effort by design: the database row is the authority (workflow truth), the queue only
+ * executes. A cancelled message whose job survives is skipped by the worker's status check.
+ */
+export async function removeQueuedJob(jobType: JobType, tenantId: string, dedupeKey: string): Promise<boolean> {
+  const run = await tenantStorage.run({ tenantId, bypassRls: true }, () =>
+    prisma.jobRun.findUnique({ where: { dedupeKey }, select: { id: true, tenantId: true } }),
+  );
+  if (!run || run.tenantId !== tenantId) return false;
+  const job = await resolveQueue(jobType).getJob(run.id);
+  if (!job) return false;
+  const state = await job.getState();
+  if (state === 'active' || state === 'completed' || state === 'failed') return false;
+  await job.remove();
+  await tenantStorage.run({ tenantId, bypassRls: true }, () =>
+    prisma.jobRun.updateMany({
+      where: { id: run.id, tenantId },
+      data: { status: 'completed', completedAt: new Date(), result: { cancelled: true } },
+    }),
+  );
+  return true;
+}
+
+/**
  * Force a job to run immediately, fast-forwarding any job already scheduled for the same
  * payload. Used by "Send Now" / run-now.
  *

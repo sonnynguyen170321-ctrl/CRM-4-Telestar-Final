@@ -191,7 +191,7 @@ describe('handleEmailSend', () => {
     expect(result).toEqual({ success: true, outboundMessageId: 'msg-1', providerMessageId: 'provider-msg-id-123' });
 
     expect(mockOutboundUpdateMany).toHaveBeenCalledWith({
-      where: { id: 'msg-1', status: { in: ['pending', 'failed'] } },
+      where: { id: 'msg-1', status: { in: ['pending', 'failed'] }, AND: expect.any(Array) },
       data: {
         status: 'sending',
         claimedAt: expect.any(Date),
@@ -1135,7 +1135,7 @@ describe('handleEmailSend — exactly-once delivery', () => {
       expect.objectContaining({ success: true, dryRun: true, providerMessageId: 'dry-run-msg-1' })
     );
     expect(mockOutboundUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'msg-1', status: { in: ['pending', 'failed'] } } })
+      expect.objectContaining({ where: { id: 'msg-1', status: { in: ['pending', 'failed'] }, AND: expect.any(Array) } })
     );
     expect(mockServiceSend).not.toHaveBeenCalled();
   });

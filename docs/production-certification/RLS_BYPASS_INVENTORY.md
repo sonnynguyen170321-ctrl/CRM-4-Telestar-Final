@@ -34,7 +34,7 @@ Any statement that this system enforces isolation at the database layer today is
 
 The Prisma extension in `lib/prisma.ts` injects `where: { tenantId }` into every model operation. Inside one of these scopes it does not, so the query is only as tenant-correct as it was written to be. On a database with no RLS policies this is the entire boundary.
 
-**24 file(s), 27 site(s).**
+**24 file(s), 29 site(s).**
 
 | File | Line(s) | Why this is safe |
 |---|---|---|
@@ -49,7 +49,7 @@ The Prisma extension in `lib/prisma.ts` injects `where: { tenantId }` into every
 | `app/api/telephony/telnyx/webhook/route.ts` | 21 | A public, signature-verified webhook with no session, so no tenant is known yet. The 'system' bypass scope wraps only reads and writes of `TelephonyEvent` (the provider's own event inbox, which has no tenant column), and the lookup of the `Call` row an event names, which is read-only and selects the call's own `tenantId`. Everything after that — the inline connect decision in `lib/telephony/parked.ts` and the queued job — runs scoped to the tenant on that row (or on the HMAC-signed call token), never bypassed. |
 | `app/api/unsubscribe/route.ts` | 20 | Public by necessity — an unsubscribe link is followed without a session. The tenant is not taken from the request but recovered from an HMAC-verified token that binds `tenantId`, `email` and `leadId`; a forged or edited token fails verification before any query runs. |
 | `lib/auth.ts` | 51, 75, 112 | Runs before a tenant is known, which is the reason the bypass exists. API keys are resolved by unique `keyHash` and users by the id inside an already-verified token; both are identity lookups whose whole purpose is to establish the tenant that later queries are scoped by. |
-| `lib/bullmq/enqueue.ts` | 55 | Scoped to the payload's own `tenantId`, not to 'system'. The bypass exists so the `JobRun` mirror row can be written with the tenant stamped on it. |
+| `lib/bullmq/enqueue.ts` | 55, 211, 220 | Scoped to the payload's own `tenantId`, not to 'system'. The bypass exists so the `JobRun` mirror row can be written with the tenant stamped on it. `removeQueuedJob` (undo / cancel of a composed email) uses the same scope: it finds the `JobRun` by dedupe key, refuses a row whose `tenantId` is not the caller's, and only then removes that one job and marks that one row (`updateMany` with the tenant in the where). |
 | `lib/bullmq/ensureJob.ts` | 92, 122 | Idempotent job creation. The `jobRun.findUnique({ where: { dedupeKey } })` lookup runs before the tenant is known — a dedupe key is global by construction, because its job is to notice a duplicate whoever enqueued it. The row it finds carries its own `tenantId`, which scopes everything after. |
 | `lib/bullmq/rescheduleSequenceTask.ts` | 101 | Scoped to `input.tenantId`. The `jobRun` lookup by `dedupeKey` is the same pre-tenant identity lookup as `ensureJob`. |
 | `lib/bullmq/workerUtils.ts` | 40 | Scoped to the tenant declared on the job payload. `jobRun.update` calls address the row by its own id, obtained from the job being executed. |
@@ -101,7 +101,7 @@ Raw SQL is a ROOT client operation. The extension is registered as `query.$allMo
 | `lib/search/accentSearch.ts` | 109, 110 | Accent-insensitive search through `withTenantRaw`, with `tenantId` also named explicitly in the WHERE clause. |
 | `lib/telephony/metrics.ts` | 176, 198 | Read-only call counts (attempts / connected) through `withTenantRaw`, so each aggregate carries the tenant on its own connection, with `tenantId` also bound explicitly on every table it reads (`Call`, `Activity`, the `Call` shadow anti-join, `Lead`, `Campaign`). Raw SQL because one de-duplicated count across `Call` rows and unlinked call activities is an anti-join Prisma cannot express as an aggregate. All values are bound parameters. |
 | `lib/telephony/outcomeEffects.ts` | 132 | Appends the do_not_call / wrong_number queue tag to one lead through `withTenantRaw`, so the statement carries the tenant on its own connection, with `tenantId` also named in the WHERE clause. Raw SQL because `Lead.tags` is a nullable array and Prisma's `push` does not match NULL; the single statement is atomic, so a concurrent tag change is not lost. |
-| `workers/email.ts` | 147, 190 | The daily send quota: an atomic compare-and-set reserving a slot on `EmailAccount.dailySendCount`, and the matching release when the provider refuses a message outright. Both go through `withTenantRaw` and address a single row by id. Raw SQL rather than a read-modify-write so two workers cannot both spend the last send of a quota; the release is dated to today and floored at zero so it can never mint one. |
+| `workers/email.ts` | 148, 191 | The daily send quota: an atomic compare-and-set reserving a slot on `EmailAccount.dailySendCount`, and the matching release when the provider refuses a message outright. Both go through `withTenantRaw` and address a single row by id. Raw SQL rather than a read-modify-write so two workers cannot both spend the last send of a quota; the release is dated to today and floored at zero so it can never mint one. |
 | `workers/healthcheck.ts` | 28 | `SELECT 1` liveness probe. Touches no tenant-owned table. |
 
 ---
@@ -110,9 +110,9 @@ Raw SQL is a ROOT client operation. The extension is registered as `query.$allMo
 
 | | Count |
 |---|---|
-| Category A sites | 27 |
+| Category A sites | 29 |
 | Category B sites | 8 |
 | Category C sites | 46 |
-| All sites | 81 |
+| All sites | 83 |
 | Unreviewed | 0 |
 

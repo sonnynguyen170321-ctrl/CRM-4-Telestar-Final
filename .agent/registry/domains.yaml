@@ -206,6 +206,13 @@ domains:
       - app/api/snippets/**
       - app/api/email/preview/**
       - app/api/email/attachments/**
+      # Send controls (PR G): status / cancel / reschedule of a composed message, draft autosave, test send,
+      # the pre-send checklist and the tenant tracking default.
+      - app/api/email/outbound/**
+      - app/api/email/drafts/**
+      - app/api/email/test-send/**
+      - app/api/email/preflight/**
+      - app/api/email/send-defaults/**
       - components/compose/**
       # createOutboundMessage / enqueueEmailSendWorkflow: the one door every send goes through.
       - lib/workflows/email.ts
@@ -233,6 +240,7 @@ domains:
       - tests/email-safety.test.ts
       - tests/email-send-paused-mailbox.test.ts
       - tests/compose-*.test.ts
+      - tests/composer-*.test.ts
       - tests/personalization-*.test.ts
       - tests/email-composer-fixes.test.ts
       - tests/unsubscribe.test.ts

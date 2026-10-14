@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
-import { enqueue } from '@/lib/bullmq/enqueue';
+import { dedupeKeyFor, enqueue, enqueueReschedule, removeQueuedJob } from '@/lib/bullmq/enqueue';
+import type { SendTiming } from '@/lib/email/sendControls';
 import { JobType, type EmailSendPayload, type EmailApplyReplyPayload, type EmailApplyBouncePayload } from '@/lib/bullmq';
 import { buildIdempotencyKey, OUTBOUND_STATUS, type OutboundSendSource } from '@/lib/email/idempotency';
 
@@ -48,6 +49,11 @@ export async function createOutboundMessage(params: {
   inReplyToOutboundId?: string | null;
   /** The prospect's message an inbox reply answers; the worker threads the reply under it. */
   inReplyToInboundId?: string | null;
+  /** Composer send controls: the scheduled time, who wrote it, and the per-email tracking decision. */
+  scheduledFor?: Date | null;
+  composedById?: string | null;
+  trackOpens?: boolean | null;
+  trackClicks?: boolean | null;
 }) {
   const idempotencyKey = buildIdempotencyKey(params.source);
   return prisma.outboundMessage.upsert({
@@ -72,6 +78,11 @@ export async function createOutboundMessage(params: {
       // Only when set, so a send that is not a reply writes exactly the row it always did.
       ...(params.inReplyToOutboundId ? { inReplyToOutboundId: params.inReplyToOutboundId } : {}),
       ...(params.inReplyToInboundId ? { inReplyToInboundId: params.inReplyToInboundId } : {}),
+      // Only when set: a sequence send writes exactly the row it always did.
+      ...(params.scheduledFor ? { scheduledFor: params.scheduledFor } : {}),
+      ...(params.composedById ? { composedById: params.composedById } : {}),
+      ...(params.trackOpens != null ? { trackOpens: params.trackOpens } : {}),
+      ...(params.trackClicks != null ? { trackClicks: params.trackClicks } : {}),
       idempotencyKey,
       status: OUTBOUND_STATUS.PENDING,
       tenantId: params.tenantId,
@@ -84,6 +95,74 @@ export async function enqueueEmailSendWorkflow(
   tenantId: string
 ): Promise<string> {
   return enqueue(JobType.EMAIL_SEND, payload, { tenantId });
+}
+
+/** The job payload for a stored message. One definition, so a cancel finds the job the send queued. */
+export function emailSendPayloadFor(row: {
+  id: string;
+  accountId: string;
+  to: string;
+  subject: string | null;
+  body: string | null;
+  leadId: string;
+  templateId: string | null;
+}): EmailSendPayload {
+  return {
+    outboundMessageId: row.id,
+    accountId: row.accountId,
+    to: row.to,
+    subject: row.subject ?? '',
+    body: row.body ?? '',
+    leadId: row.leadId,
+    ...(row.templateId ? { templateId: row.templateId } : {}),
+  };
+}
+
+const scheduledDiscriminator = (at: Date) => `sched:${at.toISOString()}`;
+
+/**
+ * Queue a composed message according to its timing: straight away, after the undo window, or at
+ * the scheduled time. The worker re-checks `scheduledFor` and the status, so the queue timing is
+ * an optimisation of when to wake, never the thing that decides whether to send.
+ */
+export async function enqueueTimedEmailSend(
+  payload: EmailSendPayload,
+  tenantId: string,
+  timing: SendTiming,
+): Promise<string> {
+  if (timing.kind === 'scheduled') {
+    return enqueueReschedule(JobType.EMAIL_SEND, payload, {
+      tenantId,
+      delay: timing.delayMs,
+      discriminator: scheduledDiscriminator(timing.scheduledFor),
+    });
+  }
+  if (timing.kind === 'undo') {
+    return enqueue(JobType.EMAIL_SEND, payload, { tenantId, delay: timing.delayMs });
+  }
+  return enqueueEmailSendWorkflow(payload, tenantId);
+}
+
+/**
+ * Take a composed message's waiting job off the queue (undo, cancel, reschedule). Tries the key of
+ * the undo / immediate job and the key of the scheduled job for the time it was scheduled for.
+ * Best effort: the status compare-and-set in the cancel route is what stops the send.
+ */
+export async function removeTimedEmailSend(
+  payload: EmailSendPayload,
+  tenantId: string,
+  scheduledFor: Date | null,
+): Promise<void> {
+  const record = payload as unknown as Record<string, unknown>;
+  const keys = [dedupeKeyFor(JobType.EMAIL_SEND, tenantId, record)];
+  if (scheduledFor) keys.push(dedupeKeyFor(JobType.EMAIL_SEND, tenantId, record, scheduledDiscriminator(scheduledFor)));
+  for (const key of keys) {
+    try {
+      await removeQueuedJob(JobType.EMAIL_SEND, tenantId, key);
+    } catch (err) {
+      console.warn('[email] could not remove the queued send job:', err);
+    }
+  }
 }
 
 export async function enqueueEmailSyncWorkflow(

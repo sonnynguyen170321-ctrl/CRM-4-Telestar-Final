@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Mail, Send, X, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Mail, Send, X, Loader2, Eye, EyeOff, Undo2 } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { addMergeFallback, findMergeTags } from '@/lib/compose/merge';
 import { isHtmlBlank, unchipifyMergeTags } from '@/lib/compose/html';
@@ -16,12 +16,16 @@ import { MissingValuesPanel, PreviewPane, SignatureBlock } from '@/components/co
 import AiVariablesPanel from '@/components/compose/AiVariablesPanel';
 import { needsServerCheck, useAiVariables, useLeadPreview, useMailboxes, useMissingValues, useSnippets } from '@/components/compose/useComposeData';
 import type { ComposeAttachment, MissingValue } from '@/components/compose/types';
+import { ChecklistPanel, ScheduleMenu, TestSendButton, TrackingToggles, usePreflight } from '@/components/compose/SendControls';
+import { useDraftAutosave } from '@/components/compose/useDraftAutosave';
+import { followOutbound } from '@/lib/compose/followOutbound';
+import { UNDO_DELAY_SECONDS } from '@/lib/email/sendControls';
 
 interface Task { id: string; type: string; title: string; description: string; dueDate: string; status: string; leadId: string; sequenceId?: string | null; sequenceStep?: number | null; }
 
 /** The builder's placeholder instructions say nothing a rep needs; real instructions are worth showing. */
-const PLACEHOLDER_INSTRUCTIONS = /^Log touchpoint details for the w+ outreach.?$/;
-interface Lead { id: string; firstName: string; lastName: string; company: string; title: string; email: string; phone?: string; sequenceId?: string; sequenceStep?: number; }
+const PLACEHOLDER_INSTRUCTIONS = /^Log touchpoint details for the \w+ outreach\.?$/;
+interface Lead { id: string; firstName: string; lastName: string; company: string; title: string; email: string; phone?: string; sequenceId?: string; sequenceStep?: number; timezone?: string | null; }
 interface Template { id: string; name: string; channel: string; subject?: string | null; body: string }
 
 interface MailComposerModalProps {
@@ -66,6 +70,14 @@ export default function MailComposerModal({ lead, onClose, task, onSent, initial
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [askDiscard, setAskDiscard] = useState(false);
+  // Send controls: a scheduled time (null = now), per-email tracking (preset from the tenant default),
+  // and the undo window that follows an immediate send.
+  const [scheduleAt, setScheduleAt] = useState<Date | null>(null);
+  const [trackOpens, setTrackOpens] = useState(false);
+  const [trackClicks, setTrackClicks] = useState(false);
+  const [undo, setUndo] = useState<{ id: string; left: number } | null>(null);
+  const draftRestoredRef = useRef(false);
+  const isSequenceStep = Boolean(task?.sequenceId);
 
   const { mailboxes, loading: mailboxesLoading } = useMailboxes();
   const { snippets, createSnippet } = useSnippets();
@@ -97,6 +109,44 @@ ${body}`;
   const hasExtras = attachments.length > 0 || cc.length > 0 || bcc.length > 0;
   const isDirty = hasExtras || (isHtmlBlank(body) ? false : body !== (initialBody ?? '') || subject !== (initialSubject ?? ''));
 
+  const draft = useDraftAutosave(
+    { leadId: lead.id },
+    { subject, bodyHtml: body, cc, bcc, accountId, attachments },
+    isDirty && !sending && !undo,
+  );
+
+  // What was saved last time wins over a default template: restore it once, when it arrives.
+  useEffect(() => {
+    const saved = draft.restored;
+    if (!saved || draftRestoredRef.current) return;
+    draftRestoredRef.current = true;
+    setSubject(saved.subject);
+    setBody(saved.bodyHtml);
+    setCc(saved.cc);
+    setBcc(saved.bcc);
+    setAttachments(saved.attachments);
+    if (saved.accountId) setAccountId(saved.accountId);
+    if (saved.cc.length || saved.bcc.length) setShowCopies(true);
+    showToast('Draft restored', 'info');
+  }, [draft.restored, showToast]);
+
+  // The tracking toggles start from the tenant default.
+  useEffect(() => {
+    let live = true;
+    fetch('/api/email/send-defaults')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { trackOpens: boolean; trackClicks: boolean } | null) => {
+        if (live && d) { setTrackOpens(d.trackOpens); setTrackClicks(d.trackClicks); }
+      })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, []);
+
+  const checklist = usePreflight({
+    enabled: Boolean(account) && !mailboxesLoading && !undo,
+    leadId: lead.id, accountId, subject, body, bulk: Boolean(lead.sequenceId),
+  });
+
   const discardUploads = useCallback(() => {
     for (const a of attachments) void fetch(`/api/email/attachments/${a.id}`, { method: 'DELETE' }).catch(() => undefined);
   }, [attachments]);
@@ -107,7 +157,7 @@ ${body}`;
     onClose();
   }, [isDirty, onClose, sending]);
 
-  const discard = () => { discardUploads(); onClose(); };
+  const discard = () => { discardUploads(); void draft.discard(); onClose(); };
 
   // Escape: an open menu or popover claims it first (it stops the event before it gets here; the
   // editor's own key handling marks it as handled, so default-prevented is not a signal);
@@ -136,6 +186,7 @@ ${body}`;
         setTemplates(emailTemplates);
         const stepConfig = sequenceData?.steps?.find((s) => s.order === (task?.sequenceStep ?? lead.sequenceStep));
         const t = emailTemplates.find((x) => x.id === (stepConfig?.templateId ?? ''));
+        if (draftRestoredRef.current) return;
         if (t && !initialBody) {
           setSelectedTemplateId(t.id);
           setSubject(t.subject ?? DEFAULT_SUBJECT);
@@ -182,7 +233,70 @@ ${body}`;
     showToast(result.ok ? `Snippet "${name}" saved` : result.error, result.ok ? 'success' : 'error');
   };
 
-  const canSend = Boolean(account) && !account?.sendPausedAt && !sending && !mailboxesLoading && !isHtmlBlank(body) && subject.trim() !== '';
+  const canSend = Boolean(account) && !account?.sendPausedAt && !sending && !undo && !mailboxesLoading && !isHtmlBlank(body) && subject.trim() !== '' && checklist.canSend;
+
+  // After an immediate send the email waits UNDO_DELAY_SECONDS in the queue. The composer stays
+  // mounted (hidden), so Undo restores exactly what was written; when the window ends it closes and
+  // a toast follows the message to sent / held back / failed.
+  useEffect(() => {
+    if (!undo) return;
+    if (undo.left <= 0) {
+      const id = undo.id;
+      setUndo(null);
+      onSent?.();
+      followOutbound(id, lead.email, showToast);
+      onClose();
+      return;
+    }
+    const timer = setTimeout(() => setUndo((u) => (u ? { ...u, left: u.left - 1 } : u)), 1000);
+    return () => clearTimeout(timer);
+  }, [undo, onClose, onSent, lead.email, showToast]);
+
+  const undoSend = async () => {
+    if (!undo) return;
+    const { id } = undo;
+    try {
+      const res = await fetch(`/api/email/outbound/${encodeURIComponent(id)}/cancel`, { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.error || 'It could not be taken back.', 'error');
+        setUndo({ id, left: 0 });
+        return;
+      }
+    } catch {
+      showToast('It could not be taken back.', 'error');
+      setUndo({ id, left: 0 });
+      return;
+    }
+    // A fresh key: this is a new attempt, not a retry of the one just cancelled.
+    requestIdRef.current = crypto.randomUUID();
+    draft.markSent();
+    setUndo(null);
+    showToast('Send cancelled. Your draft is back.', 'info');
+  };
+
+  const sendTest = async () => {
+    if (!account) return { ok: false, message: 'No mailbox' };
+    try {
+      const res = await fetch('/api/email/test-send', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          leadId: lead.id, accountId: account.id, subject, body,
+          ...(attachments.length ? { attachmentIds: attachments.map((a) => a.id) } : {}),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      const message = res.ok
+        ? data.dryRun ? 'Test not sent: this environment is in dry-run mode' : `Test sent to ${data.to}`
+        : data.error || 'The test could not be sent';
+      showToast(message, res.ok ? (data.dryRun ? 'info' : 'success') : 'error');
+      return { ok: res.ok, message };
+    } catch {
+      showToast('The test could not be sent', 'error');
+      return { ok: false, message: 'error' };
+    }
+  };
 
   const submit = async () => {
     if (!account) {
@@ -207,6 +321,10 @@ ${body}`;
           templateId: selectedTemplateId || undefined,
           taskId: task?.id,
           clientRequestId: requestIdRef.current,
+          trackOpens,
+          trackClicks,
+          // A cadence step cannot be taken back, so it goes at once: no schedule, no undo window.
+          ...(isSequenceStep ? {} : scheduleAt ? { scheduledFor: scheduleAt.toISOString() } : { delaySeconds: UNDO_DELAY_SECONDS }),
           ...(cc.length ? { cc } : {}),
           ...(bcc.length ? { bcc } : {}),
           ...(attachments.length ? { attachmentIds: attachments.map((a) => a.id) } : {}),
@@ -215,11 +333,21 @@ ${body}`;
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Failed to send email.');
 
-      showToast(`Email queued to ${lead.email}`, 'success');
       const dropped = (data.droppedCopies ?? []) as Array<{ address: string; reason: string }>;
       if (dropped.length > 0) showToast(`Not copied: ${dropped.map((d) => `${d.address} (${d.reason})`).join(', ')}`, 'warning');
-      onSent?.();
-      onClose();
+      draft.markSent();
+      if (data.sendAt) {
+        showToast(`Scheduled for ${new Date(data.sendAt).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}. Cancel or change it from the Sent folder.`, 'success');
+        onSent?.();
+        onClose();
+      } else if (data.undoSeconds > 0) {
+        setUndo({ id: data.outboundMessageId, left: data.undoSeconds });
+      } else {
+        showToast(`Email queued to ${lead.email}`, 'success');
+        onSent?.();
+        followOutbound(data.outboundMessageId, lead.email, showToast);
+        onClose();
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to send email.';
       setError(msg);
@@ -229,8 +357,20 @@ ${body}`;
     }
   };
 
+  if (undo) {
+    return (
+      <div role="status" className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-xl border border-card-border bg-card-bg px-4 py-3 text-xs shadow-2xl">
+        <Loader2 className="h-4 w-4 animate-spin text-blue-500" aria-hidden="true" />
+        <span className="font-semibold text-text-primary">Sending to {lead.email} in {undo.left}s...</span>
+        <button type="button" onClick={() => void undoSend()} className="inline-flex items-center gap-1 rounded-lg border border-card-border px-2.5 py-1 font-semibold text-brand-orange-text hover:bg-card-border/30 focus-ring">
+          <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> Undo
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Compose email">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4${undo ? ' hidden' : ''}`} role="dialog" aria-modal="true" aria-label="Compose email">
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={requestClose} />
 
       <form
@@ -325,6 +465,7 @@ ${body}`;
           {!previewOn && account && <SignatureBlock html={account.signaturePreview} mailboxEmail={account.email} onNavigate={onClose} />}
           <AttachmentBar attachments={attachments} onChange={setAttachments} templateAttachments={templateAttachments} disabled={sending} />
 
+          <ChecklistPanel state={checklist} />
           {error && <p role="alert" className="text-xs text-brand-red font-semibold">{error}</p>}
         </div>
 
@@ -345,7 +486,12 @@ ${body}`;
             </div>
           ) : (
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-text-muted">Ctrl+Enter to send</p>
+              <div className="flex flex-wrap items-center gap-3">
+                <p className="text-xs text-text-muted">Ctrl+Enter to send{draft.savedAt ? ' - draft saved' : ''}</p>
+                {!isSequenceStep && <ScheduleMenu value={scheduleAt} onChange={setScheduleAt} leadTimezone={lead.timezone} disabled={sending} />}
+                <TrackingToggles opens={trackOpens} clicks={trackClicks} onChange={(t) => { setTrackOpens(t.opens); setTrackClicks(t.clicks); }} disabled={sending} />
+                <TestSendButton disabled={!canSend} onSend={sendTest} />
+              </div>
               <div className="flex gap-2">
                 <button type="button" onClick={requestClose}
                   className="px-3.5 py-2 border border-card-border bg-bg-main hover:bg-card-border/30 rounded-lg text-xs font-semibold text-text-secondary transition-colors focus-ring">
@@ -354,7 +500,7 @@ ${body}`;
                 <button type="submit" disabled={!account || Boolean(account.sendPausedAt) || !canSend}
                   className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-1.5 active:scale-95 focus-ring">
                   {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <Send className="w-3.5 h-3.5" aria-hidden="true" />}
-                  <span>{sending ? 'Sending…' : missing.length > 0 ? 'Send anyway' : 'Send Email'}</span>
+                  <span>{sending ? 'Sending…' : scheduleAt && !isSequenceStep ? 'Schedule' : missing.length > 0 ? 'Send anyway' : 'Send Email'}</span>
                 </button>
               </div>
             </div>

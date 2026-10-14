@@ -203,7 +203,22 @@ export const copyRecipientList = z
 /** Ids of uploaded composer attachments (POST /api/email/attachments) to send with the message. */
 export const composeAttachmentIds = z.array(id).max(10);
 
+/**
+ * The composer's send controls, shared by the one-off send and the inbox reply. All optional: a
+ * caller that sends none of them gets exactly the behaviour it always had.
+ */
+export const sendControlFields = {
+  /** ISO time to send at (lib/email/sendControls.ts bounds it: a minute to 90 days ahead). */
+  scheduledFor: z.string().max(40).optional(),
+  /** Undo window in seconds for an immediate send; 0 or absent sends straight away. */
+  delaySeconds: z.number().int().min(0).max(30).optional(),
+  /** Per-email tracking; absent takes the tenant default. */
+  trackOpens: z.boolean().optional(),
+  trackClicks: z.boolean().optional(),
+};
+
 export const sendEmailSchema = z.object({
+  ...sendControlFields,
   accountId: id,
   to: z.string().email().max(320),
   subject: z.string().min(1).max(998).optional(),

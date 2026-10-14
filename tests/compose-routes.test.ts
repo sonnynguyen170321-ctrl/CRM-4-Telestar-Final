@@ -23,6 +23,8 @@ vi.mock('@/lib/auth', async (importOriginal) => {
 vi.mock('@/lib/workflows/email', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/workflows/email')>()),
   enqueueEmailSendWorkflow: (...a: unknown[]) => mockEnqueue(...a),
+  // The send routes queue through this; for an immediate send it is the same call, spied here.
+  enqueueTimedEmailSend: (payload: unknown, tenantId: unknown) => mockEnqueue(payload, tenantId),
 }));
 
 import { prisma } from '@/lib/prisma';

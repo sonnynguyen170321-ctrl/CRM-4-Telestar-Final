@@ -89,6 +89,11 @@ export const OUTBOUND_STATUS = {
   RECONCILIATION_REQUIRED: 'reconciliation_required',
   /** Given up on. Terminal; requires a human to start a new send. */
   PERMANENTLY_FAILED: 'permanently_failed',
+  /**
+   * The rep took it back before it reached the provider (undo send, or cancelling a scheduled send).
+   * Never sent by the worker; only the composer revives it, by a CAS back to `pending`.
+   */
+  CANCELLED: 'cancelled',
 } as const;
 
 export type OutboundStatus = (typeof OUTBOUND_STATUS)[keyof typeof OUTBOUND_STATUS];
